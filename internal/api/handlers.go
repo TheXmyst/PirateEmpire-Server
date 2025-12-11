@@ -200,8 +200,13 @@ func Register(c echo.Context) error {
 	}
 
 	// Transaction Committed
-
 	tx.Commit()
+
+	// Ensure player has 3 fleets (after transaction commit)
+	if err := ensurePlayerFleets(db, &island); err != nil {
+		fmt.Printf("[FLEET] Register: Failed to create initial fleets: %v\n", err)
+		// Continue anyway - fleets can be created later
+	}
 
 	return c.JSON(http.StatusCreated, RegisterResponse{
 		PlayerID: player.ID,
@@ -301,6 +306,12 @@ func Login(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Player has no island!"})
 	}
 
+	// Ensure player has 3 fleets (migration path for old accounts)
+	if err := ensurePlayerFleets(db, &island); err != nil {
+		fmt.Printf("[FLEET] Login: Failed to ensure fleets: %v\n", err)
+		// Continue anyway - fleets can be created later
+	}
+
 	// Generate auth token
 	token, err := auth.GenerateToken(player.ID, player.Username, player.IsAdmin)
 	if err != nil {
@@ -331,9 +342,23 @@ func GetStatus(c echo.Context) error {
 	db := repository.GetDB()
 	var player domain.Player
 
-	// Preload Islands, Buildings AND Ships
-	if err := db.Preload("Islands.Buildings").Preload("Islands.Ships").First(&player, "id = ?", playerID).Error; err != nil {
+	// Preload Islands, Buildings, Ships AND Fleets
+	if err := db.Preload("Islands.Buildings").Preload("Islands.Ships").Preload("Islands.Fleets.Ships").First(&player, "id = ?", playerID).Error; err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+	}
+
+	// Ensure player has 3 fleets (create missing ones) - migration path for old accounts
+	if len(player.Islands) > 0 {
+		island := &player.Islands[0]
+		if err := ensurePlayerFleets(db, island); err != nil {
+			fmt.Printf("[FLEET] GetStatus: Failed to ensure fleets: %v\n", err)
+			// Continue anyway - try to reload fleets
+		} else {
+			// Reload fleets after ensuring they exist
+			if err := db.Preload("Ships").Where("island_id = ?", island.ID).Find(&island.Fleets).Error; err != nil {
+				fmt.Printf("[FLEET] GetStatus: Failed to reload fleets: %v\n", err)
+			}
+		}
 	}
 
 	// LAZY UPDATE: Check Research Completion on Read
@@ -360,6 +385,7 @@ func GetStatus(c echo.Context) error {
 			player.UnlockedTechsJSON = newJSON
 			player.ResearchingTechID = ""
 			player.ResearchFinishTime = time.Time{}
+			player.ResearchTotalDurationSeconds = 0 // Reset when research completes
 
 			// Save and continue (so returned JSON is updated)
 			db.Save(&player)
@@ -805,6 +831,8 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
 	}
 
+	// Note: We will recreate the 3 fleets after the transaction commits
+
 	// 5. Reset Island to initial state (same as Register)
 	island.Level = 1
 	island.LastUpdated = time.Now()
@@ -849,6 +877,12 @@ func ResetProgress(c echo.Context) error {
 	}
 
 	tx.Commit()
+
+	// After transaction commit, recreate the 3 fleets
+	if err := ensurePlayerFleets(db, &island); err != nil {
+		fmt.Printf("Reset: Failed to recreate fleets: %v\n", err)
+		// Continue anyway - fleets can be created later
+	}
 
 	// Log success
 	fmt.Printf("Reset success: player_id=%s, island_id=%s\n", playerID, island.ID)
@@ -1019,16 +1053,29 @@ func StartResearch(c echo.Context) error {
 		_ = json.Unmarshal(player.UnlockedTechsJSON, &unlockedList)
 	}
 	bonuses := economy.CalculateTechBonuses(unlockedList)
-
-	reduction := bonuses.ResearchTimeReduce
-	if reduction > 0.9 {
-		reduction = 0.9
-	} // Cap reduction
-	finalDuration := float64(tech.TimeSec) * (1.0 - reduction)
+	
+	// Calculate Academy Research Bonus
+	academyBonus := economy.CalculateAcademyResearchBonus(maxAcad)
+	
+	// Combine tech bonus and academy bonus
+	totalReduction := bonuses.ResearchTimeReduce + academyBonus
+	if totalReduction > 0.9 {
+		totalReduction = 0.9
+	} // Cap total reduction at 90%
+	
+	baseTime := float64(tech.TimeSec)
+	finalDuration := baseTime * (1.0 - totalReduction)
+	
+	// Store the final duration in seconds for client progress bar
+	player.ResearchTotalDurationSeconds = finalDuration
 
 	finishTime := time.Now().Add(time.Duration(finalDuration) * time.Second)
 	player.ResearchingTechID = req.TechID
 	player.ResearchFinishTime = finishTime
+	
+	// Debug logging
+	fmt.Printf("[TECH] StartResearch: tech=%s academyLevel=%d base=%.2fs bonusTech=%.3f bonusAcademy=%.3f totalReduction=%.3f final=%.2fs\n",
+		req.TechID, maxAcad, baseTime, bonuses.ResearchTimeReduce, academyBonus, totalReduction, finalDuration)
 
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
@@ -1315,55 +1362,120 @@ type AddShipToFleetRequest struct {
 func AddShipToFleet(c echo.Context) error {
 	req := new(AddShipToFleetRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		fmt.Printf("[FLEET] AddShipToFleet: Invalid request: %v\n", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
+
+	fmt.Printf("[FLEET] AddShipToFleet request: fleet_id=%s, ship_id=%s\n", req.FleetID, req.ShipID)
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	authenticatedPlayer := auth.GetAuthenticatedPlayer(c)
 	if authenticatedPlayer == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		fmt.Printf("[FLEET] AddShipToFleet: No authenticated player\n")
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
 	}
 	playerID := authenticatedPlayer.ID
+	fmt.Printf("[FLEET] AddShipToFleet: Authenticated player_id=%s\n", playerID)
 
 	db := repository.GetDB()
 
 	// 1. Load Fleet & Player Techs
 	var fleet domain.Fleet
 	if err := db.Preload("Ships").First(&fleet, "id = ?", req.FleetID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Fleet not found"})
+		fmt.Printf("[FLEET] AddShipToFleet: Fleet not found: fleet_id=%s, error=%v\n", req.FleetID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
+	fmt.Printf("[FLEET] AddShipToFleet: Fleet found: fleet_id=%s, island_id=%s, current_ships=%d\n", fleet.ID, fleet.IslandID, len(fleet.Ships))
+
 	// Verify Ownership via Island -> Player (use authenticated playerID, not req.PlayerID)
 	var island domain.Island
-	if err := db.First(&island, "id = ?", fleet.IslandID).Error; err != nil || island.PlayerID != playerID {
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "Not your fleet"})
+	if err := db.First(&island, "id = ?", fleet.IslandID).Error; err != nil {
+		fmt.Printf("[FLEET] AddShipToFleet: Island not found: island_id=%s, error=%v\n", fleet.IslandID, err)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Île introuvable"})
+	}
+	if island.PlayerID != playerID {
+		fmt.Printf("[FLEET] AddShipToFleet: Ownership mismatch: island.player_id=%s, authenticated=%s\n", island.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Cette flotte ne vous appartient pas"})
+	}
+
+	// Ensure player has 3 fleets (in case they were missing)
+	if err := ensurePlayerFleets(db, &island); err != nil {
+		fmt.Printf("[FLEET] AddShipToFleet: Failed to ensure fleets: %v\n", err)
+		// Continue anyway - try to proceed with the request
+	}
+
+	// Reload fleet to get updated data
+	if err := db.Preload("Ships").First(&fleet, "id = ?", req.FleetID).Error; err != nil {
+		fmt.Printf("[FLEET] AddShipToFleet: Fleet not found after ensure: fleet_id=%s, error=%v\n", req.FleetID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
 	// 2. Use authenticated player for Techs (already loaded from context)
 	player := authenticatedPlayer
 
+	// Check if fleet is unlocked based on tech requirements
+	if !isFleetUnlocked(fleet.Name, player.UnlockedTechs) {
+		// Determine which tech is needed
+		var requiredTech string
+		var techName string
+		if fleet.Name == "Flotte 2" {
+			requiredTech = "nav_fleet_1"
+			techName = "Amirauté"
+		} else if fleet.Name == "Flotte 3" {
+			requiredTech = "nav_fleet_2"
+			techName = "Grande Armada"
+		}
+		
+		if requiredTech != "" {
+			fmt.Printf("[FLEET] AddShipToFleet: Fleet is locked: fleet_name=%s, required_tech=%s\n", fleet.Name, requiredTech)
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": fmt.Sprintf("Cette flotte est verrouillée. Débloquez-la via la technologie '%s' (%s).", techName, requiredTech),
+			})
+		}
+		// Fallback for unknown fleet names
+		fmt.Printf("[FLEET] AddShipToFleet: Unknown fleet name: %s\n", fleet.Name)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
+	}
+
 	// 3. Check Capacity
 	maxShips := economy.GetMaxShipsPerFleet(player.UnlockedTechs)
+	fmt.Printf("[FLEET] AddShipToFleet: Capacity check: current=%d, max=%d\n", len(fleet.Ships), maxShips)
 	if len(fleet.Ships) >= maxShips {
-		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Fleet is full (%d/%d)", len(fleet.Ships), maxShips)})
+		fmt.Printf("[FLEET] AddShipToFleet: Fleet is full\n")
+		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Flotte pleine (%d/%d)", len(fleet.Ships), maxShips)})
 	}
 
 	// 4. Find Ship (use authenticated playerID, not req.PlayerID)
 	var ship domain.Ship
 	if err := db.First(&ship, "id = ? AND player_id = ?", req.ShipID, playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Ship not found"})
+		fmt.Printf("[FLEET] AddShipToFleet: Ship not found: ship_id=%s, player_id=%s, error=%v\n", req.ShipID, playerID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
 	}
-	// Check if already in a fleet (Optional: but logic implies moving or adding)
-	// If ship.FleetID != nil { ... }
+	fmt.Printf("[FLEET] AddShipToFleet: Ship found: ship_id=%s, name=%s, type=%s, state=%s, current_fleet_id=%v\n", ship.ID, ship.Name, ship.Type, ship.State, ship.FleetID)
+
+	// Check if ship is under construction
+	if ship.State == "UnderConstruction" {
+		fmt.Printf("[FLEET] AddShipToFleet: Ship is under construction\n")
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le navire est en cours de construction"})
+	}
+
+	// Check if already in a fleet
+	if ship.FleetID != nil {
+		fmt.Printf("[FLEET] AddShipToFleet: Ship already in fleet: fleet_id=%s\n", *ship.FleetID)
+		return c.JSON(http.StatusConflict, map[string]string{"error": "Le navire est déjà assigné à une flotte"})
+	}
 
 	// 5. Update Ship
 	ship.FleetID = &fleet.ID
 	if err := db.Save(&ship).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to add ship to fleet"})
+		fmt.Printf("[FLEET] AddShipToFleet: Failed to save ship: error=%v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de l'assignation"})
 	}
 
+	fmt.Printf("[FLEET] AddShipToFleet: Success! Ship %s added to fleet %s\n", ship.ID, fleet.ID)
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Ship added to fleet",
+		"message": "Navire assigné à la flotte",
 		"fleet":   fleet.ID,
 	})
 }
@@ -1394,7 +1506,105 @@ func GetFleets(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch fleets"})
 	}
 
-	return c.JSON(http.StatusOK, fleets)
+	// Ensure player has 3 fleets (create missing ones)
+	if err := ensurePlayerFleets(db, &island); err != nil {
+		fmt.Printf("[FLEET] GetFleets: Failed to ensure fleets: %v\n", err)
+		// Continue anyway - return what we have
+	}
+
+	// Reload fleets after ensuring they exist
+	if err := db.Preload("Ships").Where("island_id = ?", islandID).Find(&fleets).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch fleets"})
+	}
+
+	// Sort fleets by name to ensure consistent order (Flotte 1, 2, 3)
+	// Create a response DTO with unlocked field
+	type FleetResponse struct {
+		ID       uuid.UUID      `json:"id"`
+		IslandID uuid.UUID      `json:"island_id"`
+		Name     string         `json:"name"`
+		Ships    []domain.Ship  `json:"ships,omitempty"`
+		Unlocked bool           `json:"unlocked"`
+	}
+
+	fleetResponses := make([]FleetResponse, 0, len(fleets))
+	for _, fleet := range fleets {
+		// Determine if fleet is unlocked based on fleet number and player techs
+		unlocked := isFleetUnlocked(fleet.Name, player.UnlockedTechs)
+		fleetResponses = append(fleetResponses, FleetResponse{
+			ID:       fleet.ID,
+			IslandID: fleet.IslandID,
+			Name:     fleet.Name,
+			Ships:    fleet.Ships,
+			Unlocked: unlocked,
+		})
+	}
+
+	return c.JSON(http.StatusOK, fleetResponses)
+}
+
+// ensurePlayerFleets ensures that a player has exactly 3 fleets (Flotte 1, 2, 3)
+// This function is idempotent - it will only create missing fleets
+func ensurePlayerFleets(db *gorm.DB, island *domain.Island) error {
+	// Get existing fleets for this island
+	var existingFleets []domain.Fleet
+	if err := db.Where("island_id = ?", island.ID).Find(&existingFleets).Error; err != nil {
+		return fmt.Errorf("failed to query existing fleets: %w", err)
+	}
+
+	// Create a map of existing fleet names for quick lookup
+	existingNames := make(map[string]bool)
+	for _, f := range existingFleets {
+		existingNames[f.Name] = true
+	}
+
+	// Create missing fleets
+	fleetNames := []string{"Flotte 1", "Flotte 2", "Flotte 3"}
+	for _, name := range fleetNames {
+		if !existingNames[name] {
+			newFleet := domain.Fleet{
+				ID:       uuid.New(),
+				IslandID: island.ID,
+				Name:     name,
+			}
+			if err := db.Create(&newFleet).Error; err != nil {
+				return fmt.Errorf("failed to create fleet %s: %w", name, err)
+			}
+			fmt.Printf("[FLEET] Created missing fleet: %s for island %s\n", name, island.ID)
+		}
+	}
+
+	return nil
+}
+
+// isFleetUnlocked determines if a fleet is unlocked based on its name and player's unlocked techs
+// Fleet 1 is always unlocked
+// Fleet 2 is unlocked by nav_fleet_1 (Amirauté)
+// Fleet 3 is unlocked by nav_fleet_2 (Grande Armada)
+func isFleetUnlocked(fleetName string, unlockedTechs []string) bool {
+	switch fleetName {
+	case "Flotte 1":
+		return true // Always unlocked
+	case "Flotte 2":
+		// Unlocked by nav_fleet_1 (Amirauté)
+		for _, tech := range unlockedTechs {
+			if tech == "nav_fleet_1" {
+				return true
+			}
+		}
+		return false
+	case "Flotte 3":
+		// Unlocked by nav_fleet_2 (Grande Armada)
+		for _, tech := range unlockedTechs {
+			if tech == "nav_fleet_2" {
+				return true
+			}
+		}
+		return false
+	default:
+		// Unknown fleet name - assume unlocked for backward compatibility
+		return true
+	}
 }
 
 // --- Dev Handlers ---
@@ -1614,4 +1824,264 @@ func DevTimeSkip(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": fmt.Sprintf("Skipped %d hours", hours)})
+}
+
+// --- CAPTAIN SYSTEM ---
+
+type GrantCaptainRequest struct {
+	TemplateID string `json:"template_id"`
+	Rarity     string `json:"rarity"`
+	Name       string `json:"name"`
+	SkillID    string `json:"skill_id"`
+}
+
+func DevGrantCaptain(c echo.Context) error {
+	req := new(GrantCaptainRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
+	}
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if err := checkDevAdmin(player); err != nil {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Accès refusé: admin uniquement"})
+	}
+	playerID := player.ID
+
+	// Validate rarity
+	rarity := domain.CaptainRarity(req.Rarity)
+	if rarity != domain.RarityCommon && rarity != domain.RarityRare && rarity != domain.RarityLegendary {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Rareté invalide (common, rare, legendary)"})
+	}
+
+	db := repository.GetDB()
+
+	// Create new captain
+	captain := domain.Captain{
+		ID:            uuid.New(),
+		PlayerID:      playerID,
+		TemplateID:    req.TemplateID,
+		Name:          req.Name,
+		Rarity:        rarity,
+		Level:         1,
+		XP:            0,
+		SkillID:       req.SkillID,
+		AssignedShipID: nil,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := db.Create(&captain).Error; err != nil {
+		fmt.Printf("[CAPTAIN] DevGrantCaptain: Failed to create captain: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la création du capitaine"})
+	}
+
+	fmt.Printf("[CAPTAIN] DevGrantCaptain: Created captain %s (%s) for player %s\n", captain.Name, captain.ID, playerID)
+	return c.JSON(http.StatusOK, captain)
+}
+
+func GetCaptains(c echo.Context) error {
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	var captains []domain.Captain
+	if err := db.Where("player_id = ?", playerID).Find(&captains).Error; err != nil {
+		fmt.Printf("[CAPTAIN] GetCaptains: Failed to load captains: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du chargement des capitaines"})
+	}
+
+	fmt.Printf("[CAPTAIN] GetCaptains: Found %d captains for player %s\n", len(captains), playerID)
+	return c.JSON(http.StatusOK, captains)
+}
+
+type AssignCaptainRequest struct {
+	CaptainID uuid.UUID `json:"captain_id"`
+	ShipID    uuid.UUID `json:"ship_id"`
+}
+
+func AssignCaptain(c echo.Context) error {
+	req := new(AssignCaptainRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
+	}
+
+	fmt.Printf("[CAPTAIN] AssignCaptain request: captain_id=%s, ship_id=%s\n", req.CaptainID, req.ShipID)
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[CAPTAIN] AssignCaptain: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// 1. Load captain and verify ownership
+	var captain domain.Captain
+	if err := tx.First(&captain, "id = ?", req.CaptainID).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Captain not found: captain_id=%s, error=%v\n", req.CaptainID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Capitaine introuvable"})
+	}
+	if captain.PlayerID != playerID {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Ownership mismatch: captain.player_id=%s, authenticated=%s\n", captain.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce capitaine ne vous appartient pas"})
+	}
+
+	// 2. Load ship and verify ownership
+	var ship domain.Ship
+	if err := tx.First(&ship, "id = ?", req.ShipID).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Ship not found: ship_id=%s, error=%v\n", req.ShipID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
+	}
+	if ship.PlayerID != playerID {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Ship ownership mismatch: ship.player_id=%s, authenticated=%s\n", ship.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce navire ne vous appartient pas"})
+	}
+
+	// 3. If captain is already assigned to another ship, unassign from that ship
+	if captain.AssignedShipID != nil && *captain.AssignedShipID != req.ShipID {
+		var oldShip domain.Ship
+		if err := tx.First(&oldShip, "id = ?", *captain.AssignedShipID).Error; err == nil {
+			// Clear the old ship's captain if it matches
+			if oldShip.CaptainID != nil && *oldShip.CaptainID == captain.ID {
+				oldShip.CaptainID = nil
+				if err := tx.Save(&oldShip).Error; err != nil {
+					tx.Rollback()
+					fmt.Printf("[CAPTAIN] AssignCaptain: Failed to unassign from old ship: %v\n", err)
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la réassignation"})
+				}
+				fmt.Printf("[CAPTAIN] AssignCaptain: Unassigned captain from old ship %s\n", *captain.AssignedShipID)
+			}
+		}
+	}
+
+	// 4. If target ship already has a captain, unassign that captain
+	if ship.CaptainID != nil {
+		var oldCaptain domain.Captain
+		if err := tx.First(&oldCaptain, "id = ?", *ship.CaptainID).Error; err == nil {
+			oldCaptain.AssignedShipID = nil
+			if err := tx.Save(&oldCaptain).Error; err != nil {
+				tx.Rollback()
+				fmt.Printf("[CAPTAIN] AssignCaptain: Failed to unassign old captain: %v\n", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la réassignation"})
+			}
+			fmt.Printf("[CAPTAIN] AssignCaptain: Unassigned old captain %s from ship\n", *ship.CaptainID)
+		}
+	}
+
+	// 5. Assign captain to ship
+	captain.AssignedShipID = &req.ShipID
+	ship.CaptainID = &captain.ID
+
+	if err := tx.Save(&captain).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Failed to save captain: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de l'assignation"})
+	}
+	if err := tx.Save(&ship).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] AssignCaptain: Failed to save ship: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de l'assignation"})
+	}
+
+	tx.Commit()
+
+	fmt.Printf("[CAPTAIN] AssignCaptain: Success! Captain %s assigned to ship %s\n", captain.ID, ship.ID)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Capitaine assigné au navire.",
+		"captain": captain,
+		"ship":    ship,
+	})
+}
+
+type UnassignCaptainRequest struct {
+	CaptainID uuid.UUID `json:"captain_id"`
+}
+
+func UnassignCaptain(c echo.Context) error {
+	req := new(UnassignCaptainRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
+	}
+
+	fmt.Printf("[CAPTAIN] UnassignCaptain request: captain_id=%s\n", req.CaptainID)
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[CAPTAIN] UnassignCaptain: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// 1. Load captain and verify ownership
+	var captain domain.Captain
+	if err := tx.First(&captain, "id = ?", req.CaptainID).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] UnassignCaptain: Captain not found: captain_id=%s, error=%v\n", req.CaptainID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Capitaine introuvable"})
+	}
+	if captain.PlayerID != playerID {
+		tx.Rollback()
+		fmt.Printf("[CAPTAIN] UnassignCaptain: Ownership mismatch: captain.player_id=%s, authenticated=%s\n", captain.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce capitaine ne vous appartient pas"})
+	}
+
+	// 2. If captain is assigned to a ship, clear the ship's captain reference
+	if captain.AssignedShipID != nil {
+		var ship domain.Ship
+		if err := tx.First(&ship, "id = ?", *captain.AssignedShipID).Error; err == nil {
+			// Only clear if the ship's captain matches
+			if ship.CaptainID != nil && *ship.CaptainID == captain.ID {
+				ship.CaptainID = nil
+				if err := tx.Save(&ship).Error; err != nil {
+					tx.Rollback()
+					fmt.Printf("[CAPTAIN] UnassignCaptain: Failed to clear ship captain: %v\n", err)
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du retrait"})
+				}
+				fmt.Printf("[CAPTAIN] UnassignCaptain: Cleared captain from ship %s\n", *captain.AssignedShipID)
+			}
+		}
+		// Clear captain's assignment
+		captain.AssignedShipID = nil
+		if err := tx.Save(&captain).Error; err != nil {
+			tx.Rollback()
+			fmt.Printf("[CAPTAIN] UnassignCaptain: Failed to save captain: %v\n", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du retrait"})
+		}
+	}
+
+	tx.Commit()
+
+	fmt.Printf("[CAPTAIN] UnassignCaptain: Success! Captain %s unassigned\n", captain.ID)
+	return c.JSON(http.StatusOK, map[string]string{"message": "Capitaine retiré du navire."})
 }

@@ -103,6 +103,107 @@
       }
     },
     {
+      "id": "tech_storage_1",
+      "name": "Organisation des stocks",
+      "description": "",
+      "tree": "economy",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "storage_wood": 0.05,
+        "storage_stone": 0.05
+      }
+    },
+    {
+      "id": "tech_storage_2",
+      "name": "Rangements améliorés",
+      "description": "",
+      "tree": "economy",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "storage_wood": 0.05,
+        "storage_stone": 0.05,
+        "storage_rum": 0.05
+      }
+    },
+    {
+      "id": "tech_storage_3",
+      "name": "Entrepôts optimisés",
+      "description": "",
+      "tree": "economy",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "storage_wood": 0.1,
+        "storage_stone": 0.1,
+        "storage_gold": 0.05
+      }
+    },
+    {
+      "id": "tech_storage_4",
+      "name": "Architecture de stockage",
+      "description": "",
+      "tree": "economy",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "storage_wood": 0.1,
+        "storage_stone": 0.1,
+        "storage_rum": 0.1,
+        "storage_gold": 0.1
+      }
+    },
+    {
+      "id": "tech_storage_5",
+      "name": "Silos géants",
+      "description": "",
+      "tree": "economy",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "storage_wood": 0.15,
+        "storage_stone": 0.15,
+        "storage_rum": 0.15,
+        "storage_gold": 0.15
+      }
+    },
+    {
       "id": "eco_storage_1",
       "name": "Entrepôts optimisés",
       "description": "",

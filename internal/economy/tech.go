@@ -227,3 +227,13 @@ func CalculateTechBonuses(unlockedTechs []string) TechBonuses {
 
 	return b
 }
+
+// CalculateAcademyResearchBonus calculates the research time reduction bonus from Academy level
+// Formula: If AcademyLevel <= 5 → 0, else (AcademyLevel - 5) * 0.0075
+// Returns a value between 0.0 and 0.1875 (0% to 18.75% reduction)
+func CalculateAcademyResearchBonus(academyLevel int) float64 {
+	if academyLevel <= 5 {
+		return 0.0
+	}
+	return float64(academyLevel-5) * 0.0075
+}

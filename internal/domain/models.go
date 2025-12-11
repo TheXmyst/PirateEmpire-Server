@@ -42,8 +42,9 @@ type Player struct {
 	UnlockedTechs     []string `json:"unlocked_techs" gorm:"-"`
 
 	// Active Research
-	ResearchingTechID  string    `json:"researching_tech_id" gorm:"default:''"`
-	ResearchFinishTime time.Time `json:"research_finish_time"`
+	ResearchingTechID         string    `json:"researching_tech_id" gorm:"default:''"`
+	ResearchFinishTime        time.Time `json:"research_finish_time"`
+	ResearchTotalDurationSeconds float64 `json:"current_research_total_duration_seconds" gorm:"default:0"` // Total duration in seconds (after bonuses)
 
 	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
 }
@@ -174,16 +175,28 @@ const (
 	Gunner  UnitType = "gunner"
 )
 
-type Captain struct {
-	ID       uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
-	PlayerID uuid.UUID `json:"player_id" gorm:"type:uuid;index"`
-	Name     string    `json:"name"`
-	Rarity   string    `json:"rarity"`
-	Portrait string    `json:"portrait"`
+// CaptainRarity represents the rarity level of a captain
+type CaptainRarity string
 
-	Command int `json:"command"`
-	Naval   int `json:"naval"`
-	Combat  int `json:"combat"`
+const (
+	RarityCommon    CaptainRarity = "common"
+	RarityRare      CaptainRarity = "rare"
+	RarityLegendary CaptainRarity = "legendary"
+)
+
+// Captain represents a ship captain owned by a player
+type Captain struct {
+	ID            uuid.UUID     `json:"id" gorm:"type:uuid;primary_key;"`
+	PlayerID      uuid.UUID     `json:"player_id" gorm:"type:uuid;index"`
+	TemplateID    string        `json:"template_id"` // e.g. "black_gale", "red_isabella"
+	Name          string        `json:"name"`
+	Rarity        CaptainRarity `json:"rarity"` // common, rare, legendary
+	Level         int           `json:"level" gorm:"default:1"`
+	XP            int           `json:"xp" gorm:"default:0"`
+	SkillID       string        `json:"skill_id"` // identifier for the main skill
+	AssignedShipID *uuid.UUID   `json:"assigned_ship_id" gorm:"type:uuid;index"` // nullable, indexed
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
 type Ship struct {
@@ -204,7 +217,7 @@ type Ship struct {
 
 	FinishTime time.Time `json:"finish_time"` // For construction/repair
 
-	CaptainID *uuid.UUID `json:"captain_id" gorm:"type:uuid"`
+	CaptainID *uuid.UUID `json:"captain_id" gorm:"type:uuid;index"`
 
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`
 	Crew     map[UnitType]int `json:"crew" gorm:"-"`

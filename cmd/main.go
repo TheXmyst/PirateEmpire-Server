@@ -55,6 +55,10 @@ func main() {
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
 		protected.GET("/fleets", api.GetFleets)
+		// Captain endpoints
+		protected.GET("/captains", api.GetCaptains)
+		protected.POST("/captains/assign", api.AssignCaptain)
+		protected.POST("/captains/unassign", api.UnassignCaptain)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)
@@ -66,6 +70,7 @@ func main() {
 		devRoutes.POST("/finish-research", api.DevFinishResearch)
 		devRoutes.POST("/finish-ship", api.DevFinishShip)
 		devRoutes.POST("/time-skip", api.DevTimeSkip)
+		devRoutes.POST("/grant-captain", api.DevGrantCaptain)
 	}
 
 	// Start Game Loop
