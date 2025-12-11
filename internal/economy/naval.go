@@ -1,0 +1,101 @@
+package economy
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
+)
+
+type ShipConfig struct {
+	Name                  string                          `json:"name"`
+	MaxHealth             float64                         `json:"max_health"`
+	CargoCapacity         float64                         `json:"cargo_capacity"`
+	BaseSpeed             float64                         `json:"base_speed"`
+	BuildTime             int                             `json:"build_time"` // Seconds
+	Cost                  map[domain.ResourceType]float64 `json:"cost"`
+	RepairCostFactor      map[domain.ResourceType]float64 `json:"repair_cost_factor"`
+	RequiredShipyardLevel int                             `json:"required_shipyard_level"`
+	RequiredTechID        string                          `json:"required_tech"`
+}
+
+var ShipInfos map[string]ShipConfig
+
+func LoadShipConfig(path string) error {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var data map[string]map[string]ShipConfig
+	if err := json.Unmarshal(file, &data); err != nil {
+		return err
+	}
+
+	if ships, ok := data["ships"]; ok {
+		ShipInfos = ships
+	} else {
+		return fmt.Errorf("invalid ship config format")
+	}
+	return nil
+}
+
+func GetShipStats(shipType string) (ShipConfig, error) {
+	if config, ok := ShipInfos[shipType]; ok {
+		return config, nil
+	}
+	return ShipConfig{}, fmt.Errorf("ship type not found: %s", shipType)
+}
+
+func CalculateShipBuildTime(shipType string, bonuses TechBonuses) int {
+	config, err := GetShipStats(shipType)
+	if err != nil {
+		return 3600 // Fallback
+	}
+
+	// Apply Build Reduction (Logistics)
+	// Reuse specific tech key if available, or generic build_reduce
+	// For now, using BuildTimeReduce from tech.go
+
+	reduction := bonuses.BuildTimeReduce
+	if reduction > 0.9 {
+		reduction = 0.9
+	}
+
+	finalTime := float64(config.BuildTime) * (1.0 - reduction)
+	return int(finalTime)
+}
+
+// GetMaxFleets returns the maximum number of fleets a player can have
+// based on their Shipyard level.
+// Levels 1-9: 1 Fleet
+// Levels 10-19: 2 Fleets
+// Levels 20+: 3 Fleets
+func GetMaxFleets(shipyardLevel int) int {
+	if shipyardLevel >= 20 {
+		return 3
+	}
+	if shipyardLevel >= 10 {
+		return 2
+	}
+	return 1
+}
+
+// GetMaxShipsPerFleet returns the maximum number of ships a single fleet can hold
+// based on unlocked technologies.
+// Base: 3
+// Tech nav_fleet_1: +1
+// Tech nav_fleet_2: +1
+func GetMaxShipsPerFleet(unlockedTechs []string) int {
+	capacity := 3
+	for _, tech := range unlockedTechs {
+		if tech == "nav_fleet_1" {
+			capacity++
+		}
+		if tech == "nav_fleet_2" {
+			capacity++
+		}
+	}
+	return capacity
+}

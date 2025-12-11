@@ -1,0 +1,1093 @@
+{
+  "economy": [
+    {
+      "id": "eco_wood_1",
+      "name": "Haches renforcées",
+      "description": "",
+      "tree": "economy",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "production_wood": 0.05
+      }
+    },
+    {
+      "id": "eco_stone_1",
+      "name": "Pioches solides",
+      "description": "",
+      "tree": "economy",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "production_stone": 0.05
+      }
+    },
+    {
+      "id": "eco_rum_1",
+      "name": "Fermentation basique",
+      "description": "",
+      "tree": "economy",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "production_rum": 0.05
+      }
+    },
+    {
+      "id": "eco_wood_2",
+      "name": "Scie circulaire",
+      "description": "",
+      "tree": "economy",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "production_wood": 0.05
+      }
+    },
+    {
+      "id": "eco_stone_2",
+      "name": "Explosifs miniers",
+      "description": "",
+      "tree": "economy",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "production_stone": 0.05
+      }
+    },
+    {
+      "id": "eco_rum_2",
+      "name": "Distillation double",
+      "description": "",
+      "tree": "economy",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "production_rum": 0.07
+      }
+    },
+    {
+      "id": "eco_storage_1",
+      "name": "Entrepôts optimisés",
+      "description": "",
+      "tree": "economy",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "storage_wood": 0.1,
+        "storage_stone": 0.1
+      }
+    },
+    {
+      "id": "eco_wood_3",
+      "name": "Foresterie avancée",
+      "description": "",
+      "tree": "economy",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "production_wood": 0.05
+      }
+    },
+    {
+      "id": "eco_stone_3",
+      "name": "Carrière profonde",
+      "description": "",
+      "tree": "economy",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "production_stone": 0.05
+      }
+    },
+    {
+      "id": "eco_gold_1",
+      "name": "Commerce de contrebande",
+      "description": "",
+      "tree": "economy",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "loot_bonus": 0.1
+      }
+    },
+    {
+      "id": "eco_storage_rum_1",
+      "name": "Caves à Rhum",
+      "description": "",
+      "tree": "economy",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "storage_rum": 0.1
+      }
+    },
+    {
+      "id": "eco_goldprod_1",
+      "name": "Taxes portuaires",
+      "description": "",
+      "tree": "economy",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "production_gold": 0.07
+      }
+    },
+    {
+      "id": "eco_storage_2",
+      "name": "Silos géants",
+      "description": "",
+      "tree": "economy",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "storage_wood": 0.1,
+        "storage_stone": 0.1
+      }
+    },
+    {
+      "id": "eco_rum_3",
+      "name": "Rhum millésimé",
+      "description": "",
+      "tree": "economy",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "production_rum": 0.08
+      }
+    },
+    {
+      "id": "eco_goldprod_2",
+      "name": "Banque centrale",
+      "description": "",
+      "tree": "economy",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "production_gold": 0.08
+      }
+    }
+  ],
+  "naval": [
+    {
+      "id": "tech_naval_1",
+      "name": "Voiles légères",
+      "description": "",
+      "tree": "naval",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "speed_bonus": 0.03
+      }
+    },
+    {
+      "id": "nav_wind_1",
+      "name": "Compas",
+      "description": "",
+      "tree": "naval",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "wind_bonus": 0.03
+      }
+    },
+    {
+      "id": "nav_counterwind_1",
+      "name": "Carène profilée",
+      "description": "",
+      "tree": "naval",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "counter_wind": 0.03
+      }
+    },
+    {
+      "id": "tech_naval_2",
+      "name": "Voiles latines",
+      "description": "",
+      "tree": "naval",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "speed_bonus": 0.04
+      }
+    },
+    {
+      "id": "nav_wind_2",
+      "name": "Astrolabe",
+      "description": "",
+      "tree": "naval",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "wind_bonus": 0.04
+      }
+    },
+    {
+      "id": "nav_counterwind_2",
+      "name": "Gouvernail renforcé",
+      "description": "",
+      "tree": "naval",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "counter_wind": 0.04
+      }
+    },
+    {
+      "id": "tech_naval_3",
+      "name": "Coque en cuivre",
+      "description": "",
+      "tree": "naval",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "speed_bonus": 0.05
+      }
+    },
+    {
+      "id": "nav_repairwood_1",
+      "name": "Charpentier de bord",
+      "description": "",
+      "tree": "naval",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "repair_wood": 0.05
+      }
+    },
+    {
+      "id": "nav_fleet_1",
+      "name": "Amirauté",
+      "description": "",
+      "tree": "naval",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "extra_ships": 1
+      }
+    },
+    {
+      "id": "nav_repairgold_1",
+      "name": "Contrats de réparation",
+      "description": "",
+      "tree": "naval",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "repair_gold": 0.1
+      }
+    },
+    {
+      "id": "nav_wind_3",
+      "name": "Sextant de précision",
+      "description": "",
+      "tree": "naval",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "wind_bonus": 0.08
+      }
+    },
+    {
+      "id": "tech_naval_4",
+      "name": "Cartographie",
+      "description": "",
+      "tree": "naval",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "travel_time": 0.03
+      }
+    },
+    {
+      "id": "nav_fleet_2",
+      "name": "Grande Armada",
+      "description": "",
+      "tree": "naval",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "extra_ships": 1
+      }
+    },
+    {
+      "id": "nav_repairglobal_1",
+      "name": "Cale sèche",
+      "description": "",
+      "tree": "naval",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "repair_global": 0.1
+      }
+    },
+    {
+      "id": "tech_naval_5",
+      "name": "Clipper",
+      "description": "",
+      "tree": "naval",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "speed_bonus": 0.08
+      }
+    }
+  ],
+  "combat": [
+    {
+      "id": "combat_hp_1",
+      "name": "Rations améliorées",
+      "description": "",
+      "tree": "combat",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "crew_hp": 0.05
+      }
+    },
+    {
+      "id": "combat_dmg_1",
+      "name": "Armes en fer",
+      "description": "",
+      "tree": "combat",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "crew_damage": 0.03
+      }
+    },
+    {
+      "id": "combat_guerrier_1",
+      "name": "Entrainement Guerrier",
+      "description": "",
+      "tree": "combat",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "guerrier_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_archer_1",
+      "name": "Entrainement Archer",
+      "description": "",
+      "tree": "combat",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "archer_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_fusilier_1",
+      "name": "Entrainement Fusilier",
+      "description": "",
+      "tree": "combat",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "fusilier_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_hp_2",
+      "name": "Médecin de bord",
+      "description": "",
+      "tree": "combat",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "crew_hp": 0.05
+      }
+    },
+    {
+      "id": "combat_dmg_2",
+      "name": "Poudre noire",
+      "description": "",
+      "tree": "combat",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "crew_damage": 0.05
+      }
+    },
+    {
+      "id": "combat_triangle_1",
+      "name": "Tactiques",
+      "description": "",
+      "tree": "combat",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "triangle_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_loss_1",
+      "name": "Blindage",
+      "description": "",
+      "tree": "combat",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "crew_loss_reduce": 0.05
+      }
+    },
+    {
+      "id": "combat_guerrier_2",
+      "name": "Acier trempé",
+      "description": "",
+      "tree": "combat",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "guerrier_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_archer_2",
+      "name": "Arcs longs",
+      "description": "",
+      "tree": "combat",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "archer_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_fusilier_2",
+      "name": "Canons rayés",
+      "description": "",
+      "tree": "combat",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "fusilier_bonus": 0.05
+      }
+    },
+    {
+      "id": "combat_dmg_3",
+      "name": "Artillerie lourde",
+      "description": "",
+      "tree": "combat",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "crew_damage": 0.07
+      }
+    },
+    {
+      "id": "combat_triangle_2",
+      "name": "Stratégie Navale",
+      "description": "",
+      "tree": "combat",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "triangle_bonus": 0.1,
+        "triangle_malus": 0.05
+      }
+    },
+    {
+      "id": "combat_loss_2",
+      "name": "Insubmersible",
+      "description": "",
+      "tree": "combat",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "crew_loss_reduce": 0.05
+      }
+    }
+  ],
+  "logistics": [
+    {
+      "id": "log_build_1",
+      "name": "Grues",
+      "description": "",
+      "tree": "logistics",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "build_reduce": 0.03
+      }
+    },
+    {
+      "id": "log_research_1",
+      "name": "Papier",
+      "description": "",
+      "tree": "logistics",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "research_reduce": 0.03
+      }
+    },
+    {
+      "id": "log_travel_1",
+      "name": "Cartes locales",
+      "description": "",
+      "tree": "logistics",
+      "tier": 1,
+      "required_townhall": 3,
+      "required_academy": 1,
+      "cost": {
+        "wood": 200,
+        "gold": 500
+      },
+      "research_time_sec": 60,
+      "effects": {
+        "travel_time": 0.05
+      }
+    },
+    {
+      "id": "log_build_2",
+      "name": "Échafaudages",
+      "description": "",
+      "tree": "logistics",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "build_reduce": 0.03
+      }
+    },
+    {
+      "id": "log_research_2",
+      "name": "Encre",
+      "description": "",
+      "tree": "logistics",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "research_reduce": 0.04
+      }
+    },
+    {
+      "id": "log_queue_1",
+      "name": "Contremaître",
+      "description": "",
+      "tree": "logistics",
+      "tier": 2,
+      "required_townhall": 5,
+      "required_academy": 2,
+      "cost": {
+        "wood": 1000,
+        "gold": 1500
+      },
+      "research_time_sec": 600,
+      "effects": {
+        "extra_queue": 1
+      }
+    },
+    {
+      "id": "log_travel_2",
+      "name": "Courants marins",
+      "description": "",
+      "tree": "logistics",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "travel_time": 0.02
+      }
+    },
+    {
+      "id": "log_build_3",
+      "name": "Maçonnerie",
+      "description": "",
+      "tree": "logistics",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "build_reduce": 0.04
+      }
+    },
+    {
+      "id": "log_research_3",
+      "name": "Bibliothèque",
+      "description": "",
+      "tree": "logistics",
+      "tier": 3,
+      "required_townhall": 7,
+      "required_academy": 3,
+      "cost": {
+        "wood": 3000,
+        "stone": 1000,
+        "gold": 5000
+      },
+      "research_time_sec": 3600,
+      "effects": {
+        "research_reduce": 0.05
+      }
+    },
+    {
+      "id": "log_queue_2",
+      "name": "Architecte",
+      "description": "",
+      "tree": "logistics",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "extra_queue": 1
+      }
+    },
+    {
+      "id": "log_travel_3",
+      "name": "Routes commerciales",
+      "description": "",
+      "tree": "logistics",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "travel_time": 0.03
+      }
+    },
+    {
+      "id": "log_research_4",
+      "name": "Laboratoire",
+      "description": "",
+      "tree": "logistics",
+      "tier": 4,
+      "required_townhall": 9,
+      "required_academy": 4,
+      "cost": {
+        "wood": 10000,
+        "stone": 5000,
+        "gold": 15000,
+        "rum": 2000
+      },
+      "research_time_sec": 14400,
+      "effects": {
+        "research_reduce": 0.04
+      }
+    },
+    {
+      "id": "log_build_4",
+      "name": "Ingénierie",
+      "description": "",
+      "tree": "logistics",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "build_reduce": 0.04
+      }
+    },
+    {
+      "id": "log_research_5",
+      "name": "Université",
+      "description": "",
+      "tree": "logistics",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "research_reduce": 0.05
+      }
+    },
+    {
+      "id": "log_travel_4",
+      "name": "Phare",
+      "description": "",
+      "tree": "logistics",
+      "tier": 5,
+      "required_townhall": 12,
+      "required_academy": 5,
+      "cost": {
+        "wood": 30000,
+        "stone": 15000,
+        "gold": 50000,
+        "rum": 10000
+      },
+      "research_time_sec": 36000,
+      "effects": {
+        "travel_time": 0.05
+      }
+    }
+  ]
+}

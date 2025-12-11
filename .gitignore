@@ -1,0 +1,23 @@
+# binaires
+*.exe
+*.dll
+
+#base de données (NE DOIT JAMAIS être commitée)
+*.db
+
+#fichiers sensibles
+*.env
+*.env.*
+config.json
+credentials.json
+
+#fichier temporaires / logs
+*.log
+logs/
+debug/
+temp/
+f2p_results.txt
+
+#output GO
+buid/
+dist/

@@ -1,0 +1,452 @@
+{
+    "build_time_curves": {
+        "production": {
+            "pivot": 10,
+            "early_base": 4,
+            "early_factor": 2.29984,
+            "late_base": 7200,
+            "late_factor": 1.17222
+        },
+        "utility": {
+            "pivot": 10,
+            "early_base": 6,
+            "early_factor": 2.29984,
+            "late_base": 10800,
+            "late_factor": 1.16159
+        },
+        "townhall": {
+            "pivot": 10,
+            "early_base": 12,
+            "early_factor": 2.25372,
+            "late_base": 18000,
+            "late_factor": 1.14266
+        }
+    },
+    "buildings": {
+        "Hôtel de Ville": {
+            "category": "townhall",
+            "base_cost": {
+                "wood": 200,
+                "stone": 200,
+                "gold": 700
+            },
+            "cost_growth": 1.41,
+            "base_build_time": 10,
+            "time_growth": 1.16,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 6,
+                    "req_tech": "log_build_1"
+                },
+                {
+                    "level": 11,
+                    "req_tech": "log_build_2"
+                },
+                {
+                    "level": 16,
+                    "req_tech": "log_build_3"
+                },
+                {
+                    "level": 21,
+                    "req_tech": "log_queue_2"
+                },
+                {
+                    "level": 26,
+                    "req_tech": "log_build_4"
+                }
+            ]
+        },
+        "Scierie": {
+            "category": "production",
+            "base_cost": {
+                "wood": 100,
+                "stone": 100
+            },
+            "cost_growth": 1.39,
+            "base_build_time": 3,
+            "time_growth": 1.14,
+            "base_production": 120,
+            "production_growth": 1.23,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 1
+                },
+                {
+                    "level": 4,
+                    "req_townhall": 3
+                },
+                {
+                    "level": 8,
+                    "req_tech": "eco_wood_1"
+                },
+                {
+                    "level": 12,
+                    "req_tech": "eco_wood_2"
+                },
+                {
+                    "level": 16,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "eco_wood_3"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "eco_wood_3"
+                }
+            ]
+        },
+        "Carrière": {
+            "category": "production",
+            "base_cost": {
+                "wood": 100,
+                "stone": 100
+            },
+            "cost_growth": 1.39,
+            "base_build_time": 3,
+            "time_growth": 1.14,
+            "base_production": 100,
+            "production_growth": 1.23,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 2,
+                    "req_building": "Scierie",
+                    "req_min_level": 1
+                },
+                {
+                    "level": 4,
+                    "req_townhall": 3
+                },
+                {
+                    "level": 8,
+                    "req_tech": "eco_stone_1"
+                },
+                {
+                    "level": 12,
+                    "req_tech": "eco_stone_2"
+                },
+                {
+                    "level": 16,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "eco_stone_3"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "eco_stone_3"
+                }
+            ]
+        },
+        "Mine d'Or": {
+            "category": "production",
+            "base_cost": {
+                "wood": 100,
+                "stone": 100
+            },
+            "cost_growth": 1.39,
+            "base_build_time": 3,
+            "time_growth": 1.12,
+            "base_production": 20,
+            "production_growth": 1.27,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 3
+                }
+            ]
+        },
+        "Distillerie": {
+            "category": "production",
+            "base_cost": {
+                "wood": 100,
+                "stone": 100
+            },
+            "cost_growth": 1.39,
+            "base_build_time": 3,
+            "time_growth": 1.15,
+            "base_production": 5,
+            "production_growth": 1.22,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 2
+                },
+                {
+                    "level": 4,
+                    "req_townhall": 4
+                },
+                {
+                    "level": 8,
+                    "req_tech": "eco_rum_1"
+                },
+                {
+                    "level": 12,
+                    "req_tech": "eco_rum_2"
+                },
+                {
+                    "level": 16,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "eco_rum_2"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "eco_rum_3"
+                }
+            ]
+        },
+        "Académie": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 150,
+                "stone": 200,
+                "gold": 500
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 6,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 3
+                },
+                {
+                    "level": 5,
+                    "req_townhall": 6
+                },
+                {
+                    "level": 10,
+                    "req_tech": "log_research_2"
+                },
+                {
+                    "level": 15,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "log_research_4"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "log_research_5"
+                }
+            ]
+        },
+        "Chantier Naval": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 150,
+                "stone": 150,
+                "gold": 400
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 6,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 4,
+                    "req_building": "Scierie",
+                    "req_min_level": 2,
+                    "req_tech": "tech_naval_1"
+                },
+                {
+                    "level": 5,
+                    "req_townhall": 6
+                },
+                {
+                    "level": 10,
+                    "req_tech": "tech_naval_2"
+                },
+                {
+                    "level": 15,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "tech_naval_2"
+                },
+                {
+                    "level": 25,
+                    "req_tech": "tech_naval_3"
+                },
+                {
+                    "level": 30,
+                    "req_townhall": 21
+                }
+            ]
+        },
+        "Entrepôt": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 150,
+                "stone": 150,
+                "gold": 400
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 6,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {
+                "wood": 20000,
+                "stone": 20000,
+                "rum": 20000,
+                "gold": 50000
+            },
+            "storage_growth": {
+                "wood": 1.21,
+                "stone": 1.21,
+                "rum": 1.24,
+                "gold": 1.23
+            },
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 1
+                },
+                {
+                    "level": 2,
+                    "req_townhall": 3
+                },
+                {
+                    "level": 3,
+                    "req_tech": "tech_storage_1"
+                },
+                {
+                    "level": 5,
+                    "req_townhall": 6
+                },
+                {
+                    "level": 8,
+                    "req_tech": "tech_storage_2"
+                },
+                {
+                    "level": 12,
+                    "req_tech": "tech_storage_3"
+                },
+                {
+                    "level": 16,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "tech_storage_4"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "tech_storage_5"
+                }
+            ]
+        },
+        "Le Nid du Flibustier": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 500,
+                "gold": 500,
+                "stone": 200,
+                "rum": 100
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 6,
+            "time_growth": 1.15,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 4,
+                    "req_building": "Académie",
+                    "req_min_level": 2
+                },
+                {
+                    "level": 5,
+                    "req_townhall": 6
+                },
+                {
+                    "level": 10,
+                    "req_tech": "combat_guerrier_1"
+                },
+                {
+                    "level": 15,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "combat_guerrier_2"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "combat_dmg_3"
+                }
+            ]
+        },
+        "La Chambre des Plans": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 200,
+                "gold": 200
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 6,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {}
+        }
+    }
+}
