@@ -15,11 +15,20 @@ import (
 // Engine handles the game loop and logic
 type Engine struct {
 	stopCh chan struct{}
+	// Checkpoint tracking: map island ID -> last checkpoint time
+	islandCheckpoints map[uuid.UUID]time.Time
 }
+
+// IslandCheckpointInterval defines how often islands are persisted to DB
+// This reduces DB writes by ~80% while maintaining correctness:
+// - Timers use absolute timestamps (FinishTime) → no dependency on save frequency
+// - Resources are recalculated from LastUpdated on read → max loss = checkpoint interval
+const IslandCheckpointInterval = 5 * time.Second
 
 func NewEngine() *Engine {
 	return &Engine{
-		stopCh: make(chan struct{}),
+		stopCh:            make(chan struct{}),
+		islandCheckpoints: make(map[uuid.UUID]time.Time),
 	}
 }
 
@@ -73,6 +82,7 @@ func (e *Engine) Tick() {
 
 		if island.LastUpdated.IsZero() {
 			island.LastUpdated = now
+			e.islandCheckpoints[island.ID] = now // Initialize checkpoint tracking
 			db.Save(island)
 			continue
 		}
@@ -144,14 +154,33 @@ func (e *Engine) Tick() {
 		}
 
 		CalculateResources(island, delta)
-		island.LastUpdated = now
 
-		// Save changes - OMIT Player to prevent reverting the Manual Save above
-		// Double safety: Clear the Player struct from the island object before saving
-		// This ensures GORM has no data to try and cascade update
-		island.Player = domain.Player{}
-		if err := db.Omit("Player").Save(island).Error; err != nil {
-			fmt.Printf("Error saving island %s: %v\n", island.Name, err)
+		// Checkpoint-based persistence: Save Island only every IslandCheckpointInterval
+		// This reduces DB writes by ~80% while maintaining correctness:
+		// - Building/Research/Ship timers use absolute timestamps (FinishTime) → no dependency on save frequency
+		// - Resources are recalculated from LastUpdated on read (GetStatus lazy update) → max loss = checkpoint interval on crash
+		// - Event-based writes (Build, Upgrade, StartResearch, StartShip) remain immediate and transactional
+		lastCheckpoint, exists := e.islandCheckpoints[island.ID]
+		shouldCheckpoint := !exists || now.Sub(lastCheckpoint) >= IslandCheckpointInterval
+
+		if shouldCheckpoint {
+			island.LastUpdated = now
+			e.islandCheckpoints[island.ID] = now
+
+			// Save changes - OMIT Player to prevent reverting the Manual Save above
+			// Double safety: Clear the Player struct from the island object before saving
+			// This ensures GORM has no data to try and cascade update
+			island.Player = domain.Player{}
+			if err := db.Omit("Player").Save(island).Error; err != nil {
+				fmt.Printf("Error saving island %s: %v\n", island.Name, err)
+			} else {
+				fmt.Printf("[ECONOMY] Island checkpoint saved id=%s\n", island.ID)
+			}
+		} else {
+			// Update LastUpdated in memory only (not persisted yet)
+			// This ensures resource calculation uses correct delta on next tick
+			// But we don't persist until checkpoint to reduce DB writes
+			island.LastUpdated = now
 		}
 	}
 }

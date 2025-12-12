@@ -71,6 +71,7 @@ func main() {
 		devRoutes.POST("/finish-ship", api.DevFinishShip)
 		devRoutes.POST("/time-skip", api.DevTimeSkip)
 		devRoutes.POST("/grant-captain", api.DevGrantCaptain)
+		devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
 	}
 
 	// Start Game Loop

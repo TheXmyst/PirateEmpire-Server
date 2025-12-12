@@ -26,6 +26,15 @@ func InitDB() {
 	if err != nil {
 		log.Fatal("failed to migrate database schema")
 	}
+
+	// Backfill morale_cruise: set NULL values to 50 (uninitialized -> default)
+	// This ensures old rows are initialized, but still allows future 0 values
+	result := DB.Model(&domain.Fleet{}).Where("morale_cruise IS NULL").Update("morale_cruise", 50)
+	if result.Error != nil {
+		log.Printf("Warning: failed to backfill morale_cruise: %v", result.Error)
+	} else if result.RowsAffected > 0 {
+		log.Printf("Backfilled %d fleets with default morale_cruise=50", result.RowsAffected)
+	}
 }
 
 // Helper to get DB instance

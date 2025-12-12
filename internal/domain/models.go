@@ -109,10 +109,11 @@ type Island struct {
 
 // Fleet represents a group of ships
 type Fleet struct {
-	ID       uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
-	IslandID uuid.UUID `json:"island_id" gorm:"type:uuid;index"`
-	Name     string    `json:"name"`
-	Ships    []Ship    `json:"ships,omitempty" gorm:"foreignKey:FleetID"`
+	ID           uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
+	IslandID     uuid.UUID `json:"island_id" gorm:"type:uuid;index"`
+	Name         string    `json:"name"`
+	Ships        []Ship    `json:"ships,omitempty" gorm:"foreignKey:FleetID"`
+	MoraleCruise *int      `json:"morale_cruise,omitempty" gorm:"column:morale_cruise"` // Morale during cruise (0-100), NULL means uninitialized (defaults to 50)
 }
 
 // Building represents a structure on an island

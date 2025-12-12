@@ -1,11 +1,14 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -359,6 +362,13 @@ func GetStatus(c echo.Context) error {
 				fmt.Printf("[FLEET] GetStatus: Failed to reload fleets: %v\n", err)
 			}
 		}
+		// Log fleets being sent to client
+		fleetInfo := make([]string, 0, len(island.Fleets))
+		for _, f := range island.Fleets {
+			fleetInfo = append(fleetInfo, fmt.Sprintf("(%s,%s)", f.ID.String(), f.Name))
+		}
+		fmt.Printf("[STATUS] player=%s island=%s fleets=%d ids=%v\n", 
+			player.ID.String(), island.ID.String(), len(island.Fleets), fleetInfo)
 	}
 
 	// LAZY UPDATE: Check Research Completion on Read
@@ -1520,23 +1530,32 @@ func GetFleets(c echo.Context) error {
 	// Sort fleets by name to ensure consistent order (Flotte 1, 2, 3)
 	// Create a response DTO with unlocked field
 	type FleetResponse struct {
-		ID       uuid.UUID      `json:"id"`
-		IslandID uuid.UUID      `json:"island_id"`
-		Name     string         `json:"name"`
-		Ships    []domain.Ship  `json:"ships,omitempty"`
-		Unlocked bool           `json:"unlocked"`
+		ID           uuid.UUID     `json:"id"`
+		IslandID     uuid.UUID     `json:"island_id"`
+		Name         string        `json:"name"`
+		Ships        []domain.Ship `json:"ships,omitempty"`
+		Unlocked     bool          `json:"unlocked"`
+		MoraleCruise int           `json:"morale_cruise,omitempty"` // Morale during cruise (0-100)
 	}
 
 	fleetResponses := make([]FleetResponse, 0, len(fleets))
 	for _, fleet := range fleets {
 		// Determine if fleet is unlocked based on fleet number and player techs
 		unlocked := isFleetUnlocked(fleet.Name, player.UnlockedTechs)
+		// Return 50 if MoraleCruise is nil (uninitialized), otherwise return actual value
+		// This is for UI display; DB still distinguishes NULL vs 0
+		moraleCruise := 50 // Default for UI
+		if fleet.MoraleCruise != nil {
+			moraleCruise = *fleet.MoraleCruise
+		}
+
 		fleetResponses = append(fleetResponses, FleetResponse{
-			ID:       fleet.ID,
-			IslandID: fleet.IslandID,
-			Name:     fleet.Name,
-			Ships:    fleet.Ships,
-			Unlocked: unlocked,
+			ID:           fleet.ID,
+			IslandID:     fleet.IslandID,
+			Name:         fleet.Name,
+			Ships:        fleet.Ships,
+			Unlocked:     unlocked,
+			MoraleCruise: moraleCruise,
 		})
 	}
 
@@ -1562,10 +1581,12 @@ func ensurePlayerFleets(db *gorm.DB, island *domain.Island) error {
 	fleetNames := []string{"Flotte 1", "Flotte 2", "Flotte 3"}
 	for _, name := range fleetNames {
 		if !existingNames[name] {
+			morale50 := 50
 			newFleet := domain.Fleet{
-				ID:       uuid.New(),
-				IslandID: island.ID,
-				Name:     name,
+				ID:           uuid.New(),
+				IslandID:     island.ID,
+				Name:         name,
+				MoraleCruise: &morale50, // Explicitly set to 50 (non-null)
 			}
 			if err := db.Create(&newFleet).Error; err != nil {
 				return fmt.Errorf("failed to create fleet %s: %w", name, err)
@@ -1896,8 +1917,40 @@ func GetCaptains(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du chargement des capitaines"})
 	}
 
+	// Create response DTO with computed passive effects
+	type CaptainResponse struct {
+		domain.Captain
+		PassiveID      string          `json:"passive_id,omitempty"`
+		PassiveValue   float64         `json:"passive_value,omitempty"`
+		PassiveIntValue int            `json:"passive_int_value,omitempty"`
+		Threshold      int             `json:"threshold,omitempty"`
+		DrainPerMinute float64         `json:"drain_per_minute,omitempty"`
+		Flags          map[string]bool `json:"flags,omitempty"`
+	}
+
+	responses := make([]CaptainResponse, 0, len(captains))
+	for _, captain := range captains {
+		effect := economy.ComputeCaptainPassive(captain)
+		
+		// Log captain passive computation (once per request, not spammy)
+		fmt.Printf("[CAPTAIN] id=%s lvl=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d\n",
+			captain.ID, captain.Level, captain.Rarity, captain.SkillID,
+			effect.ID, effect.Value, effect.IntValue, effect.Threshold)
+
+		response := CaptainResponse{
+			Captain:        captain,
+			PassiveID:      effect.ID,
+			PassiveValue:   effect.Value,
+			PassiveIntValue: effect.IntValue,
+			Threshold:     effect.Threshold,
+			DrainPerMinute: effect.DrainPerMinute,
+			Flags:          effect.Flags,
+		}
+		responses = append(responses, response)
+	}
+
 	fmt.Printf("[CAPTAIN] GetCaptains: Found %d captains for player %s\n", len(captains), playerID)
-	return c.JSON(http.StatusOK, captains)
+	return c.JSON(http.StatusOK, responses)
 }
 
 type AssignCaptainRequest struct {
@@ -2005,7 +2058,7 @@ func AssignCaptain(c echo.Context) error {
 
 	tx.Commit()
 
-	fmt.Printf("[CAPTAIN] AssignCaptain: Success! Captain %s assigned to ship %s\n", captain.ID, ship.ID)
+	fmt.Printf("[CAPTAIN] assign captain=%s ship=%s player=%s\n", captain.ID, ship.ID, playerID)
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Capitaine assigné au navire.",
 		"captain": captain,
@@ -2082,6 +2135,232 @@ func UnassignCaptain(c echo.Context) error {
 
 	tx.Commit()
 
-	fmt.Printf("[CAPTAIN] UnassignCaptain: Success! Captain %s unassigned\n", captain.ID)
+	fmt.Printf("[CAPTAIN] unassign captain=%s player=%s\n", captain.ID, playerID)
 	return c.JSON(http.StatusOK, map[string]string{"message": "Capitaine retiré du navire."})
+}
+
+// --- ENGAGEMENT MORALE SYSTEM ---
+
+type SimulateEngagementRequest struct {
+	FleetAID string `json:"fleet_a_id"` // Accept as string, parse to UUID
+	FleetBID string `json:"fleet_b_id"` // Accept as string, parse to UUID
+}
+
+// DevSimulateEngagement simulates an engagement between two fleets (admin only, for testing)
+func DevSimulateEngagement(c echo.Context) error {
+	// Parse request (Echo will read body, but we need raw for debug)
+	// Read body first for logging, then restore it for Echo
+	bodyBytes, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Impossible de lire le corps de la requête"})
+	}
+	// Restore body for Echo
+	c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	
+	fmt.Printf("[ENGAGE] Raw request body: %s\n", string(bodyBytes))
+
+	// Parse request
+	req := new(SimulateEngagementRequest)
+	if err := json.Unmarshal(bodyBytes, req); err != nil {
+		fmt.Printf("[ENGAGE] Parse error: %v\n", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requête invalide: %v", err)})
+	}
+
+	fmt.Printf("[ENGAGE] Parsed fleet_a_id='%s' fleet_b_id='%s'\n", req.FleetAID, req.FleetBID)
+
+	// Validate and parse UUIDs
+	if req.FleetAID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_a_id manquant"})
+	}
+	if req.FleetBID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_b_id manquant"})
+	}
+
+	fleetAID, err := uuid.Parse(req.FleetAID)
+	if err != nil {
+		fmt.Printf("[ENGAGE] Invalid fleet_a_id UUID: '%s' error: %v\n", req.FleetAID, err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("fleet_a_id invalide (UUID attendu): '%s'", req.FleetAID)})
+	}
+
+	fleetBID, err := uuid.Parse(req.FleetBID)
+	if err != nil {
+		fmt.Printf("[ENGAGE] Invalid fleet_b_id UUID: '%s' error: %v\n", req.FleetBID, err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("fleet_b_id invalide (UUID attendu): '%s'", req.FleetBID)})
+	}
+
+	fmt.Printf("[ENGAGE] Parsed UUIDs: fleetAID=%s fleetBID=%s\n", fleetAID, fleetBID)
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if err := checkDevAdmin(player); err != nil {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Accès refusé: admin uniquement"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	fmt.Printf("[ENGAGE] Requested fleet IDs: fleetAID=%s fleetBID=%s playerID=%s\n", fleetAID, fleetBID, playerID)
+
+	// Load Fleet A by ID only (no island_id constraint, no pre-filtering)
+	var fleetA domain.Fleet
+	if err := db.Preload("Ships", func(tx *gorm.DB) *gorm.DB {
+		return tx.Order("id ASC")
+	}).First(&fleetA, "id = ?", fleetAID).Error; err != nil {
+		// Secondary check: does the fleet exist at all in DB?
+		var count int64
+		if countErr := db.Model(&domain.Fleet{}).Where("id = ?", fleetAID).Count(&count).Error; countErr != nil {
+			fmt.Printf("[ENGAGE] DB error checking Fleet A existence: id=%s error=%v\n", fleetAID, countErr)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur base de données lors de la vérification de la flotte A: %v", countErr)})
+		}
+		if count > 0 {
+			fmt.Printf("[ENGAGE] Fleet A exists in DB but query failed: id=%s error=%v (possible DB constraint issue)\n", fleetAID, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur base de données lors du chargement de la flotte A (existe en DB): %v", err)})
+		} else {
+			fmt.Printf("[ENGAGE] Fleet A does not exist in DB: id=%s error=%v\n", fleetAID, err)
+			return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Flotte A introuvable (id=%s)", fleetAID)})
+		}
+	}
+	fmt.Printf("[ENGAGE] FleetA loaded successfully: id=%s island_id=%s name=%s ships=%d\n", 
+		fleetA.ID, fleetA.IslandID, fleetA.Name, len(fleetA.Ships))
+
+	// Load Fleet B by ID only (no island_id constraint, no pre-filtering)
+	var fleetB domain.Fleet
+	if err := db.Preload("Ships", func(tx *gorm.DB) *gorm.DB {
+		return tx.Order("id ASC")
+	}).First(&fleetB, "id = ?", fleetBID).Error; err != nil {
+		// Secondary check: does the fleet exist at all in DB?
+		var count int64
+		if countErr := db.Model(&domain.Fleet{}).Where("id = ?", fleetBID).Count(&count).Error; countErr != nil {
+			fmt.Printf("[ENGAGE] DB error checking Fleet B existence: id=%s error=%v\n", fleetBID, countErr)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur base de données lors de la vérification de la flotte B: %v", countErr)})
+		}
+		if count > 0 {
+			fmt.Printf("[ENGAGE] Fleet B exists in DB but query failed: id=%s error=%v (possible DB constraint issue)\n", fleetBID, err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur base de données lors du chargement de la flotte B (existe en DB): %v", err)})
+		} else {
+			fmt.Printf("[ENGAGE] Fleet B does not exist in DB: id=%s error=%v\n", fleetBID, err)
+			return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Flotte B introuvable (id=%s)", fleetBID)})
+		}
+	}
+	fmt.Printf("[ENGAGE] FleetB loaded successfully: id=%s island_id=%s name=%s ships=%d\n", 
+		fleetB.ID, fleetB.IslandID, fleetB.Name, len(fleetB.Ships))
+
+	// Load islands for ownership verification (using IslandID from loaded fleets, NOT pre-selected island)
+	var islandA domain.Island
+	if err := db.First(&islandA, "id = ?", fleetA.IslandID).Error; err != nil {
+		fmt.Printf("[ENGAGE] IslandA not found: fleetA.IslandID=%s error=%v\n", fleetA.IslandID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Île A introuvable (id=%s)", fleetA.IslandID)})
+	}
+	fmt.Printf("[ENGAGE] IslandA loaded from fleetA.IslandID: id=%s player_id=%s\n", islandA.ID, islandA.PlayerID)
+
+	var islandB domain.Island
+	if err := db.First(&islandB, "id = ?", fleetB.IslandID).Error; err != nil {
+		fmt.Printf("[ENGAGE] IslandB not found: fleetB.IslandID=%s error=%v\n", fleetB.IslandID, err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Île B introuvable (id=%s)", fleetB.IslandID)})
+	}
+	fmt.Printf("[ENGAGE] IslandB loaded from fleetB.IslandID: id=%s player_id=%s\n", islandB.ID, islandB.PlayerID)
+
+	// Verify ownership: both islands must belong to authenticated player
+	if islandA.PlayerID != playerID {
+		fmt.Printf("[ENGAGE] Ownership mismatch: FleetA island.player_id=%s authenticated=%s\n", islandA.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Flotte A ne vous appartient pas"})
+	}
+	if islandB.PlayerID != playerID {
+		fmt.Printf("[ENGAGE] Ownership mismatch: FleetB island.player_id=%s authenticated=%s\n", islandB.PlayerID, playerID)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Flotte B ne vous appartient pas"})
+	}
+
+	// Sort ships by ID deterministically (Ship model doesn't have CreatedAt, so we use ID)
+	sortShipsByID(&fleetA.Ships)
+	sortShipsByID(&fleetB.Ships)
+
+	// Get flagship captains (first ship with a captain, by CreatedAt ASC)
+	var captA *domain.Captain
+	var captB *domain.Captain
+	var flagshipA *domain.Ship
+	var flagshipB *domain.Ship
+
+	// Find first ship with captain in fleetA
+	for i := range fleetA.Ships {
+		if fleetA.Ships[i].CaptainID != nil {
+			var captain domain.Captain
+			if err := db.First(&captain, "id = ?", *fleetA.Ships[i].CaptainID).Error; err == nil {
+				captA = &captain
+				flagshipA = &fleetA.Ships[i]
+				fmt.Printf("[ENGAGE] FleetA flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
+					flagshipA.ID, captA.ID, captA.Name, captA.SkillID)
+				break
+			}
+		}
+	}
+	if captA == nil {
+		fmt.Printf("[ENGAGE] FleetA: no captain found in %d ships\n", len(fleetA.Ships))
+	}
+
+	// Find first ship with captain in fleetB
+	for i := range fleetB.Ships {
+		if fleetB.Ships[i].CaptainID != nil {
+			var captain domain.Captain
+			if err := db.First(&captain, "id = ?", *fleetB.Ships[i].CaptainID).Error; err == nil {
+				captB = &captain
+				flagshipB = &fleetB.Ships[i]
+				fmt.Printf("[ENGAGE] FleetB flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
+					flagshipB.ID, captB.ID, captB.Name, captB.SkillID)
+				break
+			}
+		}
+	}
+	if captB == nil {
+		fmt.Printf("[ENGAGE] FleetB: no captain found in %d ships\n", len(fleetB.Ships))
+	}
+
+	// Add flagship info to applied notes (before computing engagement)
+	// This will be added to the result by ComputeEngagementMorale, but we log it here too
+	if flagshipA != nil {
+		fmt.Printf("[ENGAGE] FleetA flagship: ship_id=%s type=%s captain_id=%s\n", flagshipA.ID, flagshipA.Type, *flagshipA.CaptainID)
+	} else {
+		fmt.Printf("[ENGAGE] FleetA: no flagship (no ships with captain)\n")
+	}
+	if flagshipB != nil {
+		fmt.Printf("[ENGAGE] FleetB flagship: ship_id=%s type=%s captain_id=%s\n", flagshipB.ID, flagshipB.Type, *flagshipB.CaptainID)
+	} else {
+		fmt.Printf("[ENGAGE] FleetB: no flagship (no ships with captain)\n")
+	}
+
+	// Compute engagement morale
+	result := economy.ComputeEngagementMorale(fleetA, fleetB, captA, captB)
+
+	// Add flagship info to applied notes
+	if flagshipA != nil {
+		result.Applied = append([]string{fmt.Sprintf("FleetA flagship: ship_id=%s type=%s", flagshipA.ID, flagshipA.Type)}, result.Applied...)
+	} else {
+		result.Applied = append([]string{"FleetA: no flagship"}, result.Applied...)
+	}
+	if flagshipB != nil {
+		result.Applied = append([]string{fmt.Sprintf("FleetB flagship: ship_id=%s type=%s", flagshipB.ID, flagshipB.Type)}, result.Applied...)
+	} else {
+		result.Applied = append([]string{"FleetB: no flagship"}, result.Applied...)
+	}
+
+	// Log engagement (once per call)
+	fmt.Printf("[ENGAGE] fleetA=%s moraleA=%d fleetB=%s moraleB=%d dM=%d bonus=%.0f%% atkA=%.2f defA=%.2f atkB=%.2f defB=%.2f\n",
+		fleetA.ID, result.EngagementMoraleA, fleetB.ID, result.EngagementMoraleB,
+		result.Delta, result.BonusPercent*100,
+		result.AtkMultA, result.DefMultA, result.AtkMultB, result.DefMultB)
+
+	if captA != nil {
+		fmt.Printf("[ENGAGE] captainA=%s skill=%s\n", captA.ID, captA.SkillID)
+	}
+	if captB != nil {
+		fmt.Printf("[ENGAGE] captainB=%s skill=%s\n", captB.ID, captB.SkillID)
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+// sortShipsByID sorts ships by ID ASC for deterministic flagship selection
+func sortShipsByID(ships *[]domain.Ship) {
+	sort.Slice(*ships, func(i, j int) bool {
+		return (*ships)[i].ID.String() < (*ships)[j].ID.String()
+	})
 }
