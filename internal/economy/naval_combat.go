@@ -17,42 +17,44 @@ const (
 
 // CombatResult represents the final result of a naval combat
 type CombatResult struct {
-	FleetAID          string          `json:"fleet_a_id"`
-	FleetBID          string          `json:"fleet_b_id"`
-	Winner            string          `json:"winner"` // "fleet_a", "fleet_b", or "draw"
-	Rounds            []CombatRound   `json:"rounds"` // All combat rounds
-	ShipsDestroyedA  []uuid.UUID     `json:"ships_destroyed_a"` // Ships destroyed from Fleet A
-	ShipsDestroyedB  []uuid.UUID     `json:"ships_destroyed_b"` // Ships destroyed from Fleet B
-	CaptainInjuredA  *uuid.UUID      `json:"captain_injured_a,omitempty"` // Captain injured from Fleet A (if flagship destroyed)
-	CaptainInjuredB  *uuid.UUID      `json:"captain_injured_b,omitempty"` // Captain injured from Fleet B (if flagship destroyed)
-	Applied           []string        `json:"applied,omitempty"` // Debug notes
+	FleetAID        string        `json:"fleet_a_id"`
+	FleetBID        string        `json:"fleet_b_id"`
+	Winner          string        `json:"winner"`                      // "fleet_a", "fleet_b", or "draw"
+	Rounds          []CombatRound `json:"rounds"`                      // All combat rounds
+	ShipsDestroyedA []uuid.UUID   `json:"ships_destroyed_a"`           // Ships destroyed from Fleet A
+	ShipsDestroyedB []uuid.UUID   `json:"ships_destroyed_b"`           // Ships destroyed from Fleet B
+	CaptainInjuredA *uuid.UUID    `json:"captain_injured_a,omitempty"` // Captain injured from Fleet A (if flagship destroyed)
+	CaptainInjuredB *uuid.UUID    `json:"captain_injured_b,omitempty"` // Captain injured from Fleet B (if flagship destroyed)
+	ReasonCode      string        `json:"reason_code,omitempty"`       // Reason code for early exit or validation failure
+	ReasonMessage   string        `json:"reason_message,omitempty"`    // Human-readable reason message (FR)
+	Applied         []string      `json:"applied,omitempty"`           // Debug notes
 }
 
 // CombatRound represents a single round of combat
 type CombatRound struct {
-	RoundNumber int              `json:"round_number"`
-	Attacks     []CombatAttack    `json:"attacks"` // All attacks in this round
-	ShipsAliveA int              `json:"ships_alive_a"` // Ships alive in Fleet A after this round
-	ShipsAliveB int              `json:"ships_alive_b"` // Ships alive in Fleet B after this round
+	RoundNumber int            `json:"round_number"`
+	Attacks     []CombatAttack `json:"attacks"`       // All attacks in this round
+	ShipsAliveA int            `json:"ships_alive_a"` // Ships alive in Fleet A after this round
+	ShipsAliveB int            `json:"ships_alive_b"` // Ships alive in Fleet B after this round
 }
 
 // CombatAttack represents a single attack in a round
 type CombatAttack struct {
-	AttackerID      uuid.UUID `json:"attacker_id"`
-	AttackerType    string    `json:"attacker_type"`
-	TargetID        uuid.UUID `json:"target_id"`
-	TargetType      string    `json:"target_type"`
-	BaseDamage      float64   `json:"base_damage"`
-	EngagementMult  float64   `json:"engagement_mult"`
-	CaptainBonus    float64   `json:"captain_bonus"`
-	RPSMultiplier   float64   `json:"rps_multiplier"`
-	RandomFactor    float64   `json:"random_factor"`
-	DamageDealt     float64   `json:"damage_dealt"`
-	DamageTaken     float64   `json:"damage_taken"`
-	TargetHealthBefore float64 `json:"target_health_before"`
-	TargetHealthAfter  float64 `json:"target_health_after"`
-	TargetDestroyed   bool    `json:"target_destroyed"`
-	Applied          []string `json:"applied,omitempty"` // Debug notes
+	AttackerID         uuid.UUID `json:"attacker_id"`
+	AttackerType       string    `json:"attacker_type"`
+	TargetID           uuid.UUID `json:"target_id"`
+	TargetType         string    `json:"target_type"`
+	BaseDamage         float64   `json:"base_damage"`
+	EngagementMult     float64   `json:"engagement_mult"`
+	CaptainBonus       float64   `json:"captain_bonus"`
+	RPSMultiplier      float64   `json:"rps_multiplier"`
+	RandomFactor       float64   `json:"random_factor"`
+	DamageDealt        float64   `json:"damage_dealt"`
+	DamageTaken        float64   `json:"damage_taken"`
+	TargetHealthBefore float64   `json:"target_health_before"`
+	TargetHealthAfter  float64   `json:"target_health_after"`
+	TargetDestroyed    bool      `json:"target_destroyed"`
+	Applied            []string  `json:"applied,omitempty"` // Debug notes
 }
 
 // ShipCombatState represents a ship's state during combat (runtime only, not persisted)
@@ -75,12 +77,12 @@ func ExecuteNavalCombat(
 	seed int64, // Deterministic RNG seed
 ) (CombatResult, error) {
 	result := CombatResult{
-		FleetAID:         fleetA.ID.String(),
-		FleetBID:         fleetB.ID.String(),
-		Rounds:           make([]CombatRound, 0, MaxCombatRounds),
+		FleetAID:        fleetA.ID.String(),
+		FleetBID:        fleetB.ID.String(),
+		Rounds:          make([]CombatRound, 0, MaxCombatRounds),
 		ShipsDestroyedA: make([]uuid.UUID, 0),
 		ShipsDestroyedB: make([]uuid.UUID, 0),
-		Applied:          make([]string, 0),
+		Applied:         make([]string, 0),
 	}
 
 	// Initialize deterministic RNG
@@ -145,12 +147,18 @@ func ExecuteNavalCombat(
 	if len(shipsA) == 0 || len(shipsB) == 0 {
 		if len(shipsA) == 0 && len(shipsB) == 0 {
 			result.Winner = "draw"
+			result.ReasonCode = "COMBAT_EARLY_EXIT"
+			result.ReasonMessage = "Aucun navire actif dans les deux flottes"
 			result.Applied = append(result.Applied, "Both fleets have no ships")
 		} else if len(shipsA) == 0 {
 			result.Winner = "fleet_b"
+			result.ReasonCode = "COMBAT_EARLY_EXIT"
+			result.ReasonMessage = "Votre flotte n'a aucun navire actif"
 			result.Applied = append(result.Applied, "Fleet A has no ships")
 		} else {
 			result.Winner = "fleet_a"
+			result.ReasonCode = "COMBAT_EARLY_EXIT"
+			result.ReasonMessage = "La flotte ennemie n'a aucun navire actif"
 			result.Applied = append(result.Applied, "Fleet B has no ships")
 		}
 		return result, nil
@@ -217,13 +225,29 @@ func ExecuteNavalCombat(
 		aliveB := countAliveShips(shipsB)
 		if aliveA > aliveB {
 			result.Winner = "fleet_a"
+			result.ReasonCode = "COMBAT_VALID_LOSS"
+			result.ReasonMessage = fmt.Sprintf("Victoire après %d rounds (%d navires restants vs %d)", len(result.Rounds), aliveA, aliveB)
 			result.Applied = append(result.Applied, fmt.Sprintf("Max rounds reached: Fleet A wins (%d vs %d ships)", aliveA, aliveB))
 		} else if aliveB > aliveA {
 			result.Winner = "fleet_b"
+			result.ReasonCode = "COMBAT_VALID_LOSS"
+			result.ReasonMessage = fmt.Sprintf("Défaite après %d rounds (%d navires restants vs %d)", len(result.Rounds), aliveA, aliveB)
 			result.Applied = append(result.Applied, fmt.Sprintf("Max rounds reached: Fleet B wins (%d vs %d ships)", aliveB, aliveA))
 		} else {
 			result.Winner = "draw"
+			result.ReasonCode = "COMBAT_VALID_LOSS"
+			result.ReasonMessage = fmt.Sprintf("Égalité après %d rounds (%d navires restants de chaque côté)", len(result.Rounds), aliveA)
 			result.Applied = append(result.Applied, fmt.Sprintf("Max rounds reached: Draw (%d vs %d ships)", aliveA, aliveB))
+		}
+	} else if len(result.Rounds) > 0 {
+		// Valid combat with rounds
+		result.ReasonCode = "COMBAT_VALID_LOSS"
+		if result.Winner == "fleet_a" {
+			result.ReasonMessage = fmt.Sprintf("Victoire en %d rounds", len(result.Rounds))
+		} else if result.Winner == "fleet_b" {
+			result.ReasonMessage = fmt.Sprintf("Défaite en %d rounds", len(result.Rounds))
+		} else {
+			result.ReasonMessage = fmt.Sprintf("Égalité en %d rounds", len(result.Rounds))
 		}
 	}
 
@@ -421,17 +445,32 @@ func executeAttack(
 		attack.Applied = append(attack.Applied, fmt.Sprintf("RPS: attacker=%s defender=%s mult=%.2fx (neutral)", attackerDominant, targetDominant, attack.RPSMultiplier))
 	}
 
+	// Get crew quantity bonuses (ATK for attacker, DEF for defender)
+	atkCrewTotal := CrewTotal(attacker.Ship)
+	defCrewTotal := CrewTotal(target.Ship)
+	atkCrewBonus, _ := ComputeCrewAtkDefBonus(atkCrewTotal)
+	_, defCrewBonus := ComputeCrewAtkDefBonus(defCrewTotal)
+
+	// Log crew bonuses if non-zero
+	if atkCrewBonus > 0 {
+		attack.Applied = append(attack.Applied, fmt.Sprintf("Crew ATK bonus: total=%d -> +%.2f%%", atkCrewTotal, atkCrewBonus*100))
+	}
+	if defCrewBonus > 0 {
+		attack.Applied = append(attack.Applied, fmt.Sprintf("Crew DEF bonus: total=%d -> -%.2f%% dmg taken", defCrewTotal, defCrewBonus*100))
+	}
+
 	// Random factor (0.9 - 1.1)
 	attack.RandomFactor = 0.9 + rng.Float64()*0.2
 
-	// Calculate damage dealt
+	// Calculate damage dealt (apply crew ATK bonus)
 	attack.DamageDealt = attack.BaseDamage *
 		attack.EngagementMult *
 		captainBonus *
+		(1.0 + atkCrewBonus) * // Crew ATK bonus
 		attack.RPSMultiplier *
 		attack.RandomFactor
 
-	// Calculate damage taken (with target's damage reduction and engagement def multiplier)
+	// Calculate damage taken (with target's damage reduction, engagement def multiplier, and crew DEF bonus)
 	var targetDefMult float64
 	if isAttackerInFleetA {
 		targetDefMult = engagementResult.DefMultB
@@ -439,9 +478,17 @@ func executeAttack(
 		targetDefMult = engagementResult.DefMultA
 	}
 
+	// Apply crew DEF bonus: reduces damage taken (multiply by (1 - defCrewBonus))
+	// Clamp defCrewBonus to ensure (1 - defCrewBonus) doesn't go below 0.50 (safety)
+	defReductionMult := 1.0 - defCrewBonus
+	if defReductionMult < 0.50 {
+		defReductionMult = 0.50 // Minimum 50% damage taken (safety cap)
+	}
+
 	attack.DamageTaken = attack.DamageDealt *
 		(1.0 - target.EffectiveDR) *
-		(1.0 / targetDefMult)
+		(1.0 / targetDefMult) *
+		defReductionMult // Crew DEF bonus reduces damage taken
 
 	// Clamp damage taken to minimum 0.1 (always at least 1% damage)
 	if attack.DamageTaken < 0.1 {
@@ -579,4 +626,3 @@ func GetCaptainInjuryDuration(rarity domain.CaptainRarity) time.Duration {
 		return 30 * time.Minute // Default to common
 	}
 }
-

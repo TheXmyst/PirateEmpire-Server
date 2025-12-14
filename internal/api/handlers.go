@@ -474,6 +474,13 @@ func GetStatus(c echo.Context) error {
 			}
 		}
 
+		// Process Militia recruitment completion
+		if economy.ProcessMilitiaRecruitment(island, now) {
+			// Recruitment completed - save island to persist crew stock
+			// Force save even if checkpoint not reached (recruitment is important)
+			db.Omit("Player").Save(island)
+		}
+
 		// HOTFIX: Update Townhall position
 		for j := range island.Buildings {
 			if island.Buildings[j].Type == "Hôtel de Ville" {
@@ -769,9 +776,10 @@ func Upgrade(c echo.Context) error {
 	}
 	island.Player.Islands = []domain.Island{island} // Link for checker
 
-	// NEW: Check Prerequisites
-	if err := economy.CheckPrerequisites(&island.Player, building.Type, nextLevel); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	// NEW: Check Prerequisites with structured errors
+	missingReqs := economy.ValidateBuildingPrerequisites(&island.Player, &island, building.Type, nextLevel)
+	if len(missingReqs) > 0 {
+		return WriteRequirementsError(c, http.StatusConflict, missingReqs)
 	}
 
 	stats, err := economy.GetBuildingStats(building.Type, nextLevel)
@@ -1173,13 +1181,12 @@ func StartResearch(c echo.Context) error {
 		}
 	}
 
-	if maxTH < tech.ReqTH {
+	// 5. Check Prerequisites with structured errors
+	missingReqs := economy.ValidateResearchPrerequisites(player, &island, req.TechID)
+	if len(missingReqs) > 0 {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires TownHall Level %d", tech.ReqTH)})
-	}
-	if maxAcad < tech.ReqAcad {
-		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires Academy Level %d", tech.ReqAcad)})
+		fmt.Printf("[PREREQ] research blocked player_id=%s tech=%s missing=%d\n", playerID, req.TechID, len(missingReqs))
+		return WriteRequirementsError(c, http.StatusConflict, missingReqs)
 	}
 
 	// 6. Check Resources
@@ -1283,52 +1290,12 @@ func StartShipConstruction(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
 	}
 
-	// 2. Load Ship Config & Validate Requirements
-	config, err := economy.GetShipStats(req.ShipType)
-	if err != nil {
+	// 2. Check Prerequisites with structured errors (before loading config)
+	missingReqs := economy.ValidateShipPrerequisites(&island.Player, &island, req.ShipType)
+	if len(missingReqs) > 0 {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ship type: " + req.ShipType})
-	}
-
-	// 3. Check Prerequisite: Shipyard Level
-	hasShipyard := false
-	shipyardLevel := 0
-	for _, b := range island.Buildings {
-		if b.Type == "Chantier Naval" && !b.Constructing {
-			hasShipyard = true
-			shipyardLevel = b.Level
-			break
-		}
-	}
-
-	if !hasShipyard {
-		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Shipyard required to build ships"})
-	}
-
-	if shipyardLevel < config.RequiredShipyardLevel {
-		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires Shipyard Level %d", config.RequiredShipyardLevel)})
-	}
-
-	// 4. Check Prerequisite: Technology
-	if config.RequiredTechID != "" {
-		hasTech := false
-		var unlocked []string
-		if len(island.Player.UnlockedTechsJSON) > 0 {
-			_ = json.Unmarshal(island.Player.UnlockedTechsJSON, &unlocked)
-		}
-		for _, id := range unlocked {
-			if id == config.RequiredTechID {
-				hasTech = true
-				break
-			}
-		}
-		if !hasTech {
-			tx.Rollback()
-			// Improve error message if possible to show Tech Name, but ID is safe for now
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires technology: %s", config.RequiredTechID)})
-		}
+		fmt.Printf("[PREREQ] ship build blocked player_id=%s ship=%s missing=%d\n", playerID, req.ShipType, len(missingReqs))
+		return WriteRequirementsError(c, http.StatusConflict, missingReqs)
 	}
 
 	// 3. Check Limit (Max 3 ships for now) - Count only Active or Constructing, not Sunk/Destroyed (State?)
@@ -1358,31 +1325,7 @@ func StartShipConstruction(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ship type"})
 	}
 
-	// 5.5 Validate Prerequisites (Level & Tech)
-	// Check Shipyard Level
-	if shipyardLevel < stats.RequiredShipyardLevel {
-		tx.Rollback()
-		return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Shipyard Level %d required", stats.RequiredShipyardLevel)})
-	}
-
-	// Check Tech
-	if stats.RequiredTechID != "" {
-		hasTech := false
-		var unlocked []string
-		if len(island.Player.UnlockedTechsJSON) > 0 {
-			_ = json.Unmarshal(island.Player.UnlockedTechsJSON, &unlocked)
-		}
-		for _, t := range unlocked {
-			if t == stats.RequiredTechID {
-				hasTech = true
-				break
-			}
-		}
-		if !hasTech {
-			tx.Rollback()
-			return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Technology %s required", stats.RequiredTechID)})
-		}
-	}
+	// Prerequisites already validated above
 
 	// 6. Check Resources
 	for res, amount := range stats.Cost {
@@ -1532,35 +1475,35 @@ func AddShipToFleet(c echo.Context) error {
 
 	db := repository.GetDB()
 
-	// 1. Load Fleet & Player Techs
+	// Start transaction with SELECT FOR UPDATE for authoritative validation
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[FLEET] AddShipToFleet: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// 1. Load Fleet & Player Techs with FOR UPDATE (row-level lock)
 	var fleet domain.Fleet
-	if err := db.Preload("Ships").First(&fleet, "id = ?", req.FleetID).Error; err != nil {
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").Preload("Ships").First(&fleet, "id = ?", req.FleetID).Error; err != nil {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Fleet not found: fleet_id=%s, error=%v\n", req.FleetID, err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
-	fmt.Printf("[FLEET] AddShipToFleet: Fleet found: fleet_id=%s, island_id=%s, current_ships=%d\n", fleet.ID, fleet.IslandID, len(fleet.Ships))
+	fmt.Printf("[FLEET] AddShipToFleet: Fleet found: fleet_id=%s, island_id=%s, total_ships=%d\n", fleet.ID, fleet.IslandID, len(fleet.Ships))
 
 	// Verify Ownership via Island -> Player (use authenticated playerID, not req.PlayerID)
 	var island domain.Island
-	if err := db.First(&island, "id = ?", fleet.IslandID).Error; err != nil {
+	if err := tx.First(&island, "id = ?", fleet.IslandID).Error; err != nil {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Island not found: island_id=%s, error=%v\n", fleet.IslandID, err)
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Île introuvable"})
 	}
 	if island.PlayerID != playerID {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Ownership mismatch: island.player_id=%s, authenticated=%s\n", island.PlayerID, playerID)
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Cette flotte ne vous appartient pas"})
-	}
-
-	// Ensure player has 3 fleets (in case they were missing)
-	if err := ensurePlayerFleets(db, &island); err != nil {
-		fmt.Printf("[FLEET] AddShipToFleet: Failed to ensure fleets: %v\n", err)
-		// Continue anyway - try to proceed with the request
-	}
-
-	// Reload fleet to get updated data
-	if err := db.Preload("Ships").First(&fleet, "id = ?", req.FleetID).Error; err != nil {
-		fmt.Printf("[FLEET] AddShipToFleet: Fleet not found after ensure: fleet_id=%s, error=%v\n", req.FleetID, err)
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
 	// 2. Use authenticated player for Techs (already loaded from context)
@@ -1590,17 +1533,43 @@ func AddShipToFleet(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
-	// 3. Check Capacity
+	// 3. Check Capacity using active ships only (authoritative server-side validation)
 	maxShips := economy.GetMaxShipsPerFleet(player.UnlockedTechs)
-	fmt.Printf("[FLEET] AddShipToFleet: Capacity check: current=%d, max=%d\n", len(fleet.Ships), maxShips)
-	if len(fleet.Ships) >= maxShips {
-		fmt.Printf("[FLEET] AddShipToFleet: Fleet is full\n")
-		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Flotte pleine (%d/%d)", len(fleet.Ships), maxShips)})
+	activeShips := economy.GetActiveFleetShips(&fleet)
+	activeCount := len(activeShips)
+	
+	// Count ships under construction separately for logging
+	underConstructionCount := 0
+	for _, ship := range activeShips {
+		if ship.State == "UnderConstruction" {
+			underConstructionCount++
+		}
+	}
+	
+	// Detailed diagnostic: log each ship's state for debugging
+	fmt.Printf("[FLEET] AddShipToFleet: Fleet %s has %d total ships in DB\n", fleet.ID.String()[:8], len(fleet.Ships))
+	for i, ship := range fleet.Ships {
+		fmt.Printf("[FLEET] AddShipToFleet: Ship[%d] id=%s name=%s state=%s health=%.0f fleet_id=%v\n", 
+			i, ship.ID.String()[:8], ship.Name, ship.State, ship.Health, ship.FleetID)
+	}
+	fmt.Printf("[FLEET] AddShipToFleet: Capacity check: active=%d (uc=%d) total=%d max=%d\n", activeCount, underConstructionCount, len(fleet.Ships), maxShips)
+	if activeCount >= maxShips {
+		fmt.Printf("[FLEET] AddShipToFleet: Fleet is full (active=%d >= max=%d)\n", activeCount, maxShips)
+		tx.Rollback()
+		return c.JSON(http.StatusConflict, map[string]interface{}{
+			"error":       "FLEET_FULL",
+			"reason_code": "FLEET_FULL",
+			"message":     fmt.Sprintf("Flotte pleine (%d/%d)", activeCount, maxShips),
+			"active":      activeCount,
+			"max":         maxShips,
+			"total":       len(fleet.Ships),
+		})
 	}
 
-	// 4. Find Ship (use authenticated playerID, not req.PlayerID)
+	// 4. Find Ship (use authenticated playerID, not req.PlayerID) with FOR UPDATE
 	var ship domain.Ship
-	if err := db.First(&ship, "id = ? AND player_id = ?", req.ShipID, playerID).Error; err != nil {
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&ship, "id = ? AND player_id = ?", req.ShipID, playerID).Error; err != nil {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Ship not found: ship_id=%s, player_id=%s, error=%v\n", req.ShipID, playerID, err)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
 	}
@@ -1608,28 +1577,379 @@ func AddShipToFleet(c echo.Context) error {
 
 	// Check if ship is under construction
 	if ship.State == "UnderConstruction" {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Ship is under construction\n")
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le navire est en cours de construction"})
 	}
 
 	// Check if already in a fleet
 	if ship.FleetID != nil {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Ship already in fleet: fleet_id=%s\n", *ship.FleetID)
 		return c.JSON(http.StatusConflict, map[string]string{"error": "Le navire est déjà assigné à une flotte"})
 	}
 
 	// 5. Update Ship
 	ship.FleetID = &fleet.ID
-	if err := db.Save(&ship).Error; err != nil {
+	if err := tx.Save(&ship).Error; err != nil {
+		tx.Rollback()
 		fmt.Printf("[FLEET] AddShipToFleet: Failed to save ship: error=%v\n", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de l'assignation"})
 	}
 
-	fmt.Printf("[FLEET] AddShipToFleet: Success! Ship %s added to fleet %s\n", ship.ID, fleet.ID)
+	tx.Commit()
+	fmt.Printf("[FLEET] AddShipToFleet: Success! Ship %s added to fleet %s (active=%d/%d)\n", ship.ID, fleet.ID, activeCount+1, maxShips)
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Navire assigné à la flotte",
 		"fleet":   fleet.ID,
 	})
+}
+
+// AssignCrewRequest is the request for POST /fleets/assign-crew
+type AssignCrewRequest struct {
+	ShipID   uuid.UUID `json:"ship_id"`
+	Warriors int       `json:"warriors"`
+	Archers  int       `json:"archers"`
+	Gunners  int       `json:"gunners"`
+}
+
+// AssignCrewResponse is the response for POST /fleets/assign-crew
+type AssignCrewResponse struct {
+	Message    string `json:"message"`
+	ShipID     string `json:"ship_id"`
+	Warriors   int    `json:"warriors"`
+	Archers    int    `json:"archers"`
+	Gunners    int    `json:"gunners"`
+	StockAfter struct {
+		Warriors int `json:"warriors"`
+		Archers  int `json:"archers"`
+		Gunners  int `json:"gunners"`
+	} `json:"stock_after"`
+}
+
+// AssignCrew assigns crew from island stock to a ship
+func AssignCrew(c echo.Context) error {
+	// Get authenticated player
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non authentifié"})
+	}
+	playerID := player.ID
+
+	// Parse request
+	req := new(AssignCrewRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requête invalide: %v", err)})
+	}
+
+	// Validate quantities
+	if req.Warriors < 0 || req.Archers < 0 || req.Gunners < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Les quantités ne peuvent pas être négatives"})
+	}
+	totalToAssign := req.Warriors + req.Archers + req.Gunners
+	if totalToAssign <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Vous devez assigner au moins un matelot"})
+	}
+
+	db := repository.GetDB()
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[CREW] AssignCrew: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load ship with FOR UPDATE
+	var ship domain.Ship
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&ship, "id = ? AND player_id = ?", req.ShipID, playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
+	}
+
+	// Verify ship is active and not destroyed
+	if ship.State == "Destroyed" || ship.Health <= 0 {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le navire est détruit"})
+	}
+
+	// Check if ship is in a locked fleet
+	if ship.FleetID != nil {
+		var fleet domain.Fleet
+		if err := tx.First(&fleet, "id = ?", *ship.FleetID).Error; err == nil {
+			if economy.IsFleetLocked(&fleet) {
+				tx.Rollback()
+				return c.JSON(http.StatusConflict, map[string]string{"error": "La flotte est verrouillée (combat en cours)"})
+			}
+		}
+	}
+
+	// Load island with FOR UPDATE
+	var island domain.Island
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&island, "id = ? AND player_id = ?", ship.IslandID, playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
+	}
+
+	// Check stock availability
+	if island.CrewWarriors < req.Warriors {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Stock insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"reason_message": fmt.Sprintf("Guerriers insuffisants (nécessaire: %d, disponible: %d)", req.Warriors, island.CrewWarriors),
+		})
+	}
+	if island.CrewArchers < req.Archers {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Stock insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"reason_message": fmt.Sprintf("Archers insuffisants (nécessaire: %d, disponible: %d)", req.Archers, island.CrewArchers),
+		})
+	}
+	if island.CrewGunners < req.Gunners {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Stock insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"reason_message": fmt.Sprintf("Artilleurs insuffisants (nécessaire: %d, disponible: %d)", req.Gunners, island.CrewGunners),
+		})
+	}
+
+	// Calculate new crew totals
+	newWarriors := ship.CrewWarriors + req.Warriors
+	newArchers := ship.CrewArchers + req.Archers
+	newGunners := ship.CrewGunners + req.Gunners
+
+	// Validate capacity
+	maxCrew := economy.MaxCrewForShipType(ship.Type)
+	totalCrew := newWarriors + newArchers + newGunners
+	if totalCrew > maxCrew {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Capacité dépassée",
+			"reason_code":  "CREW_OVER_CAPACITY",
+			"reason_message": fmt.Sprintf("Capacité maximale pour un %s: %d (actuel: %d, assignation: %d)", ship.Type, maxCrew, economy.CrewTotal(&ship), totalCrew),
+		})
+	}
+
+	// Deduct from island stock
+	island.CrewWarriors -= req.Warriors
+	island.CrewArchers -= req.Archers
+	island.CrewGunners -= req.Gunners
+
+	// Ensure stock doesn't go negative (defensive)
+	if island.CrewWarriors < 0 {
+		island.CrewWarriors = 0
+	}
+	if island.CrewArchers < 0 {
+		island.CrewArchers = 0
+	}
+	if island.CrewGunners < 0 {
+		island.CrewGunners = 0
+	}
+
+	// Update ship crew
+	ship.CrewWarriors = newWarriors
+	ship.CrewArchers = newArchers
+	ship.CrewGunners = newGunners
+
+	// Save both
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde de l'île"})
+	}
+	if err := tx.Save(&ship).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde du navire"})
+	}
+
+	tx.Commit()
+
+	fmt.Printf("[CREW] AssignCrew: player=%s ship=%s warriors=%d archers=%d gunners=%d\n",
+		playerID.String()[:8], ship.ID.String()[:8], req.Warriors, req.Archers, req.Gunners)
+
+	// Build response
+	response := AssignCrewResponse{
+		Message:  "Équipage assigné",
+		ShipID:   ship.ID.String(),
+		Warriors: ship.CrewWarriors,
+		Archers:  ship.CrewArchers,
+		Gunners:  ship.CrewGunners,
+	}
+	response.StockAfter.Warriors = island.CrewWarriors
+	response.StockAfter.Archers = island.CrewArchers
+	response.StockAfter.Gunners = island.CrewGunners
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// UnassignCrewRequest is the request for POST /fleets/unassign-crew
+type UnassignCrewRequest struct {
+	ShipID   uuid.UUID `json:"ship_id"`
+	Warriors int       `json:"warriors"`
+	Archers  int       `json:"archers"`
+	Gunners  int       `json:"gunners"`
+}
+
+// UnassignCrewResponse is the response for POST /fleets/unassign-crew
+type UnassignCrewResponse struct {
+	Message    string `json:"message"`
+	ShipID     string `json:"ship_id"`
+	Warriors   int    `json:"warriors"`
+	Archers    int    `json:"archers"`
+	Gunners    int    `json:"gunners"`
+	StockAfter struct {
+		Warriors int `json:"warriors"`
+		Archers  int `json:"archers"`
+		Gunners  int `json:"gunners"`
+	} `json:"stock_after"`
+}
+
+// UnassignCrew removes crew from a ship and returns it to island stock
+func UnassignCrew(c echo.Context) error {
+	// Get authenticated player
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non authentifié"})
+	}
+	playerID := player.ID
+
+	// Parse request
+	req := new(UnassignCrewRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requête invalide: %v", err)})
+	}
+
+	// Validate quantities
+	if req.Warriors < 0 || req.Archers < 0 || req.Gunners < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Les quantités ne peuvent pas être négatives"})
+	}
+	totalToUnassign := req.Warriors + req.Archers + req.Gunners
+	if totalToUnassign <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Vous devez retirer au moins un matelot"})
+	}
+
+	db := repository.GetDB()
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[CREW] UnassignCrew: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load ship with FOR UPDATE
+	var ship domain.Ship
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&ship, "id = ? AND player_id = ?", req.ShipID, playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
+	}
+
+	// Verify ship is active and not destroyed
+	if ship.State == "Destroyed" || ship.Health <= 0 {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le navire est détruit"})
+	}
+
+	// Check if ship is in a locked fleet
+	if ship.FleetID != nil {
+		var fleet domain.Fleet
+		if err := tx.First(&fleet, "id = ?", *ship.FleetID).Error; err == nil {
+			if economy.IsFleetLocked(&fleet) {
+				tx.Rollback()
+				return c.JSON(http.StatusConflict, map[string]string{"error": "La flotte est verrouillée (combat en cours)"})
+			}
+		}
+	}
+
+	// Check if ship has enough crew to unassign
+	if ship.CrewWarriors < req.Warriors {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Équipage insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"reason_message": fmt.Sprintf("Guerriers insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Warriors, ship.CrewWarriors),
+		})
+	}
+	if ship.CrewArchers < req.Archers {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Équipage insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"reason_message": fmt.Sprintf("Archers insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Archers, ship.CrewArchers),
+		})
+	}
+	if ship.CrewGunners < req.Gunners {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        "Équipage insuffisant",
+			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"reason_message": fmt.Sprintf("Artilleurs insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Gunners, ship.CrewGunners),
+		})
+	}
+
+	// Load island with FOR UPDATE
+	var island domain.Island
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&island, "id = ? AND player_id = ?", ship.IslandID, playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
+	}
+
+	// Remove from ship (clamp to non-negative)
+	newWarriors := ship.CrewWarriors - req.Warriors
+	newArchers := ship.CrewArchers - req.Archers
+	newGunners := ship.CrewGunners - req.Gunners
+
+	if newWarriors < 0 {
+		newWarriors = 0
+	}
+	if newArchers < 0 {
+		newArchers = 0
+	}
+	if newGunners < 0 {
+		newGunners = 0
+	}
+
+	// Return to island stock
+	island.CrewWarriors += req.Warriors
+	island.CrewArchers += req.Archers
+	island.CrewGunners += req.Gunners
+
+	// Update ship crew
+	ship.CrewWarriors = newWarriors
+	ship.CrewArchers = newArchers
+	ship.CrewGunners = newGunners
+
+	// Save both
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde de l'île"})
+	}
+	if err := tx.Save(&ship).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde du navire"})
+	}
+
+	tx.Commit()
+
+	fmt.Printf("[CREW] UnassignCrew: player=%s ship=%s warriors=%d archers=%d gunners=%d\n",
+		playerID.String()[:8], ship.ID.String()[:8], req.Warriors, req.Archers, req.Gunners)
+
+	// Build response
+	response := UnassignCrewResponse{
+		Message:  "Équipage retiré",
+		ShipID:   ship.ID.String(),
+		Warriors: ship.CrewWarriors,
+		Archers:  ship.CrewArchers,
+		Gunners:  ship.CrewGunners,
+	}
+	response.StockAfter.Warriors = island.CrewWarriors
+	response.StockAfter.Archers = island.CrewArchers
+	response.StockAfter.Gunners = island.CrewGunners
+
+	return c.JSON(http.StatusOK, response)
 }
 
 func GetFleets(c echo.Context) error {
@@ -1737,24 +2057,59 @@ func ensurePlayerFleets(db *gorm.DB, island *domain.Island) error {
 		}
 	}
 
-	// Lazy update: auto-fix FlagshipShipID for existing fleets if nil and fleet has ships
-	// Reload all fleets to check for flagship auto-fix
+	// Lazy update: auto-fix FlagshipShipID for existing fleets
+	// Reload all fleets to check for flagship auto-fix and orphaned references
 	var allFleets []domain.Fleet
 	if err := db.Preload("Ships").Where("island_id = ?", island.ID).Find(&allFleets).Error; err != nil {
 		return fmt.Errorf("failed to reload fleets for flagship check: %w", err)
 	}
 	for i := range allFleets {
+		// Check if FlagshipShipID points to a non-existent ship (orphaned reference)
+		if allFleets[i].FlagshipShipID != nil {
+			flagshipExists := false
+			for _, ship := range allFleets[i].Ships {
+				if ship.ID == *allFleets[i].FlagshipShipID {
+					flagshipExists = true
+					// Also check if the flagship ship is destroyed (shouldn't happen with hard delete, but defensive)
+					if ship.State == "Destroyed" || ship.Health <= 0 {
+						flagshipExists = false
+					}
+					break
+				}
+			}
+			if !flagshipExists {
+				// Orphaned reference: clear it
+				allFleets[i].FlagshipShipID = nil
+				if err := db.Save(&allFleets[i]).Error; err != nil {
+					fmt.Printf("[FLEET] Failed to clear orphaned flagship for fleet %s: %v\n", allFleets[i].ID, err)
+					// Continue anyway - not critical
+				} else {
+					fmt.Printf("[FLEET] Cleared orphaned flagship reference for fleet %s\n", allFleets[i].ID)
+				}
+			}
+		}
+		
+		// Auto-set flagship if nil and fleet has active ships
 		if allFleets[i].FlagshipShipID == nil && len(allFleets[i].Ships) > 0 {
-			// Auto-set flagship to first ship (sorted by ID for determinism)
-			sort.Slice(allFleets[i].Ships, func(a, b int) bool {
-				return allFleets[i].Ships[a].ID.String() < allFleets[i].Ships[b].ID.String()
-			})
-			allFleets[i].FlagshipShipID = &allFleets[i].Ships[0].ID
-			if err := db.Save(&allFleets[i]).Error; err != nil {
-				fmt.Printf("[FLEET] Failed to auto-fix flagship for fleet %s: %v\n", allFleets[i].ID, err)
-				// Continue anyway - not critical
-			} else {
-				fmt.Printf("[FLEET] Auto-fixed flagship for fleet %s: ship_id=%s\n", allFleets[i].ID, allFleets[i].Ships[0].ID)
+			// Filter out destroyed ships
+			activeShips := make([]domain.Ship, 0)
+			for _, ship := range allFleets[i].Ships {
+				if ship.State != "Destroyed" && ship.Health > 0 {
+					activeShips = append(activeShips, ship)
+				}
+			}
+			if len(activeShips) > 0 {
+				// Auto-set flagship to first active ship (sorted by ID for determinism)
+				sort.Slice(activeShips, func(a, b int) bool {
+					return activeShips[a].ID.String() < activeShips[b].ID.String()
+				})
+				allFleets[i].FlagshipShipID = &activeShips[0].ID
+				if err := db.Save(&allFleets[i]).Error; err != nil {
+					fmt.Printf("[FLEET] Failed to auto-fix flagship for fleet %s: %v\n", allFleets[i].ID, err)
+					// Continue anyway - not critical
+				} else {
+					fmt.Printf("[FLEET] Auto-fixed flagship for fleet %s: ship_id=%s\n", allFleets[i].ID, activeShips[0].ID)
+				}
 			}
 		}
 	}
@@ -3358,10 +3713,20 @@ func DevSetShipCrew(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce navire ne vous appartient pas"})
 	}
 
-	// Update crew counts
+	// Update crew counts (temporarily for validation)
 	ship.CrewWarriors = req.Warriors
 	ship.CrewArchers = req.Archers
 	ship.CrewGunners = req.Gunners
+
+	// Validate crew bounds (using ship's actual type)
+	isValid, reasonCode, reasonMsg := economy.ValidateShipCrewBounds(&ship)
+	if !isValid {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        reasonMsg,
+			"reason_code":  reasonCode,
+			"message":      reasonMsg,
+		})
+	}
 
 	// Save ship
 	if err := db.Save(&ship).Error; err != nil {
@@ -3378,4 +3743,123 @@ func DevSetShipCrew(c echo.Context) error {
 		Gunners:  req.Gunners,
 		Message:  "Équipage mis à jour",
 	})
+}
+
+// MilitiaRecruitRequest is the request for POST /militia/recruit
+type MilitiaRecruitRequest struct {
+	Warriors int `json:"warriors"`
+	Archers  int `json:"archers"`
+	Gunners  int `json:"gunners"`
+}
+
+// MilitiaRecruitResponse is the response for POST /militia/recruit
+type MilitiaRecruitResponse struct {
+	DoneAt    time.Time `json:"done_at"`
+	Pending   struct {
+		Warriors int `json:"warriors"`
+		Archers  int `json:"archers"`
+		Gunners  int `json:"gunners"`
+	} `json:"pending"`
+	GoldAfter float64 `json:"gold_after,omitempty"`
+	RumAfter  float64 `json:"rum_after,omitempty"`
+	Message   string  `json:"message"`
+}
+
+// MilitiaRecruit handles militia recruitment
+func MilitiaRecruit(c echo.Context) error {
+	// Get authenticated player
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non authentifié"})
+	}
+	playerID := player.ID
+
+	// Parse request
+	req := new(MilitiaRecruitRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requête invalide: %v", err)})
+	}
+
+	db := repository.GetDB()
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[MILITIA] Recruit: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load island with buildings
+	var island domain.Island
+	if err := tx.Where("player_id = ?", playerID).First(&island).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
+	}
+
+	// Load resources (via CalculateResources or direct load)
+	// For now, we'll recalculate resources to ensure accuracy
+	now := time.Now()
+	elapsed := now.Sub(island.LastUpdated)
+	if elapsed > 0 {
+		engine.CalculateResources(&island, elapsed)
+		island.LastUpdated = now
+	}
+
+	// Validate request
+	isValid, reasonCode, reasonMsg := economy.ValidateRecruitRequest(&island, req.Warriors, req.Archers, req.Gunners)
+	if !isValid {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"error":        reasonMsg,
+			"reason_code":  reasonCode,
+			"reason_message": reasonMsg,
+		})
+	}
+
+	// Get Militia building level
+	militia := economy.GetMilitiaBuilding(&island)
+	militiaLevel := 0
+	if militia != nil {
+		militiaLevel = militia.Level
+	}
+
+	// Calculate duration
+	duration := economy.CalculateRecruitDuration(req.Warriors, req.Archers, req.Gunners, militiaLevel)
+	doneAt := now.Add(duration)
+
+	// Calculate and deduct costs
+	gold, rum := economy.CalculateRecruitCost(req.Warriors, req.Archers, req.Gunners)
+	island.Resources[domain.Gold] -= float64(gold)
+	island.Resources[domain.Rum] -= float64(rum)
+
+	// Set recruitment state
+	island.MilitiaRecruiting = true
+	island.MilitiaRecruitDoneAt = &doneAt
+	island.MilitiaRecruitWarriors = req.Warriors
+	island.MilitiaRecruitArchers = req.Archers
+	island.MilitiaRecruitGunners = req.Gunners
+
+	// Save island
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde"})
+	}
+
+	tx.Commit()
+
+	fmt.Printf("[MILITIA] Recruit: player=%s warriors=%d archers=%d gunners=%d done_at=%v\n",
+		playerID.String()[:8], req.Warriors, req.Archers, req.Gunners, doneAt)
+
+	// Build response
+	response := MilitiaRecruitResponse{
+		DoneAt:    doneAt,
+		GoldAfter: island.Resources[domain.Gold],
+		RumAfter:  island.Resources[domain.Rum],
+		Message:   "Recrutement lancé",
+	}
+	response.Pending.Warriors = req.Warriors
+	response.Pending.Archers = req.Archers
+	response.Pending.Gunners = req.Gunners
+
+	return c.JSON(http.StatusOK, response)
 }

@@ -57,6 +57,8 @@ func main() {
 		protected.POST("/build-ship", api.StartShipConstruction)
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
+		protected.POST("/fleets/assign-crew", api.AssignCrew)
+		protected.POST("/fleets/unassign-crew", api.UnassignCrew)
 		protected.GET("/fleets", api.GetFleets)
 		// Captain endpoints
 		protected.GET("/captains", api.GetCaptains)
@@ -66,6 +68,11 @@ func main() {
 		// Tavern endpoints
 		protected.POST("/tavern/summon-captain", api.SummonCaptain)
 		protected.POST("/tavern/exchange-shards", api.ExchangeShards)
+		// PVE endpoints
+		protected.GET("/pve/targets", api.GetPveTargets)
+		protected.POST("/pve/engage", api.EngagePve)
+		// Militia endpoints
+		protected.POST("/militia/recruit", api.MilitiaRecruit)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)

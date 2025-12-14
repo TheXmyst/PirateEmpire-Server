@@ -93,6 +93,24 @@ type Sea struct {
 	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:SeaID"`
 }
 
+// Requirement represents a single missing prerequisite
+type Requirement struct {
+	Kind    string `json:"kind"`    // "building_level", "tech", "resource", "other"
+	ID      string `json:"id"`      // "TownHall", "Shipyard", "tech_naval_1"
+	Name    string `json:"name"`    // Label humain FR, ex: "Hôtel de ville"
+	Needed  int    `json:"needed"`  // Niveau requis si applicable
+	Current int    `json:"current"` // Niveau actuel si applicable
+	Message string `json:"message"` // Message FR court
+}
+
+// RequirementsError represents a structured error for missing prerequisites
+type RequirementsError struct {
+	Code         string        `json:"code"`         // "REQUIREMENTS_NOT_MET"
+	Message      string        `json:"message"`     // "Prérequis non remplis"
+	Error        string        `json:"error"`       // Pour compatibilité avec anciens clients
+	Requirements []Requirement `json:"requirements"` // Liste des prérequis manquants
+}
+
 // Island represents a player's base
 type Island struct {
 	ID       uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
@@ -121,6 +139,18 @@ type Island struct {
 	// Checkpoint throttling: tracks last time island was persisted from /status endpoint
 	// Used to reduce DB writes: /status only saves island every 5 seconds max
 	LastCheckpointSavedAt *time.Time `json:"-" gorm:"column:last_checkpoint_saved_at"`
+
+	// Global crew stock (for militia recruitment)
+	CrewWarriors int `json:"crew_warriors" gorm:"default:0"`
+	CrewArchers  int `json:"crew_archers" gorm:"default:0"`
+	CrewGunners  int `json:"crew_gunners" gorm:"default:0"`
+
+	// Militia recruitment queue
+	MilitiaRecruiting        bool       `json:"militia_recruiting" gorm:"default:false"`
+	MilitiaRecruitDoneAt     *time.Time `json:"militia_recruit_done_at,omitempty" gorm:"column:militia_recruit_done_at"`
+	MilitiaRecruitWarriors   int        `json:"militia_recruit_warriors" gorm:"default:0"`
+	MilitiaRecruitArchers    int        `json:"militia_recruit_archers" gorm:"default:0"`
+	MilitiaRecruitGunners    int        `json:"militia_recruit_gunners" gorm:"default:0"`
 }
 
 // Fleet represents a group of ships
