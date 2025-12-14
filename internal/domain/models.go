@@ -117,6 +117,10 @@ type Island struct {
 	Ships     []Ship     `json:"ships,omitempty" gorm:"foreignKey:IslandID"` // Initial pool (can be in fleet or unassigned)
 
 	LastUpdated time.Time `json:"last_updated"`
+
+	// Checkpoint throttling: tracks last time island was persisted from /status endpoint
+	// Used to reduce DB writes: /status only saves island every 5 seconds max
+	LastCheckpointSavedAt *time.Time `json:"-" gorm:"column:last_checkpoint_saved_at"`
 }
 
 // Fleet represents a group of ships
@@ -215,6 +219,7 @@ type Captain struct {
 	Stars         int           `json:"stars" gorm:"default:0"` // 0-based, max depends on rarity
 	SkillID       string        `json:"skill_id"` // identifier for the main skill
 	AssignedShipID *uuid.UUID   `json:"assigned_ship_id" gorm:"type:uuid;index"` // nullable, indexed
+	InjuredUntil  *time.Time    `json:"injured_until,omitempty" gorm:"column:injured_until"` // Nullable, captain injury until this time
 	CreatedAt     time.Time     `json:"created_at"`
 	UpdatedAt     time.Time     `json:"updated_at"`
 }
@@ -248,6 +253,12 @@ type Ship struct {
 
 	CaptainID *uuid.UUID `json:"captain_id" gorm:"type:uuid;index"`
 
+	// Crew composition per ship (for RPS combat system)
+	CrewWarriors int `json:"crew_warriors,omitempty" gorm:"default:0"`
+	CrewArchers   int `json:"crew_archers,omitempty" gorm:"default:0"`
+	CrewGunners   int `json:"crew_gunners,omitempty" gorm:"default:0"`
+
+	// Legacy crew map (kept for backward compatibility, but RPS uses CrewWarriors/Archers/Gunners)
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`
 	Crew     map[UnitType]int `json:"crew" gorm:"-"`
 }

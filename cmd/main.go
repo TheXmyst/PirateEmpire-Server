@@ -89,6 +89,7 @@ func main() {
 			devRoutes.POST("/grant-captain", api.DevGrantCaptain)
 			devRoutes.POST("/grant-tickets", api.DevGrantTickets)
 			devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
+			devRoutes.POST("/set-ship-crew", api.DevSetShipCrew)
 		}
 	}
 

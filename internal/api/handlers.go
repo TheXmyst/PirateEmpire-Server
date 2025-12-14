@@ -369,6 +369,18 @@ func GetStatus(c echo.Context) error {
 		}
 		fmt.Printf("[STATUS] player=%s island=%s fleets=%d ids=%v\n", 
 			player.ID.String(), island.ID.String(), len(island.Fleets), fleetInfo)
+
+		// Debug log for crew counts (only when DEBUG or CAPTAIN_DEBUG is enabled)
+		if os.Getenv("DEBUG") != "" || os.Getenv("CAPTAIN_DEBUG") != "" {
+			for _, fleet := range island.Fleets {
+				for _, ship := range fleet.Ships {
+					if ship.CrewWarriors > 0 || ship.CrewArchers > 0 || ship.CrewGunners > 0 {
+						fmt.Printf("[STATUS] ship_id=%s crew: warriors=%d archers=%d gunners=%d\n",
+							ship.ID, ship.CrewWarriors, ship.CrewArchers, ship.CrewGunners)
+					}
+				}
+			}
+		}
 	}
 
 	// LAZY UPDATE: Check Research Completion on Read
@@ -405,6 +417,8 @@ func GetStatus(c echo.Context) error {
 
 	// Calculate resources for each island
 	now := time.Now()
+	const StatusCheckpointInterval = 5 * time.Second
+
 	for i := range player.Islands {
 		island := &player.Islands[i]
 
@@ -416,21 +430,48 @@ func GetStatus(c echo.Context) error {
 
 		if elapsed > 0 {
 			engine.CalculateResources(island, elapsed)
+			// Always update LastUpdated in memory for accurate resource calculation
+			// This ensures resources are calculated correctly even if we don't persist yet
 			island.LastUpdated = now
 
-			// Updates ResourcesJSON via BeforeSave hook check?
-			// GORM Updates/Select might skip BeforeSave hooks for strict updates.
-			// Handlers.go:121 BeforeSave handles marshalling.
-			// If we use Save(), it calls BeforeSave.
-			// But we want to limit columns.
-			// Be careful: if we limit columns to "resources", BeforeSave must populate "resources" column
-			// from island.Resources map.
-			// If BeforeSave runs, it updates island.ResourcesJSON.
-			// Then Save() writes it.
+			// CHECKPOINT THROTTLING: Only persist island to DB every 5 seconds max
+			// This reduces DB writes from /status polling (typically 1-2s) to ~1 write per 5s per island
+			// Resources remain accurate in memory; max loss on crash is ≤5s of production (acceptable)
+			shouldSave := false
+			if island.LastCheckpointSavedAt == nil {
+				// First time or never saved: save immediately
+				shouldSave = true
+			} else {
+				// Check if 5 seconds have passed since last checkpoint
+				timeSinceLastCheckpoint := now.Sub(*island.LastCheckpointSavedAt)
+				if timeSinceLastCheckpoint >= StatusCheckpointInterval {
+					shouldSave = true
+				}
+			}
 
-			// Safer approach: use Save() but ensure island.Player is correct (which we did above).
-			// And/Or use Omit("Player") to prevent player updates.
-			db.Omit("Player").Save(island)
+			if shouldSave {
+				// Update checkpoint timestamp before saving
+				island.LastCheckpointSavedAt = &now
+
+				// Updates ResourcesJSON via BeforeSave hook check?
+				// GORM Updates/Select might skip BeforeSave hooks for strict updates.
+				// Handlers.go:121 BeforeSave handles marshalling.
+				// If we use Save(), it calls BeforeSave.
+				// But we want to limit columns.
+				// Be careful: if we limit columns to "resources", BeforeSave must populate "resources" column
+				// from island.Resources map.
+				// If BeforeSave runs, it updates island.ResourcesJSON.
+				// Then Save() writes it.
+
+				// Safer approach: use Save() but ensure island.Player is correct (which we did above).
+				// And/Or use Omit("Player") to prevent player updates.
+				db.Omit("Player").Save(island)
+
+				// Optional debug log (only if DEBUG enabled)
+				if os.Getenv("DEBUG") != "" {
+					fmt.Printf("[STATUS] Checkpoint saved: island=%s last_checkpoint=%v\n", island.ID, now)
+				}
+			}
 		}
 
 		// HOTFIX: Update Townhall position
@@ -2398,8 +2439,11 @@ func SummonCaptain(c echo.Context) error {
 	}()
 
 	// Load player with pity counts
+	// CRITICAL: Use SELECT FOR UPDATE to prevent race conditions on pity counters
+	// This locks the player row until the transaction commits, ensuring atomicity
+	// when multiple x10 summons occur simultaneously
 	var playerWithPity domain.Player
-	if err := tx.First(&playerWithPity, "id = ?", playerID).Error; err != nil {
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&playerWithPity, "id = ?", playerID).Error; err != nil {
 		tx.Rollback()
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
 	}
@@ -2931,8 +2975,10 @@ func ExchangeShards(c echo.Context) error {
 // --- ENGAGEMENT MORALE SYSTEM ---
 
 type SimulateEngagementRequest struct {
-	FleetAID string `json:"fleet_a_id"` // Accept as string, parse to UUID
-	FleetBID string `json:"fleet_b_id"` // Accept as string, parse to UUID
+	FleetAID      string `json:"fleet_a_id"`      // Accept as string, parse to UUID
+	FleetBID      string `json:"fleet_b_id"`      // Accept as string, parse to UUID
+	SimulateCombat bool  `json:"simulate_combat"` // If true, simulate full combat (default: false)
+	CombatSeed     *int64 `json:"combat_seed,omitempty"` // Optional deterministic RNG seed for combat
 }
 
 // DevSimulateEngagement simulates an engagement between two fleets (admin only, for testing)
@@ -3151,14 +3197,18 @@ func DevSimulateEngagement(c echo.Context) error {
 		}
 	}
 
-	// Add flagship info to applied notes (with selection reason)
+	// Add flagship info to applied notes (with selection reason and crew info)
 	if flagshipA != nil {
-		result.Applied = append([]string{fmt.Sprintf("FleetA flagship selection: explicit=%v ship_id=%s type=%s reason=%s", explicitA, flagshipA.ID, flagshipA.Type, reasonA)}, result.Applied...)
+		dominantCrewA := economy.GetDominantCrewType(flagshipA)
+		result.Applied = append([]string{fmt.Sprintf("FleetA flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)", 
+			explicitA, flagshipA.ID, flagshipA.Type, reasonA, dominantCrewA, flagshipA.CrewWarriors, flagshipA.CrewArchers, flagshipA.CrewGunners)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetA: no flagship"}, result.Applied...)
 	}
 	if flagshipB != nil {
-		result.Applied = append([]string{fmt.Sprintf("FleetB flagship selection: explicit=%v ship_id=%s type=%s reason=%s", explicitB, flagshipB.ID, flagshipB.Type, reasonB)}, result.Applied...)
+		dominantCrewB := economy.GetDominantCrewType(flagshipB)
+		result.Applied = append([]string{fmt.Sprintf("FleetB flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)", 
+			explicitB, flagshipB.ID, flagshipB.Type, reasonB, dominantCrewB, flagshipB.CrewWarriors, flagshipB.CrewArchers, flagshipB.CrewGunners)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetB: no flagship"}, result.Applied...)
 	}
@@ -3199,6 +3249,39 @@ func DevSimulateEngagement(c echo.Context) error {
 		response["fleet_b_combat_stats"] = combatStatsB
 	}
 
+	// If simulate_combat is true, execute full combat simulation
+	if req.SimulateCombat {
+		// Generate deterministic seed if not provided
+		combatSeed := time.Now().UnixNano()
+		if req.CombatSeed != nil {
+			combatSeed = *req.CombatSeed
+		}
+
+		// Execute naval combat
+		combatResult, err := economy.ExecuteNavalCombat(
+			&fleetA, &fleetB,
+			captA, captB,
+			result,
+			combatSeed,
+		)
+		if err != nil {
+			fmt.Printf("[ENGAGE] Combat simulation error: %v\n", err)
+			response["combat_error"] = err.Error()
+		} else {
+			// Add combat result to response
+			response["combat"] = map[string]interface{}{
+				"winner":             combatResult.Winner,
+				"rounds":             combatResult.Rounds,
+				"ships_destroyed_a":  combatResult.ShipsDestroyedA,
+				"ships_destroyed_b":  combatResult.ShipsDestroyedB,
+				"captain_injured_a":  combatResult.CaptainInjuredA,
+				"captain_injured_b":  combatResult.CaptainInjuredB,
+				"combat_applied":     combatResult.Applied,
+				"combat_seed":        combatSeed,
+			}
+		}
+	}
+
 	return c.JSON(http.StatusOK, response)
 }
 
@@ -3206,5 +3289,93 @@ func DevSimulateEngagement(c echo.Context) error {
 func sortShipsByID(ships *[]domain.Ship) {
 	sort.Slice(*ships, func(i, j int) bool {
 		return (*ships)[i].ID.String() < (*ships)[j].ID.String()
+	})
+}
+
+// DevSetShipCrewRequest is the request for the /dev/set-ship-crew endpoint
+type DevSetShipCrewRequest struct {
+	ShipID   string `json:"ship_id"`   // UUID as string
+	Warriors int    `json:"warriors"`  // Must be >= 0
+	Archers  int    `json:"archers"`   // Must be >= 0
+	Gunners  int    `json:"gunners"`   // Must be >= 0
+}
+
+// DevSetShipCrewResponse is the response for the /dev/set-ship-crew endpoint
+type DevSetShipCrewResponse struct {
+	ShipID   string `json:"ship_id"`
+	Warriors int    `json:"warriors"`
+	Archers  int    `json:"archers"`
+	Gunners  int    `json:"gunners"`
+	Message  string `json:"message"`
+}
+
+// DevSetShipCrew sets the crew composition for a ship (dev only, for testing)
+func DevSetShipCrew(c echo.Context) error {
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if err := checkDevAdmin(player); err != nil {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Accès refusé: admin uniquement"})
+	}
+	playerID := player.ID
+
+	// Parse request
+	req := new(DevSetShipCrewRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requête invalide: %v", err)})
+	}
+
+	// Validate ship_id
+	if req.ShipID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ship_id manquant"})
+	}
+	shipID, err := uuid.Parse(req.ShipID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("ship_id invalide (UUID attendu): '%s'", req.ShipID)})
+	}
+
+	// Validate crew counts (must be >= 0)
+	if req.Warriors < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "warriors doit être >= 0"})
+	}
+	if req.Archers < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "archers doit être >= 0"})
+	}
+	if req.Gunners < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "gunners doit être >= 0"})
+	}
+
+	db := repository.GetDB()
+
+	// Load ship
+	var ship domain.Ship
+	if err := db.First(&ship, "id = ?", shipID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Navire introuvable (id=%s)", shipID)})
+	}
+
+	// Verify ownership: ship must belong to a player's island
+	var island domain.Island
+	if err := db.First(&island, "id = ? AND player_id = ?", ship.IslandID, playerID).Error; err != nil {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce navire ne vous appartient pas"})
+	}
+
+	// Update crew counts
+	ship.CrewWarriors = req.Warriors
+	ship.CrewArchers = req.Archers
+	ship.CrewGunners = req.Gunners
+
+	// Save ship
+	if err := db.Save(&ship).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur lors de la sauvegarde: %v", err)})
+	}
+
+	fmt.Printf("[DEV] SetShipCrew: ship_id=%s player_id=%s warriors=%d archers=%d gunners=%d\n",
+		shipID, playerID, req.Warriors, req.Archers, req.Gunners)
+
+	return c.JSON(http.StatusOK, DevSetShipCrewResponse{
+		ShipID:   shipID.String(),
+		Warriors: req.Warriors,
+		Archers:  req.Archers,
+		Gunners:  req.Gunners,
+		Message:  "Équipage mis à jour",
 	})
 }
