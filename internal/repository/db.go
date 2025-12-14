@@ -22,7 +22,7 @@ func InitDB() {
 	log.Printf("Database initialized at: %s", absPath)
 
 	// Migrate the schema
-	err = DB.AutoMigrate(&domain.Player{}, &domain.Sea{}, &domain.Island{}, &domain.Building{}, &domain.Ship{}, &domain.Fleet{}, &domain.Captain{})
+	err = DB.AutoMigrate(&domain.Player{}, &domain.Sea{}, &domain.Island{}, &domain.Building{}, &domain.Ship{}, &domain.Fleet{}, &domain.Captain{}, &domain.CaptainShardWallet{})
 	if err != nil {
 		log.Fatal("failed to migrate database schema")
 	}

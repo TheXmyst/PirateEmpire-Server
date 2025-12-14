@@ -550,6 +550,19 @@ func Build(c echo.Context) error {
 		}
 	}
 
+	// CHECK ONE-PER-ISLAND FOR TAVERN
+	if req.Type == "Tavern" {
+		for _, b := range island.Buildings {
+			if b.Type == "Tavern" && !b.Constructing {
+				tx.Rollback()
+				errorMsg := "Tavern already built on this island"
+				fmt.Printf("Build failed: player_id=%s, island_id=%s, building_type=%s, reason=%s\n",
+					playerID, req.IslandID, req.Type, errorMsg)
+				return c.JSON(http.StatusBadRequest, map[string]string{"error": errorMsg})
+			}
+		}
+	}
+
 	// CHECK PREREQUISITES
 	// Log TownHall status for debugging
 	thLevel := 0
@@ -693,6 +706,11 @@ func Upgrade(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Already under construction"})
 	}
 
+	// CHECK: Tavern cannot be upgraded
+	if building.Type == "Tavern" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tavern cannot be upgraded."})
+	}
+
 	// CHECK GLOBAL CONSTRUCTION LIMIT (New Rule)
 	for _, b := range island.Buildings {
 		if b.Constructing {
@@ -795,7 +813,7 @@ func ResetProgress(c echo.Context) error {
 	playerID := player.ID
 
 	// Log reset request
-	fmt.Printf("Reset request: player_id=%s\n", playerID)
+	fmt.Printf("[RESET] player=%s started\n", playerID)
 
 	db := repository.GetDB()
 
@@ -808,6 +826,29 @@ func ResetProgress(c echo.Context) error {
 		}
 	}()
 
+	// 0. Check cooldown (24h anti-farm protection)
+	var playerToCheck domain.Player
+	if err := tx.Where("id = ?", playerID).First(&playerToCheck).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Player not found"
+		fmt.Printf("Reset failed: player_id=%s, reason=%s\n", playerID, errorMsg)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": errorMsg})
+	}
+
+	if playerToCheck.LastResetAt != nil {
+		timeSinceReset := time.Since(*playerToCheck.LastResetAt)
+		cooldownDuration := 24 * time.Hour
+		if timeSinceReset < cooldownDuration {
+			remaining := cooldownDuration - timeSinceReset
+			hours := int(remaining.Hours())
+			minutes := int(remaining.Minutes()) % 60
+			tx.Rollback()
+			errorMsg := fmt.Sprintf("Reset disponible dans %dh%dm.", hours, minutes)
+			fmt.Printf("[RESET] player=%s blocked: cooldown remaining=%v\n", playerID, remaining)
+			return c.JSON(http.StatusTooManyRequests, map[string]string{"error": errorMsg})
+		}
+	}
+
 	// 1. Find Island (use authenticated playerID, not req.PlayerID)
 	var island domain.Island
 	if err := tx.Where("player_id = ?", playerID).First(&island).Error; err != nil {
@@ -817,7 +858,14 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": errorMsg})
 	}
 
-	// 2. Delete All Buildings (will recreate TownHall after)
+	// 2. Count and Delete All Buildings
+	var deletedBuildings int64
+	if err := tx.Model(&domain.Building{}).Where("island_id = ?", island.ID).Count(&deletedBuildings).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to count buildings"
+		fmt.Printf("Reset failed: player_id=%s, island_id=%s, reason=%s\n", playerID, island.ID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
 	if err := tx.Where("island_id = ?", island.ID).Delete(&domain.Building{}).Error; err != nil {
 		tx.Rollback()
 		errorMsg := "Failed to delete buildings"
@@ -825,7 +873,14 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
 	}
 
-	// 3. Delete All Ships (they belong to the island)
+	// 3. Count and Delete All Ships (they belong to the island)
+	var deletedShips int64
+	if err := tx.Model(&domain.Ship{}).Where("island_id = ?", island.ID).Count(&deletedShips).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to count ships"
+		fmt.Printf("Reset failed: player_id=%s, island_id=%s, reason=%s\n", playerID, island.ID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
 	if err := tx.Where("island_id = ?", island.ID).Delete(&domain.Ship{}).Error; err != nil {
 		tx.Rollback()
 		errorMsg := "Failed to delete ships"
@@ -833,7 +888,14 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
 	}
 
-	// 4. Delete All Fleets (they belong to the island)
+	// 4. Count and Delete All Fleets (they belong to the island)
+	var deletedFleets int64
+	if err := tx.Model(&domain.Fleet{}).Where("island_id = ?", island.ID).Count(&deletedFleets).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to count fleets"
+		fmt.Printf("Reset failed: player_id=%s, island_id=%s, reason=%s\n", playerID, island.ID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
 	if err := tx.Where("island_id = ?", island.ID).Delete(&domain.Fleet{}).Error; err != nil {
 		tx.Rollback()
 		errorMsg := "Failed to delete fleets"
@@ -841,16 +903,47 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
 	}
 
+	// 5. Count and Delete All Captains (they belong to the player)
+	var deletedCaptains int64
+	if err := tx.Model(&domain.Captain{}).Where("player_id = ?", playerID).Count(&deletedCaptains).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to count captains"
+		fmt.Printf("Reset failed: player_id=%s, reason=%s\n", playerID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
+	if err := tx.Where("player_id = ?", playerID).Delete(&domain.Captain{}).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to delete captains"
+		fmt.Printf("Reset failed: player_id=%s, reason=%s\n", playerID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
+
+	// 5.5. Count and Delete All Captain Shard Wallets (they belong to the player)
+	var deletedShardWallets int64
+	if err := tx.Model(&domain.CaptainShardWallet{}).Where("player_id = ?", playerID).Count(&deletedShardWallets).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to count shard wallets"
+		fmt.Printf("Reset failed: player_id=%s, reason=%s\n", playerID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
+	if err := tx.Where("player_id = ?", playerID).Delete(&domain.CaptainShardWallet{}).Error; err != nil {
+		tx.Rollback()
+		errorMsg := "Failed to delete shard wallets"
+		fmt.Printf("Reset failed: player_id=%s, reason=%s\n", playerID, errorMsg)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
+	}
+
 	// Note: We will recreate the 3 fleets after the transaction commits
 
-	// 5. Reset Island to initial state (same as Register)
+	// 6. Reset Island to initial state (same as Register)
 	island.Level = 1
 	island.LastUpdated = time.Now()
 	island.Resources = map[domain.ResourceType]float64{
-		domain.Wood:  2500.0,
-		domain.Gold:  3000.0,
-		domain.Stone: 2500.0,
-		domain.Rum:   1000.0,
+		domain.Wood:         2500.0,
+		domain.Gold:         3000.0,
+		domain.Stone:        2500.0,
+		domain.Rum:          1000.0,
+		domain.CaptainTicket: 0.0, // Explicitly reset tickets to 0
 	}
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
@@ -859,7 +952,7 @@ func ResetProgress(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": errorMsg})
 	}
 
-	// 6. Reset Player Techs (same as initial state - empty, no research in progress)
+	// 7. Reset Player Techs (same as initial state - empty, no research in progress)
 	// Note: We do NOT recreate TownHall - after reset, the island is empty and the player
 	// must manually start construction of TownHall as their first action (same as original design)
 	// Load the player to use the proper model hooks for serialization
@@ -876,6 +969,12 @@ func ResetProgress(c echo.Context) error {
 	playerToReset.UnlockedTechsJSON = []byte("[]") // Empty JSON array
 	playerToReset.ResearchingTechID = ""
 	playerToReset.ResearchFinishTime = time.Time{}
+	// Reset pity counters
+	playerToReset.PityLegendaryCount = 0
+	playerToReset.PityRareCount = 0
+	// Set LastResetAt to now (cooldown tracking)
+	now := time.Now()
+	playerToReset.LastResetAt = &now
 	playerToReset.UpdatedAt = time.Now()
 
 	// Save using Save() which will trigger BeforeSave hook to properly serialize UnlockedTechs
@@ -894,8 +993,10 @@ func ResetProgress(c echo.Context) error {
 		// Continue anyway - fleets can be created later
 	}
 
-	// Log success
-	fmt.Printf("Reset success: player_id=%s, island_id=%s\n", playerID, island.ID)
+	// Log success with counts
+	fmt.Printf("[RESET] player=%s ok=true deleted_buildings=%d deleted_ships=%d deleted_fleets=%d deleted_captains=%d deleted_shard_wallets=%d\n",
+		playerID, deletedBuildings, deletedShips, deletedFleets, deletedCaptains, deletedShardWallets)
+	fmt.Printf("[RESET] player=%s success island=%s\n", playerID, island.ID)
 
 	// Return success - account is preserved, only progression is reset
 	return c.JSON(http.StatusOK, map[string]string{"message": "progress reset"})
@@ -1595,6 +1696,28 @@ func ensurePlayerFleets(db *gorm.DB, island *domain.Island) error {
 		}
 	}
 
+	// Lazy update: auto-fix FlagshipShipID for existing fleets if nil and fleet has ships
+	// Reload all fleets to check for flagship auto-fix
+	var allFleets []domain.Fleet
+	if err := db.Preload("Ships").Where("island_id = ?", island.ID).Find(&allFleets).Error; err != nil {
+		return fmt.Errorf("failed to reload fleets for flagship check: %w", err)
+	}
+	for i := range allFleets {
+		if allFleets[i].FlagshipShipID == nil && len(allFleets[i].Ships) > 0 {
+			// Auto-set flagship to first ship (sorted by ID for determinism)
+			sort.Slice(allFleets[i].Ships, func(a, b int) bool {
+				return allFleets[i].Ships[a].ID.String() < allFleets[i].Ships[b].ID.String()
+			})
+			allFleets[i].FlagshipShipID = &allFleets[i].Ships[0].ID
+			if err := db.Save(&allFleets[i]).Error; err != nil {
+				fmt.Printf("[FLEET] Failed to auto-fix flagship for fleet %s: %v\n", allFleets[i].ID, err)
+				// Continue anyway - not critical
+			} else {
+				fmt.Printf("[FLEET] Auto-fixed flagship for fleet %s: ship_id=%s\n", allFleets[i].ID, allFleets[i].Ships[0].ID)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1901,6 +2024,58 @@ func DevGrantCaptain(c echo.Context) error {
 	return c.JSON(http.StatusOK, captain)
 }
 
+type GrantTicketsRequest struct {
+	Amount int `json:"amount"`
+}
+
+func DevGrantTickets(c echo.Context) error {
+	req := new(GrantTicketsRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if err := checkDevAdmin(player); err != nil {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Accès refusé: admin uniquement"})
+	}
+	playerID := player.ID
+
+	if req.Amount <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Amount must be positive"})
+	}
+	// Support bulk grants (up to 10000 for testing)
+	if req.Amount > 10000 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Amount too large (max 10000)"})
+	}
+
+	db := repository.GetDB()
+	var island domain.Island
+	if err := db.First(&island, "player_id = ?", playerID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+	}
+
+	// Ensure Resources map exists
+	if island.Resources == nil {
+		island.Resources = make(map[domain.ResourceType]float64)
+	}
+
+	// Add tickets
+	currentTickets := island.Resources[domain.CaptainTicket]
+	island.Resources[domain.CaptainTicket] = currentTickets + float64(req.Amount)
+
+	if err := db.Save(&island).Error; err != nil {
+		fmt.Printf("[TAVERN] DevGrantTickets: Failed to save island: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant tickets"})
+	}
+
+	fmt.Printf("[TAVERN] DevGrantTickets: Granted %d tickets to player %s (new total: %.0f)\n", req.Amount, playerID, island.Resources[domain.CaptainTicket])
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":        "Tickets granted",
+		"ticket_balance": int(island.Resources[domain.CaptainTicket]),
+	})
+}
+
 func GetCaptains(c echo.Context) error {
 	// Get authenticated player from context
 	player := auth.GetAuthenticatedPlayer(c)
@@ -1917,34 +2092,51 @@ func GetCaptains(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du chargement des capitaines"})
 	}
 
-	// Create response DTO with computed passive effects
+	// Create response DTO with computed passive effects and naval bonuses
 	type CaptainResponse struct {
 		domain.Captain
-		PassiveID      string          `json:"passive_id,omitempty"`
-		PassiveValue   float64         `json:"passive_value,omitempty"`
-		PassiveIntValue int            `json:"passive_int_value,omitempty"`
-		Threshold      int             `json:"threshold,omitempty"`
-		DrainPerMinute float64         `json:"drain_per_minute,omitempty"`
-		Flags          map[string]bool `json:"flags,omitempty"`
+		PassiveID                string          `json:"passive_id,omitempty"`
+		PassiveValue             float64         `json:"passive_value,omitempty"`
+		PassiveIntValue          int             `json:"passive_int_value,omitempty"`
+		Threshold                int             `json:"threshold,omitempty"`
+		DrainPerMinute           float64         `json:"drain_per_minute,omitempty"`
+		Flags                    map[string]bool `json:"flags,omitempty"`
+		NavalHPBonusPct          float64         `json:"naval_hp_bonus_pct,omitempty"`
+		NavalSpeedBonusPct       float64         `json:"naval_speed_bonus_pct,omitempty"`
+		NavalDamageReductionPct  float64         `json:"naval_damage_reduction_pct,omitempty"`
+		RumConsumptionReductionPct float64      `json:"rum_consumption_reduction_pct,omitempty"`
 	}
 
 	responses := make([]CaptainResponse, 0, len(captains))
 	for _, captain := range captains {
 		effect := economy.ComputeCaptainPassive(captain)
+		navalBonus := economy.ComputeNavalBonuses(captain)
 		
 		// Log captain passive computation (once per request, not spammy)
-		fmt.Printf("[CAPTAIN] id=%s lvl=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d\n",
-			captain.ID, captain.Level, captain.Rarity, captain.SkillID,
+		fmt.Printf("[CAPTAIN] id=%s lvl=%d stars=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d\n",
+			captain.ID, captain.Level, captain.Stars, captain.Rarity, captain.SkillID,
 			effect.ID, effect.Value, effect.IntValue, effect.Threshold)
+		
+		// Debug log for naval bonuses (only if CAPTAIN_DEBUG env var is set)
+		if os.Getenv("CAPTAIN_DEBUG") == "true" {
+			fmt.Printf("[STARS] captain=%s rarity=%s stars=%d hp=%.3f spd=%.3f dr=%.3f rum=%.3f\n",
+				captain.ID, captain.Rarity, captain.Stars,
+				navalBonus.NavalHPBonusPct, navalBonus.NavalSpeedBonusPct,
+				navalBonus.NavalDamageReductionPct, navalBonus.RumConsumptionReductionPct)
+		}
 
 		response := CaptainResponse{
-			Captain:        captain,
-			PassiveID:      effect.ID,
-			PassiveValue:   effect.Value,
-			PassiveIntValue: effect.IntValue,
-			Threshold:     effect.Threshold,
-			DrainPerMinute: effect.DrainPerMinute,
-			Flags:          effect.Flags,
+			Captain:                  captain,
+			PassiveID:                effect.ID,
+			PassiveValue:             effect.Value,
+			PassiveIntValue:          effect.IntValue,
+			Threshold:                effect.Threshold,
+			DrainPerMinute:           effect.DrainPerMinute,
+			Flags:                    effect.Flags,
+			NavalHPBonusPct:          navalBonus.NavalHPBonusPct,
+			NavalSpeedBonusPct:       navalBonus.NavalSpeedBonusPct,
+			NavalDamageReductionPct:  navalBonus.NavalDamageReductionPct,
+			RumConsumptionReductionPct: navalBonus.RumConsumptionReductionPct,
 		}
 		responses = append(responses, response)
 	}
@@ -2008,6 +2200,22 @@ func AssignCaptain(c echo.Context) error {
 		tx.Rollback()
 		fmt.Printf("[CAPTAIN] AssignCaptain: Ship ownership mismatch: ship.player_id=%s, authenticated=%s\n", ship.PlayerID, playerID)
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce navire ne vous appartient pas"})
+	}
+
+	// 2.5. Check if ship's fleet is locked (anti-exploit: prevent swap during engagement)
+	if ship.FleetID != nil {
+		var fleet domain.Fleet
+		if err := tx.First(&fleet, "id = ?", *ship.FleetID).Error; err == nil {
+			if economy.IsFleetLocked(&fleet) {
+				tx.Rollback()
+				lockedUntil := "indéterminé"
+				if fleet.LockedUntil != nil {
+					lockedUntil = fleet.LockedUntil.Format("2006-01-02 15:04:05")
+				}
+				fmt.Printf("[FLEET] blocked captain change player=%s fleet=%s reason=locked until=%s\n", playerID, fleet.ID, lockedUntil)
+				return c.JSON(http.StatusConflict, map[string]string{"error": "Flotte verrouillée (engagement en cours)."})
+			}
+		}
 	}
 
 	// 3. If captain is already assigned to another ship, unassign from that ship
@@ -2113,6 +2321,21 @@ func UnassignCaptain(c echo.Context) error {
 	if captain.AssignedShipID != nil {
 		var ship domain.Ship
 		if err := tx.First(&ship, "id = ?", *captain.AssignedShipID).Error; err == nil {
+			// 2.5. Check if ship's fleet is locked (anti-exploit: prevent swap during engagement)
+			if ship.FleetID != nil {
+				var fleet domain.Fleet
+				if err := tx.First(&fleet, "id = ?", *ship.FleetID).Error; err == nil {
+					if economy.IsFleetLocked(&fleet) {
+						tx.Rollback()
+						lockedUntil := "indéterminé"
+						if fleet.LockedUntil != nil {
+							lockedUntil = fleet.LockedUntil.Format("2006-01-02 15:04:05")
+						}
+						fmt.Printf("[FLEET] blocked captain change player=%s fleet=%s reason=locked until=%s\n", playerID, fleet.ID, lockedUntil)
+						return c.JSON(http.StatusConflict, map[string]string{"error": "Flotte verrouillée (engagement en cours)."})
+					}
+				}
+			}
 			// Only clear if the ship's captain matches
 			if ship.CaptainID != nil && *ship.CaptainID == captain.ID {
 				ship.CaptainID = nil
@@ -2139,6 +2362,572 @@ func UnassignCaptain(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "Capitaine retiré du navire."})
 }
 
+// --- TAVERN GACHA SYSTEM ---
+
+type SummonCaptainRequest struct {
+	Count int `json:"count"`
+}
+
+func SummonCaptain(c echo.Context) error {
+	req := new(SummonCaptainRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	// Validate count: only 1 or 10 allowed
+	if req.Count != 1 && req.Count != 10 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Count must be 1 or 10"})
+	}
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[TAVERN] SummonCaptain: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load player with pity counts
+	var playerWithPity domain.Player
+	if err := tx.First(&playerWithPity, "id = ?", playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+	}
+
+	// Load island with buildings
+	var island domain.Island
+	if err := tx.Preload("Buildings").First(&island, "player_id = ?", playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+	}
+
+	// Ensure Resources map exists
+	if island.Resources == nil {
+		island.Resources = make(map[domain.ResourceType]float64)
+	}
+
+	// Check if Tavern exists and is finished (not constructing)
+	tavernFound := false
+	for _, b := range island.Buildings {
+		if b.Type == "Tavern" && !b.Constructing {
+			tavernFound = true
+			break
+		}
+	}
+	if !tavernFound {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tavern required"})
+	}
+
+	// Check ticket count
+	currentTickets := island.Resources[domain.CaptainTicket]
+	requiredTickets := float64(req.Count)
+	if currentTickets < requiredTickets {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Not enough tickets"})
+	}
+
+	ticketsBefore := int(currentTickets)
+
+	// Consume tickets
+	island.Resources[domain.CaptainTicket] = currentTickets - requiredTickets
+
+	// Prepare results array
+	type SummonResult struct {
+		Rarity        string           `json:"rarity"`
+		TemplateID    string           `json:"template_id"`
+		Name          string           `json:"name"`
+		IsDuplicate   bool             `json:"is_duplicate"`
+		ShardsGranted int              `json:"shards_granted,omitempty"`
+		Captain       *domain.Captain  `json:"captain,omitempty"`
+	}
+
+	results := make([]SummonResult, 0, req.Count)
+	totalShardsGranted := 0
+	duplicateCount := 0
+	pityLBefore := playerWithPity.PityLegendaryCount
+	legendaryForced := false
+
+	// Perform summons
+	for i := 0; i < req.Count; i++ {
+		// Roll rarity with pity
+		rarity, forced := economy.RollCaptainRarityWithPity(playerWithPity.PityLegendaryCount, playerWithPity.PityRareCount)
+		if forced && rarity == domain.RarityLegendary {
+			legendaryForced = true
+		}
+
+		// Pick template
+		template, err := economy.PickCaptainTemplateByRarity(rarity)
+		if err != nil {
+			tx.Rollback()
+			fmt.Printf("[TAVERN] SummonCaptain: Failed to pick template: %v\n", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to roll captain"})
+		}
+
+		// Check for duplicate
+		var existingCaptains []domain.Captain
+		if err := tx.Where("player_id = ? AND template_id = ?", playerID, template.TemplateID).Find(&existingCaptains).Error; err != nil {
+			tx.Rollback()
+			fmt.Printf("[TAVERN] SummonCaptain: Failed to check duplicates: %v\n", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to check duplicates"})
+		}
+
+		isDuplicate := len(existingCaptains) > 0
+		shardsGranted := 0
+
+		var captain *domain.Captain
+		if isDuplicate {
+			// Grant shards instead of refunding tickets
+			duplicateCount++
+			switch rarity {
+			case domain.RarityCommon:
+				shardsGranted = economy.ShardsPerCommonDup
+			case domain.RarityRare:
+				shardsGranted = economy.ShardsPerRareDup
+			case domain.RarityLegendary:
+				shardsGranted = economy.ShardsPerLegendaryDup
+			}
+
+			// Get or create shard wallet
+			var wallet domain.CaptainShardWallet
+			err := tx.Where("player_id = ? AND template_id = ?", playerID, template.TemplateID).First(&wallet).Error
+			if err != nil {
+				// Create new wallet
+				wallet = domain.CaptainShardWallet{
+					ID:         uuid.New(),
+					PlayerID:   playerID,
+					TemplateID: template.TemplateID,
+					Shards:     shardsGranted,
+					UpdatedAt:  time.Now(),
+				}
+				if err := tx.Create(&wallet).Error; err != nil {
+					tx.Rollback()
+					fmt.Printf("[TAVERN] SummonCaptain: Failed to create shard wallet: %v\n", err)
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant shards"})
+				}
+			} else {
+				// Update existing wallet
+				wallet.Shards += shardsGranted
+				wallet.UpdatedAt = time.Now()
+				if err := tx.Save(&wallet).Error; err != nil {
+					tx.Rollback()
+					fmt.Printf("[TAVERN] SummonCaptain: Failed to update shard wallet: %v\n", err)
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant shards"})
+				}
+			}
+			totalShardsGranted += shardsGranted
+		} else {
+			// Create new captain
+			newCaptain := domain.Captain{
+				ID:            uuid.New(),
+				PlayerID:      playerID,
+				TemplateID:    template.TemplateID,
+				Name:          template.Name,
+				Rarity:        template.Rarity,
+				Level:         1,
+				XP:            0,
+				Stars:         0, // Start at 0 stars
+				SkillID:       template.SkillID,
+				AssignedShipID: nil,
+				CreatedAt:     time.Now(),
+				UpdatedAt:     time.Now(),
+			}
+
+			if err := tx.Create(&newCaptain).Error; err != nil {
+				tx.Rollback()
+				fmt.Printf("[TAVERN] SummonCaptain: Failed to create captain: %v\n", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create captain"})
+			}
+
+			captain = &newCaptain
+		}
+
+		// Update pity counters
+		playerWithPity.PityLegendaryCount++
+		playerWithPity.PityRareCount++
+		if rarity == domain.RarityLegendary {
+			playerWithPity.PityLegendaryCount = 0
+		}
+		if rarity == domain.RarityRare || rarity == domain.RarityLegendary {
+			playerWithPity.PityRareCount = 0
+		}
+
+		results = append(results, SummonResult{
+			Rarity:        string(rarity),
+			TemplateID:    template.TemplateID,
+			Name:          template.Name,
+			IsDuplicate:   isDuplicate,
+			ShardsGranted: shardsGranted,
+			Captain:       captain,
+		})
+	}
+
+	// Save player (with updated pity)
+	if err := tx.Save(&playerWithPity).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[TAVERN] SummonCaptain: Failed to save player: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save player"})
+	}
+
+	// Save island (with updated ticket count)
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[TAVERN] SummonCaptain: Failed to save island: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save island"})
+	}
+
+	tx.Commit()
+
+	ticketsAfter := int(island.Resources[domain.CaptainTicket])
+	pityLAfter := playerWithPity.PityLegendaryCount
+
+	// Log
+	fmt.Printf("[GACHA] player=%s count=%d pityL_before=%d pityL_after=%d legendary_forced=%v duplicates=%d shards_granted=%d\n",
+		playerID, req.Count, pityLBefore, pityLAfter, legendaryForced, duplicateCount, totalShardsGranted)
+	fmt.Printf("[TAVERN] player=%s island=%s tickets_before=%d tickets_after=%d\n",
+		playerID, island.ID, ticketsBefore, ticketsAfter)
+
+	// Build response
+	response := map[string]interface{}{
+		"results":              results,
+		"tickets_before":       ticketsBefore,
+		"tickets_after":        ticketsAfter,
+		"shards_total_granted": totalShardsGranted,
+		"duplicate_count":      duplicateCount,
+		// Legacy field for backward compatibility
+		"compensation": map[string]interface{}{
+			"refunded_tickets": 0, // No longer refunding, using shards
+		},
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// --- CAPTAIN STARS UPGRADE ---
+
+type UpgradeStarsRequest struct {
+	CaptainID uuid.UUID `json:"captain_id"`
+}
+
+func UpgradeCaptainStars(c echo.Context) error {
+	req := new(UpgradeStarsRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[STARS] UpgradeCaptainStars: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load captain and verify ownership
+	var captain domain.Captain
+	if err := tx.First(&captain, "id = ?", req.CaptainID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Capitaine introuvable"})
+	}
+	if captain.PlayerID != playerID {
+		tx.Rollback()
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Ce capitaine ne vous appartient pas"})
+	}
+
+	// Check if already at max stars (Stars == MaxStars means fully upgraded)
+	maxStars := economy.GetMaxStars(captain.Rarity)
+	if captain.Stars >= maxStars {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Capitaine déjà au maximum (%d étoiles)", maxStars)})
+	}
+	if captain.Stars < 0 {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Nombre d'étoiles invalide"})
+	}
+
+	// Get upgrade cost
+	cost, err := economy.GetStarUpgradeCost(captain.Rarity, captain.Stars)
+	if err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+
+	// Load shard wallet for this template
+	var wallet domain.CaptainShardWallet
+	if err := tx.Where("player_id = ? AND template_id = ?", playerID, captain.TemplateID).First(&wallet).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez de fragments (besoin: %d)", cost)})
+	}
+
+	// Check if enough shards
+	if wallet.Shards < cost {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez de fragments (besoin: %d, avez: %d)", cost, wallet.Shards)})
+	}
+
+	// Deduct shards and upgrade stars
+	shardsBefore := wallet.Shards
+	wallet.Shards -= cost
+	wallet.UpdatedAt = time.Now()
+	starsBefore := captain.Stars
+	captain.Stars++
+	captain.UpdatedAt = time.Now()
+
+	// Save
+	if err := tx.Save(&wallet).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[STARS] UpgradeCaptainStars: Failed to save wallet: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la sauvegarde"})
+	}
+	if err := tx.Save(&captain).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[STARS] UpgradeCaptainStars: Failed to save captain: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la sauvegarde"})
+	}
+
+	tx.Commit()
+
+	// Log upgrade (one line per upgrade)
+	fmt.Printf("[STARS] upgrade player=%s captain=%s rarity=%s stars=%d->%d cost=%d remaining=%d\n",
+		playerID, captain.ID, captain.Rarity, starsBefore, captain.Stars, cost, wallet.Shards)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":       "Étoiles améliorées",
+		"captain":       captain,
+		"shards_before": shardsBefore,
+		"shards_after":  wallet.Shards,
+		"cost":          cost,
+	})
+}
+
+// --- SHARDS EXCHANGE ---
+
+// Exchange rates: shards per ticket (rebalanced to be usable while still punitive)
+const (
+	ShardsPerTicketCommon    = 120 // Common: 120 shards => 1 ticket
+	ShardsPerTicketRare      = 180 // Rare: 180 shards => 1 ticket
+	// Legendary exchange is NOT allowed (disabled for economy balance)
+)
+
+type ExchangeShardsRequest struct {
+	Rarity string `json:"rarity"` // "common", "rare", "legendary"
+	Count  int    `json:"count"`  // Number of tickets to craft
+}
+
+func ExchangeShards(c echo.Context) error {
+	req := new(ExchangeShardsRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	// Validate rarity (legendary exchange is disabled)
+	var rarity domain.CaptainRarity
+	var shardsPerTicket int
+	switch req.Rarity {
+	case "common":
+		rarity = domain.RarityCommon
+		shardsPerTicket = ShardsPerTicketCommon
+	case "rare":
+		rarity = domain.RarityRare
+		shardsPerTicket = ShardsPerTicketRare
+	case "legendary":
+		// Legendary exchange is NOT allowed (anti-exploit measure)
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Les fragments légendaires ne peuvent pas être échangés contre des tickets."})
+	default:
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Rareté invalide (common/rare uniquement)"})
+	}
+
+	if req.Count <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Count must be positive"})
+	}
+
+	// Get authenticated player from context
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentification requise"})
+	}
+	playerID := player.ID
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			fmt.Printf("[EXCHANGE] ExchangeShards: Panic recovered: %v\n", r)
+		}
+	}()
+
+	// Load player for daily cap check
+	var playerForCap domain.Player
+	if err := tx.Where("id = ?", playerID).First(&playerForCap).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
+	}
+
+	// Check/reset daily cap
+	today := time.Now().Format("2006-01-02")
+	if playerForCap.DailyShardExchangeDay != today {
+		// New day: reset counter
+		playerForCap.DailyShardExchangeCount = 0
+		playerForCap.DailyShardExchangeDay = today
+		if err := tx.Save(&playerForCap).Error; err != nil {
+			tx.Rollback()
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la mise à jour du compteur"})
+		}
+	}
+
+	// Check daily cap (20 exchanges per day)
+	const DailyExchangeCap = 20
+	if playerForCap.DailyShardExchangeCount >= DailyExchangeCap {
+		tx.Rollback()
+		return c.JSON(http.StatusTooManyRequests, map[string]string{"error": "Limite quotidienne atteinte (20 échanges/jour)."})
+	}
+
+	// Load all shard wallets for this rarity
+	// We need to get all templates of this rarity
+	templates := economy.GetTemplatesByRarity(rarity)
+	if len(templates) == 0 {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Aucun template trouvé pour cette rareté"})
+	}
+
+	// Get all wallets for these templates
+	var wallets []domain.CaptainShardWallet
+	templateIDs := make([]string, len(templates))
+	for i, t := range templates {
+		templateIDs[i] = t.TemplateID
+	}
+	if err := tx.Where("player_id = ? AND template_id IN ?", playerID, templateIDs).Find(&wallets).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[EXCHANGE] ExchangeShards: Failed to load wallets: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec du chargement des fragments"})
+	}
+
+	// Calculate total shards available
+	totalShards := 0
+	for _, w := range wallets {
+		totalShards += w.Shards
+	}
+
+	// Calculate required shards
+	requiredShards := req.Count * shardsPerTicket
+	if totalShards < requiredShards {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez de fragments (besoin: %d, avez: %d)", requiredShards, totalShards)})
+	}
+
+	// Sort wallets by shards (descending) and template_id (for stable sort)
+	sort.Slice(wallets, func(i, j int) bool {
+		if wallets[i].Shards != wallets[j].Shards {
+			return wallets[i].Shards > wallets[j].Shards
+		}
+		return wallets[i].TemplateID < wallets[j].TemplateID
+	})
+
+	// Consume shards deterministically
+	shardsToConsume := requiredShards
+	details := make([]map[string]interface{}, 0)
+	for i := range wallets {
+		if shardsToConsume <= 0 {
+			break
+		}
+		consumeFromThis := shardsToConsume
+		if consumeFromThis > wallets[i].Shards {
+			consumeFromThis = wallets[i].Shards
+		}
+		shardsBefore := wallets[i].Shards
+		wallets[i].Shards -= consumeFromThis
+		wallets[i].UpdatedAt = time.Now()
+		shardsToConsume -= consumeFromThis
+
+		details = append(details, map[string]interface{}{
+			"template_id":   wallets[i].TemplateID,
+			"shards_before": shardsBefore,
+			"shards_after":  wallets[i].Shards,
+			"consumed":      consumeFromThis,
+		})
+
+		if wallets[i].Shards == 0 {
+			// Delete wallet if empty
+			if err := tx.Delete(&wallets[i]).Error; err != nil {
+				tx.Rollback()
+				fmt.Printf("[EXCHANGE] ExchangeShards: Failed to delete empty wallet: %v\n", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la sauvegarde"})
+			}
+		} else {
+			if err := tx.Save(&wallets[i]).Error; err != nil {
+				tx.Rollback()
+				fmt.Printf("[EXCHANGE] ExchangeShards: Failed to save wallet: %v\n", err)
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la sauvegarde"})
+			}
+		}
+	}
+
+	// Load island and add tickets
+	var island domain.Island
+	if err := tx.First(&island, "player_id = ?", playerID).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+	}
+	if island.Resources == nil {
+		island.Resources = make(map[domain.ResourceType]float64)
+	}
+	ticketsBefore := int(island.Resources[domain.CaptainTicket])
+	island.Resources[domain.CaptainTicket] += float64(req.Count)
+	ticketsAfter := int(island.Resources[domain.CaptainTicket])
+
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[EXCHANGE] ExchangeShards: Failed to save island: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la sauvegarde"})
+	}
+
+	// Increment daily exchange count
+	playerForCap.DailyShardExchangeCount++
+	if err := tx.Save(&playerForCap).Error; err != nil {
+		tx.Rollback()
+		fmt.Printf("[EXCHANGE] ExchangeShards: Failed to update daily count: %v\n", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Échec de la mise à jour du compteur"})
+	}
+
+	tx.Commit()
+
+	// Log action-level (one line per exchange)
+	fmt.Printf("[SHARDS] exchange player=%s rarity=%s shards_spent=%d tickets_gained=%d daily=%d/20\n",
+		playerID, req.Rarity, requiredShards, req.Count, playerForCap.DailyShardExchangeCount)
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":        "Fragments échangés",
+		"tickets_before": ticketsBefore,
+		"tickets_after":  ticketsAfter,
+		"shards_spent":   requiredShards,
+		"details":        details,
+	})
+}
+
+
 // --- ENGAGEMENT MORALE SYSTEM ---
 
 type SimulateEngagementRequest struct {
@@ -2147,6 +2936,8 @@ type SimulateEngagementRequest struct {
 }
 
 // DevSimulateEngagement simulates an engagement between two fleets (admin only, for testing)
+// TODO: Real combat system will lock fleets during engagement (LockFleetForEngagement)
+// This dev tool does NOT lock fleets (doesn't change real state)
 func DevSimulateEngagement(c echo.Context) error {
 	// Parse request (Echo will read body, but we need raw for debug)
 	// Read body first for logging, then restore it for Echo
@@ -2270,48 +3061,40 @@ func DevSimulateEngagement(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Flotte B ne vous appartient pas"})
 	}
 
-	// Sort ships by ID deterministically (Ship model doesn't have CreatedAt, so we use ID)
-	sortShipsByID(&fleetA.Ships)
-	sortShipsByID(&fleetB.Ships)
+	// Select flagship ships deterministically (using explicit FlagshipShipID or fallback)
+	flagshipA, explicitA, reasonA := economy.SelectFlagshipShip(&fleetA)
+	flagshipB, explicitB, reasonB := economy.SelectFlagshipShip(&fleetB)
 
-	// Get flagship captains (first ship with a captain, by CreatedAt ASC)
+	// Get flagship captains
 	var captA *domain.Captain
 	var captB *domain.Captain
-	var flagshipA *domain.Ship
-	var flagshipB *domain.Ship
 
-	// Find first ship with captain in fleetA
-	for i := range fleetA.Ships {
-		if fleetA.Ships[i].CaptainID != nil {
-			var captain domain.Captain
-			if err := db.First(&captain, "id = ?", *fleetA.Ships[i].CaptainID).Error; err == nil {
-				captA = &captain
-				flagshipA = &fleetA.Ships[i]
-				fmt.Printf("[ENGAGE] FleetA flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
-					flagshipA.ID, captA.ID, captA.Name, captA.SkillID)
-				break
-			}
+	if flagshipA != nil && flagshipA.CaptainID != nil {
+		var captain domain.Captain
+		if err := db.First(&captain, "id = ?", *flagshipA.CaptainID).Error; err == nil {
+			captA = &captain
+			fmt.Printf("[ENGAGE] FleetA flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
+				flagshipA.ID, captA.ID, captA.Name, captA.SkillID)
 		}
 	}
-	if captA == nil {
-		fmt.Printf("[ENGAGE] FleetA: no captain found in %d ships\n", len(fleetA.Ships))
+	if captA == nil && flagshipA != nil {
+		fmt.Printf("[ENGAGE] FleetA: flagship ship_id=%s but no captain assigned\n", flagshipA.ID)
+	} else if flagshipA == nil {
+		fmt.Printf("[ENGAGE] FleetA: no flagship (no ships in fleet)\n")
 	}
 
-	// Find first ship with captain in fleetB
-	for i := range fleetB.Ships {
-		if fleetB.Ships[i].CaptainID != nil {
-			var captain domain.Captain
-			if err := db.First(&captain, "id = ?", *fleetB.Ships[i].CaptainID).Error; err == nil {
-				captB = &captain
-				flagshipB = &fleetB.Ships[i]
-				fmt.Printf("[ENGAGE] FleetB flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
-					flagshipB.ID, captB.ID, captB.Name, captB.SkillID)
-				break
-			}
+	if flagshipB != nil && flagshipB.CaptainID != nil {
+		var captain domain.Captain
+		if err := db.First(&captain, "id = ?", *flagshipB.CaptainID).Error; err == nil {
+			captB = &captain
+			fmt.Printf("[ENGAGE] FleetB flagship: ship_id=%s captain_id=%s captain_name=%s skill=%s\n",
+				flagshipB.ID, captB.ID, captB.Name, captB.SkillID)
 		}
 	}
-	if captB == nil {
-		fmt.Printf("[ENGAGE] FleetB: no captain found in %d ships\n", len(fleetB.Ships))
+	if captB == nil && flagshipB != nil {
+		fmt.Printf("[ENGAGE] FleetB: flagship ship_id=%s but no captain assigned\n", flagshipB.ID)
+	} else if flagshipB == nil {
+		fmt.Printf("[ENGAGE] FleetB: no flagship (no ships in fleet)\n")
 	}
 
 	// Add flagship info to applied notes (before computing engagement)
@@ -2330,14 +3113,52 @@ func DevSimulateEngagement(c echo.Context) error {
 	// Compute engagement morale
 	result := economy.ComputeEngagementMorale(fleetA, fleetB, captA, captB)
 
-	// Add flagship info to applied notes
+	// Compute combat stats for flagships (with captain star bonuses)
+	var combatStatsA *economy.ShipCombatStats
+	var combatStatsB *economy.ShipCombatStats
+
 	if flagshipA != nil {
-		result.Applied = append([]string{fmt.Sprintf("FleetA flagship: ship_id=%s type=%s", flagshipA.ID, flagshipA.Type)}, result.Applied...)
+		statsA, err := economy.ComputeShipCombatStatsWithCaptain(flagshipA, captA)
+		if err == nil {
+			combatStatsA = &statsA
+			result.Applied = append(result.Applied, fmt.Sprintf("FleetA flagship combat stats: HP=%.1f/%.1f Speed=%.2f/%.2f DR=%.2f%%/%.2f%% Rum=%.1f/%.1f",
+				statsA.BaseHP, statsA.EffectiveHP, statsA.BaseSpeed, statsA.EffectiveSpeed,
+				statsA.BaseDamageReduction*100, statsA.EffectiveDamageReduction*100,
+				statsA.BaseRumConsumption, statsA.EffectiveRumConsumption))
+			// Add detailed applied notes from combat stats
+			for _, note := range statsA.Applied {
+				result.Applied = append(result.Applied, fmt.Sprintf("FleetA: %s", note))
+			}
+		} else {
+			fmt.Printf("[ENGAGE] Failed to compute combat stats for FleetA flagship: %v\n", err)
+		}
+	}
+
+	if flagshipB != nil {
+		statsB, err := economy.ComputeShipCombatStatsWithCaptain(flagshipB, captB)
+		if err == nil {
+			combatStatsB = &statsB
+			result.Applied = append(result.Applied, fmt.Sprintf("FleetB flagship combat stats: HP=%.1f/%.1f Speed=%.2f/%.2f DR=%.2f%%/%.2f%% Rum=%.1f/%.1f",
+				statsB.BaseHP, statsB.EffectiveHP, statsB.BaseSpeed, statsB.EffectiveSpeed,
+				statsB.BaseDamageReduction*100, statsB.EffectiveDamageReduction*100,
+				statsB.BaseRumConsumption, statsB.EffectiveRumConsumption))
+			// Add detailed applied notes from combat stats
+			for _, note := range statsB.Applied {
+				result.Applied = append(result.Applied, fmt.Sprintf("FleetB: %s", note))
+			}
+		} else {
+			fmt.Printf("[ENGAGE] Failed to compute combat stats for FleetB flagship: %v\n", err)
+		}
+	}
+
+	// Add flagship info to applied notes (with selection reason)
+	if flagshipA != nil {
+		result.Applied = append([]string{fmt.Sprintf("FleetA flagship selection: explicit=%v ship_id=%s type=%s reason=%s", explicitA, flagshipA.ID, flagshipA.Type, reasonA)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetA: no flagship"}, result.Applied...)
 	}
 	if flagshipB != nil {
-		result.Applied = append([]string{fmt.Sprintf("FleetB flagship: ship_id=%s type=%s", flagshipB.ID, flagshipB.Type)}, result.Applied...)
+		result.Applied = append([]string{fmt.Sprintf("FleetB flagship selection: explicit=%v ship_id=%s type=%s reason=%s", explicitB, flagshipB.ID, flagshipB.Type, reasonB)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetB: no flagship"}, result.Applied...)
 	}
@@ -2349,13 +3170,36 @@ func DevSimulateEngagement(c echo.Context) error {
 		result.AtkMultA, result.DefMultA, result.AtkMultB, result.DefMultB)
 
 	if captA != nil {
-		fmt.Printf("[ENGAGE] captainA=%s skill=%s\n", captA.ID, captA.SkillID)
+		fmt.Printf("[ENGAGE] captainA=%s skill=%s stars=%d\n", captA.ID, captA.SkillID, captA.Stars)
 	}
 	if captB != nil {
-		fmt.Printf("[ENGAGE] captainB=%s skill=%s\n", captB.ID, captB.SkillID)
+		fmt.Printf("[ENGAGE] captainB=%s skill=%s stars=%d\n", captB.ID, captB.SkillID, captB.Stars)
 	}
 
-	return c.JSON(http.StatusOK, result)
+	// Build response with combat stats
+	response := map[string]interface{}{
+		"fleet_a_id":          result.FleetAID,
+		"fleet_b_id":          result.FleetBID,
+		"engagement_morale_a": result.EngagementMoraleA,
+		"engagement_morale_b": result.EngagementMoraleB,
+		"delta":               result.Delta,
+		"bonus_percent":       result.BonusPercent,
+		"atk_mult_a":         result.AtkMultA,
+		"def_mult_a":         result.DefMultA,
+		"atk_mult_b":         result.AtkMultB,
+		"def_mult_b":         result.DefMultB,
+		"applied":             result.Applied,
+	}
+
+	// Add combat stats to response if available
+	if combatStatsA != nil {
+		response["fleet_a_combat_stats"] = combatStatsA
+	}
+	if combatStatsB != nil {
+		response["fleet_b_combat_stats"] = combatStatsB
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
 // sortShipsByID sorts ships by ID ASC for deterministic flagship selection

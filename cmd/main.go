@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/api"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
@@ -59,19 +62,34 @@ func main() {
 		protected.GET("/captains", api.GetCaptains)
 		protected.POST("/captains/assign", api.AssignCaptain)
 		protected.POST("/captains/unassign", api.UnassignCaptain)
+		protected.POST("/captains/upgrade-stars", api.UpgradeCaptainStars)
+		// Tavern endpoints
+		protected.POST("/tavern/summon-captain", api.SummonCaptain)
+		protected.POST("/tavern/exchange-shards", api.ExchangeShards)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)
-	devRoutes := e.Group("/dev")
-	devRoutes.Use(auth.RequireAuth)
-	{
-		devRoutes.POST("/add-resources", api.DevAddResources)
-		devRoutes.POST("/finish-building", api.DevFinishBuilding)
-		devRoutes.POST("/finish-research", api.DevFinishResearch)
-		devRoutes.POST("/finish-ship", api.DevFinishShip)
-		devRoutes.POST("/time-skip", api.DevTimeSkip)
-		devRoutes.POST("/grant-captain", api.DevGrantCaptain)
-		devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
+	// Only enabled if DEV_ROUTES_ENABLED env var is set to "1", "true", or "TRUE"
+	devRoutesEnabled := false
+	devRoutesEnv := os.Getenv("DEV_ROUTES_ENABLED")
+	if devRoutesEnv == "1" || strings.ToLower(devRoutesEnv) == "true" {
+		devRoutesEnabled = true
+	}
+	fmt.Printf("[BOOT] dev routes enabled=%v\n", devRoutesEnabled)
+
+	if devRoutesEnabled {
+		devRoutes := e.Group("/dev")
+		devRoutes.Use(auth.RequireAuth)
+		{
+			devRoutes.POST("/add-resources", api.DevAddResources)
+			devRoutes.POST("/finish-building", api.DevFinishBuilding)
+			devRoutes.POST("/finish-research", api.DevFinishResearch)
+			devRoutes.POST("/finish-ship", api.DevFinishShip)
+			devRoutes.POST("/time-skip", api.DevTimeSkip)
+			devRoutes.POST("/grant-captain", api.DevGrantCaptain)
+			devRoutes.POST("/grant-tickets", api.DevGrantTickets)
+			devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
+		}
 	}
 
 	// Start Game Loop

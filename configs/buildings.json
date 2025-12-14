@@ -447,6 +447,27 @@
             "production_growth": 0,
             "base_storage": {},
             "storage_growth": {}
+        },
+        "Tavern": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 300,
+                "stone": 200,
+                "gold": 500
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 8,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 3
+                }
+            ]
         }
     }
 }

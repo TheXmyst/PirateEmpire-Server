@@ -12,12 +12,13 @@ import (
 type ResourceType string
 
 const (
-	Wood  ResourceType = "wood"
-	Gold  ResourceType = "gold"
-	Stone ResourceType = "stone"
-	Iron  ResourceType = "iron"
-	Food  ResourceType = "food"
-	Rum   ResourceType = "rum"
+	Wood          ResourceType = "wood"
+	Gold          ResourceType = "gold"
+	Stone         ResourceType = "stone"
+	Iron          ResourceType = "iron"
+	Food          ResourceType = "food"
+	Rum           ResourceType = "rum"
+	CaptainTicket ResourceType = "captain_ticket"
 )
 
 // Resource represents a quantity of a specific resource
@@ -45,6 +46,17 @@ type Player struct {
 	ResearchingTechID         string    `json:"researching_tech_id" gorm:"default:''"`
 	ResearchFinishTime        time.Time `json:"research_finish_time"`
 	ResearchTotalDurationSeconds float64 `json:"current_research_total_duration_seconds" gorm:"default:0"` // Total duration in seconds (after bonuses)
+
+	// Gacha Pity System
+	PityLegendaryCount int `json:"pity_legendary_count" gorm:"default:0"` // Pulls since last legendary
+	PityRareCount      int `json:"pity_rare_count" gorm:"default:0"`       // Pulls since last rare (optional)
+
+	// Reset cooldown (anti-farm protection)
+	LastResetAt *time.Time `json:"last_reset_at,omitempty" gorm:"column:last_reset_at"` // Nullable, tracks last reset time
+
+	// Shard exchange daily cap (anti-abuse protection)
+	DailyShardExchangeCount int    `json:"daily_shard_exchange_count" gorm:"default:0"` // Count of exchanges today
+	DailyShardExchangeDay    string `json:"daily_shard_exchange_day" gorm:"default:''"` // Format: YYYY-MM-DD
 
 	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
 }
@@ -109,11 +121,17 @@ type Island struct {
 
 // Fleet represents a group of ships
 type Fleet struct {
-	ID           uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
+	ID           uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;"`
 	IslandID     uuid.UUID `json:"island_id" gorm:"type:uuid;index"`
 	Name         string    `json:"name"`
 	Ships        []Ship    `json:"ships,omitempty" gorm:"foreignKey:FleetID"`
 	MoraleCruise *int      `json:"morale_cruise,omitempty" gorm:"column:morale_cruise"` // Morale during cruise (0-100), NULL means uninitialized (defaults to 50)
+	
+	// Fleet lock (anti-exploit: prevents captain swap during engagement)
+	LockedUntil *time.Time `json:"locked_until,omitempty" gorm:"column:locked_until"` // Nullable, locks fleet until this time
+	
+	// Flagship selection (deterministic and explicit)
+	FlagshipShipID *uuid.UUID `json:"flagship_ship_id,omitempty" gorm:"type:uuid;index"` // Nullable, explicit flagship ship ID
 }
 
 // Building represents a structure on an island
@@ -194,10 +212,20 @@ type Captain struct {
 	Rarity        CaptainRarity `json:"rarity"` // common, rare, legendary
 	Level         int           `json:"level" gorm:"default:1"`
 	XP            int           `json:"xp" gorm:"default:0"`
+	Stars         int           `json:"stars" gorm:"default:0"` // 0-based, max depends on rarity
 	SkillID       string        `json:"skill_id"` // identifier for the main skill
 	AssignedShipID *uuid.UUID   `json:"assigned_ship_id" gorm:"type:uuid;index"` // nullable, indexed
 	CreatedAt     time.Time     `json:"created_at"`
 	UpdatedAt     time.Time     `json:"updated_at"`
+}
+
+// CaptainShardWallet stores shards per player per captain template
+type CaptainShardWallet struct {
+	ID         uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
+	PlayerID   uuid.UUID `json:"player_id" gorm:"type:uuid;uniqueIndex:idx_player_template"`
+	TemplateID string    `json:"template_id" gorm:"uniqueIndex:idx_player_template"`
+	Shards     int       `json:"shards" gorm:"default:0"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type Ship struct {
