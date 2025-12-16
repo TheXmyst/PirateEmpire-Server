@@ -84,7 +84,18 @@ func EngagePve(c echo.Context) error {
 
 	// Validate fleet_id
 	if req.FleetID == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_id manquant"})
+		// Try to use active fleet from island
+		db := repository.GetDB()
+		var island domain.Island
+		if err := db.Where("player_id = ?", playerID).First(&island).Error; err == nil {
+			if island.ActiveFleetID != nil {
+				req.FleetID = island.ActiveFleetID.String()
+			}
+		}
+
+		if req.FleetID == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_id manquant et aucune flotte active définie"})
+		}
 	}
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
@@ -198,8 +209,8 @@ func EngagePve(c echo.Context) error {
 		}
 	}
 
-	// NPC fleet has no captain (v1)
-	var captB *domain.Captain = nil
+	// Generate NPC captain (Tier 1 = Common, etc.)
+	captB := economy.GenerateNpcCaptain(tier)
 
 	// Compute engagement morale
 	engagementResult := economy.ComputeEngagementMorale(fleet, npcFleet, captA, captB)
@@ -241,21 +252,59 @@ func EngagePve(c echo.Context) error {
 		}
 	}
 
+	// Distribute Rewards (Loot)
+	// 1. Identify destroyed ship types from NPC fleet
+	destroyedTypes := make([]string, 0)
+	for _, destroyedID := range combatResult.ShipsDestroyedB {
+		for _, ship := range npcFleet.Ships {
+			if ship.ID == destroyedID {
+				destroyedTypes = append(destroyedTypes, ship.Type)
+				break
+			}
+		}
+	}
+
+	// 2. Calculate Rewards
+	loot := economy.CalculateCombatRewards(destroyedTypes)
+
+	// 3. Apply to Island
+	if island.Resources == nil {
+		island.Resources = make(map[domain.ResourceType]float64)
+	}
+	for res, amount := range loot {
+		island.Resources[res] += amount
+	}
+
+	// 4. Update Response Structure
+	rewardsStruct := &PveRewards{
+		Gold:  loot[domain.Gold],
+		Wood:  loot[domain.Wood],
+		Stone: loot[domain.Stone],
+		Rum:   loot[domain.Rum],
+	}
+
 	// Consume target from cache
 	economy.ConsumePveTarget(playerID, req.TargetID)
 
-	// Commit transaction
-	if err := tx.Commit().Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde"})
+	// Commit transaction (Save island with new resources)
+	if err := tx.Save(&island).Error; err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde du butin"})
 	}
 
-	fmt.Printf("[PVE] EngagePve: player=%s fleet=%s target=%s tier=%d winner=%s ships_destroyed=%d\n",
-		playerID, fleetID, req.TargetID, tier, combatResult.Winner, len(combatResult.ShipsDestroyedA))
+	// Commit transaction (Original commit was below, now we do it here to ensure atomicity with island save)
+	if err := tx.Commit().Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la validation finale"})
+	}
+
+	// Log result
+	fmt.Printf("[PVE] EngagePve: player=%s fleet=%s target=%s tier=%d winner=%s ships_destroyed=%d loot_gold=%.0f\n",
+		playerID, fleetID, req.TargetID, tier, combatResult.Winner, len(combatResult.ShipsDestroyedA), loot[domain.Gold])
 
 	// Build response
 	response := EngagePveResponse{
 		CombatResult: combatResult,
-		// Rewards: nil for v1 (no rewards yet)
+		Rewards:      rewardsStruct,
 	}
 
 	return c.JSON(http.StatusOK, response)

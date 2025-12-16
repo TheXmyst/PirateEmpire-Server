@@ -12,11 +12,17 @@ import (
 func ValidateFleetForCombat(fleet *domain.Fleet) (bool, string, string) {
 	// Check if fleet is locked
 	if IsFleetLocked(fleet) {
-		lockedUntil := "indéterminé"
-		if fleet.LockedUntil != nil {
-			lockedUntil = fleet.LockedUntil.Format("15:04:05")
+		remaining := fleet.LockedUntil.Sub(time.Now())
+		secs := int(remaining.Seconds())
+
+		var timeMsg string
+		if secs >= 60 {
+			timeMsg = fmt.Sprintf("%dm%ds", secs/60, secs%60)
+		} else {
+			timeMsg = fmt.Sprintf("%ds", secs)
 		}
-		return false, "FLEET_LOCKED", fmt.Sprintf("Flotte verrouillée jusqu'à %s", lockedUntil)
+
+		return false, "FLEET_LOCKED", fmt.Sprintf("Flotte verrouillée (%s restantes)", timeMsg)
 	}
 
 	// Check if fleet has ships
@@ -76,8 +82,18 @@ func ValidateFleetCaptainForCombat(captain *domain.Captain) (bool, string, strin
 
 	// Check if captain is injured
 	if captain.InjuredUntil != nil && time.Now().Before(*captain.InjuredUntil) {
-		injuredUntil := captain.InjuredUntil.Format("15:04:05")
-		return false, "CAPTAIN_INJURED", fmt.Sprintf("Capitaine blessé jusqu'à %s", injuredUntil)
+		remaining := captain.InjuredUntil.Sub(time.Now())
+		hours := int(remaining.Hours())
+		minutes := int(remaining.Minutes()) % 60
+
+		var timeMsg string
+		if hours > 0 {
+			timeMsg = fmt.Sprintf("%dh%dm", hours, minutes)
+		} else {
+			timeMsg = fmt.Sprintf("%dm", minutes)
+		}
+
+		return false, "CAPTAIN_INJURED", fmt.Sprintf("Capitaine blessé (%s restantes)", timeMsg)
 	}
 
 	return true, "", ""

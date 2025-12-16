@@ -43,20 +43,20 @@ type Player struct {
 	UnlockedTechs     []string `json:"unlocked_techs" gorm:"-"`
 
 	// Active Research
-	ResearchingTechID         string    `json:"researching_tech_id" gorm:"default:''"`
-	ResearchFinishTime        time.Time `json:"research_finish_time"`
-	ResearchTotalDurationSeconds float64 `json:"current_research_total_duration_seconds" gorm:"default:0"` // Total duration in seconds (after bonuses)
+	ResearchingTechID            string    `json:"researching_tech_id" gorm:"default:''"`
+	ResearchFinishTime           time.Time `json:"research_finish_time"`
+	ResearchTotalDurationSeconds float64   `json:"current_research_total_duration_seconds" gorm:"default:0"` // Total duration in seconds (after bonuses)
 
 	// Gacha Pity System
 	PityLegendaryCount int `json:"pity_legendary_count" gorm:"default:0"` // Pulls since last legendary
-	PityRareCount      int `json:"pity_rare_count" gorm:"default:0"`       // Pulls since last rare (optional)
+	PityRareCount      int `json:"pity_rare_count" gorm:"default:0"`      // Pulls since last rare (optional)
 
 	// Reset cooldown (anti-farm protection)
 	LastResetAt *time.Time `json:"last_reset_at,omitempty" gorm:"column:last_reset_at"` // Nullable, tracks last reset time
 
 	// Shard exchange daily cap (anti-abuse protection)
 	DailyShardExchangeCount int    `json:"daily_shard_exchange_count" gorm:"default:0"` // Count of exchanges today
-	DailyShardExchangeDay    string `json:"daily_shard_exchange_day" gorm:"default:''"` // Format: YYYY-MM-DD
+	DailyShardExchangeDay   string `json:"daily_shard_exchange_day" gorm:"default:''"`  // Format: YYYY-MM-DD
 
 	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
 }
@@ -106,8 +106,8 @@ type Requirement struct {
 // RequirementsError represents a structured error for missing prerequisites
 type RequirementsError struct {
 	Code         string        `json:"code"`         // "REQUIREMENTS_NOT_MET"
-	Message      string        `json:"message"`     // "Prérequis non remplis"
-	Error        string        `json:"error"`       // Pour compatibilité avec anciens clients
+	Message      string        `json:"message"`      // "Prérequis non remplis"
+	Error        string        `json:"error"`        // Pour compatibilité avec anciens clients
 	Requirements []Requirement `json:"requirements"` // Liste des prérequis manquants
 }
 
@@ -126,6 +126,11 @@ type Island struct {
 	ResourcesJSON []byte                   `json:"-" gorm:"column:resources"`
 	Resources     map[ResourceType]float64 `json:"resources" gorm:"-"`
 	StorageLimits map[ResourceType]float64 `json:"storage_limits" gorm:"-"`
+
+	// Resource Generation breakdown (Transient, for UI tooltips)
+	ResourceGeneration      map[ResourceType]float64 `json:"resource_generation" gorm:"-"`
+	ResourceGenerationBase  map[ResourceType]float64 `json:"resource_generation_base" gorm:"-"`
+	ResourceGenerationBonus map[ResourceType]float64 `json:"resource_generation_bonus" gorm:"-"`
 
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`
 	Crew     map[UnitType]int `json:"crew" gorm:"-"`
@@ -146,24 +151,30 @@ type Island struct {
 	CrewGunners  int `json:"crew_gunners" gorm:"default:0"`
 
 	// Militia recruitment queue
-	MilitiaRecruiting        bool       `json:"militia_recruiting" gorm:"default:false"`
-	MilitiaRecruitDoneAt     *time.Time `json:"militia_recruit_done_at,omitempty" gorm:"column:militia_recruit_done_at"`
-	MilitiaRecruitWarriors   int        `json:"militia_recruit_warriors" gorm:"default:0"`
-	MilitiaRecruitArchers    int        `json:"militia_recruit_archers" gorm:"default:0"`
-	MilitiaRecruitGunners    int        `json:"militia_recruit_gunners" gorm:"default:0"`
+	MilitiaRecruiting      bool       `json:"militia_recruiting" gorm:"default:false"`
+	MilitiaRecruitDoneAt   *time.Time `json:"militia_recruit_done_at,omitempty" gorm:"column:militia_recruit_done_at"`
+	MilitiaRecruitWarriors int        `json:"militia_recruit_warriors" gorm:"default:0"`
+	MilitiaRecruitArchers  int        `json:"militia_recruit_archers" gorm:"default:0"`
+	MilitiaRecruitGunners  int        `json:"militia_recruit_gunners" gorm:"default:0"`
+
+	// Active fleet for PvE (selected by player)
+	ActiveFleetID *uuid.UUID `json:"active_fleet_id,omitempty" gorm:"type:uuid;column:active_fleet_id"`
+
+	// PvP Protection (Peace Shield)
+	ProtectedUntil *time.Time `json:"protected_until,omitempty" gorm:"column:protected_until"`
 }
 
 // Fleet represents a group of ships
 type Fleet struct {
-	ID           uuid.UUID  `json:"id" gorm:"type:uuid;primary_key;"`
+	ID           uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
 	IslandID     uuid.UUID `json:"island_id" gorm:"type:uuid;index"`
 	Name         string    `json:"name"`
 	Ships        []Ship    `json:"ships,omitempty" gorm:"foreignKey:FleetID"`
 	MoraleCruise *int      `json:"morale_cruise,omitempty" gorm:"column:morale_cruise"` // Morale during cruise (0-100), NULL means uninitialized (defaults to 50)
-	
+
 	// Fleet lock (anti-exploit: prevents captain swap during engagement)
 	LockedUntil *time.Time `json:"locked_until,omitempty" gorm:"column:locked_until"` // Nullable, locks fleet until this time
-	
+
 	// Flagship selection (deterministic and explicit)
 	FlagshipShipID *uuid.UUID `json:"flagship_ship_id,omitempty" gorm:"type:uuid;index"` // Nullable, explicit flagship ship ID
 }
@@ -239,19 +250,19 @@ const (
 
 // Captain represents a ship captain owned by a player
 type Captain struct {
-	ID            uuid.UUID     `json:"id" gorm:"type:uuid;primary_key;"`
-	PlayerID      uuid.UUID     `json:"player_id" gorm:"type:uuid;index"`
-	TemplateID    string        `json:"template_id"` // e.g. "black_gale", "red_isabella"
-	Name          string        `json:"name"`
-	Rarity        CaptainRarity `json:"rarity"` // common, rare, legendary
-	Level         int           `json:"level" gorm:"default:1"`
-	XP            int           `json:"xp" gorm:"default:0"`
-	Stars         int           `json:"stars" gorm:"default:0"` // 0-based, max depends on rarity
-	SkillID       string        `json:"skill_id"` // identifier for the main skill
-	AssignedShipID *uuid.UUID   `json:"assigned_ship_id" gorm:"type:uuid;index"` // nullable, indexed
-	InjuredUntil  *time.Time    `json:"injured_until,omitempty" gorm:"column:injured_until"` // Nullable, captain injury until this time
-	CreatedAt     time.Time     `json:"created_at"`
-	UpdatedAt     time.Time     `json:"updated_at"`
+	ID             uuid.UUID     `json:"id" gorm:"type:uuid;primary_key;"`
+	PlayerID       uuid.UUID     `json:"player_id" gorm:"type:uuid;index"`
+	TemplateID     string        `json:"template_id"` // e.g. "black_gale", "red_isabella"
+	Name           string        `json:"name"`
+	Rarity         CaptainRarity `json:"rarity"` // common, rare, legendary
+	Level          int           `json:"level" gorm:"default:1"`
+	XP             int           `json:"xp" gorm:"default:0"`
+	Stars          int           `json:"stars" gorm:"default:0"`                              // 0-based, max depends on rarity
+	SkillID        string        `json:"skill_id"`                                            // identifier for the main skill
+	AssignedShipID *uuid.UUID    `json:"assigned_ship_id" gorm:"type:uuid;index"`             // nullable, indexed
+	InjuredUntil   *time.Time    `json:"injured_until,omitempty" gorm:"column:injured_until"` // Nullable, captain injury until this time
+	CreatedAt      time.Time     `json:"created_at"`
+	UpdatedAt      time.Time     `json:"updated_at"`
 }
 
 // CaptainShardWallet stores shards per player per captain template
@@ -285,8 +296,8 @@ type Ship struct {
 
 	// Crew composition per ship (for RPS combat system)
 	CrewWarriors int `json:"crew_warriors,omitempty" gorm:"default:0"`
-	CrewArchers   int `json:"crew_archers,omitempty" gorm:"default:0"`
-	CrewGunners   int `json:"crew_gunners,omitempty" gorm:"default:0"`
+	CrewArchers  int `json:"crew_archers,omitempty" gorm:"default:0"`
+	CrewGunners  int `json:"crew_gunners,omitempty" gorm:"default:0"`
 
 	// Legacy crew map (kept for backward compatibility, but RPS uses CrewWarriors/Archers/Gunners)
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`

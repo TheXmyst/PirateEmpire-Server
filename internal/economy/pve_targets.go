@@ -18,7 +18,7 @@ import (
 func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, int) {
 	// Get max crew for this ship type
 	maxCrew := MaxCrewForShipType(shipType)
-	
+
 	// Minimum crew (never zero)
 	minCrew := 10
 	if maxCrew < 10 {
@@ -27,13 +27,13 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 			minCrew = 1
 		}
 	}
-	
+
 	// Tier-based crew ratio (percentage of max capacity)
 	var minRatio, maxRatio float64
 	switch tier {
 	case 1:
-		minRatio = 0.35
-		maxRatio = 0.50
+		minRatio = 0.10 // Tier 1 reduced from 0.35 to 0.10
+		maxRatio = 0.25 // Tier 1 reduced from 0.50 to 0.25
 	case 2:
 		minRatio = 0.55
 		maxRatio = 0.70
@@ -42,10 +42,10 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 		maxRatio = 0.90
 	default:
 		// Default to tier 1 if invalid
-		minRatio = 0.35
-		maxRatio = 0.50
+		minRatio = 0.10
+		maxRatio = 0.25
 	}
-	
+
 	// Calculate crew size range
 	minTotal := int(float64(maxCrew) * minRatio)
 	maxTotal := int(float64(maxCrew) * maxRatio)
@@ -58,11 +58,11 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 	if maxTotal < minTotal {
 		maxTotal = minTotal
 	}
-	
+
 	// Deterministic random based on seed
 	rng := rand.New(rand.NewSource(seed))
 	totalCrew := minTotal + rng.Intn(maxTotal-minTotal+1)
-	
+
 	// Clamp to max
 	if totalCrew > maxCrew {
 		totalCrew = maxCrew
@@ -70,10 +70,10 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 	if totalCrew < minCrew {
 		totalCrew = minCrew
 	}
-	
+
 	// Composition based on tier
 	var warriors, archers, gunners int
-	
+
 	if tier == 1 {
 		// Tier 1: Neutral composition (~33/33/33)
 		warriors = totalCrew / 3
@@ -96,7 +96,7 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 		dominantCount := int(float64(totalCrew) * 0.40)
 		otherCount := (totalCrew - dominantCount) / 2
 		remainder := totalCrew - dominantCount - otherCount*2
-		
+
 		switch dominantType {
 		case 0: // Warrior dominant
 			warriors = dominantCount + remainder
@@ -118,7 +118,7 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 		dominantCount := int(float64(totalCrew) * 0.50)
 		otherCount := (totalCrew - dominantCount) / 2
 		remainder := totalCrew - dominantCount - otherCount*2
-		
+
 		switch dominantType {
 		case 0: // Warrior dominant
 			warriors = dominantCount + remainder
@@ -134,7 +134,7 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 			gunners = dominantCount + remainder
 		}
 	}
-	
+
 	// Safety: ensure we don't exceed totalCrew
 	total := warriors + archers + gunners
 	if total > totalCrew {
@@ -147,7 +147,7 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 		// Add remainder to first type
 		warriors += totalCrew - total
 	}
-	
+
 	// Final safety: ensure non-negative
 	if warriors < 0 {
 		warriors = 0
@@ -158,7 +158,7 @@ func GenerateNpcCrewForShip(shipType string, tier int, seed int64) (int, int, in
 	if gunners < 0 {
 		gunners = 0
 	}
-	
+
 	return warriors, archers, gunners
 }
 
@@ -320,9 +320,9 @@ func GenerateNpcFleet(tier int, targetID string) domain.Fleet {
 
 	switch tier {
 	case 1:
-		// Tier 1: 2-3 weak ships
-		shipTypes = []string{"sloop", "sloop", "brigantine"}
-		shipCount = 2 + rng.Intn(2) // 2-3 ships
+		// Tier 1: 1 weak ship (Sloop only) - Tutorial Difficulty
+		shipTypes = []string{"sloop"}
+		shipCount = 1
 	case 2:
 		// Tier 2: 3-4 medium ships
 		shipTypes = []string{"brigantine", "brigantine", "frigate", "frigate"}
@@ -333,8 +333,8 @@ func GenerateNpcFleet(tier int, targetID string) domain.Fleet {
 		shipCount = 4 + rng.Intn(2) // 4-5 ships
 	default:
 		// Fallback to tier 1
-		shipTypes = []string{"sloop", "sloop"}
-		shipCount = 2
+		shipTypes = []string{"sloop"}
+		shipCount = 1
 	}
 
 	// Create fleet
@@ -373,7 +373,7 @@ func GenerateNpcFleet(tier int, targetID string) domain.Fleet {
 			seed += int64(char)
 		}
 		seed += int64(i) * 1000 // Add ship index for variation
-		
+
 		warriors, archers, gunners := GenerateNpcCrewForShip(shipType, tier, seed)
 		ship.CrewWarriors = warriors
 		ship.CrewArchers = archers
@@ -392,4 +392,62 @@ func GenerateNpcFleet(tier int, targetID string) domain.Fleet {
 	fleet.MoraleCruise = &morale
 
 	return fleet
+}
+
+// GenerateNpcCaptain generates a transient captain for NPC fleets
+// Tier 1: Common
+// Tier 2: Rare
+// Tier 3: Legendary
+func GenerateNpcCaptain(tier int) *domain.Captain {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	var rarity domain.CaptainRarity
+	var level int
+	var stars int
+
+	switch tier {
+	case 1:
+		rarity = domain.RarityCommon
+		level = 1 + rng.Intn(5) // Lvl 1-5
+		stars = 0
+	case 2:
+		rarity = domain.RarityRare
+		level = 10 + rng.Intn(20) // Lvl 10-29
+		stars = 1
+	case 3:
+		rarity = domain.RarityLegendary
+		level = 30 + rng.Intn(20) // Lvl 30-49
+		stars = 3
+	default:
+		rarity = domain.RarityCommon
+		level = 1
+		stars = 0
+	}
+
+	// Pick a random skill valid for this rarity
+	var skillID string
+	if rarity == domain.RarityCommon {
+		skills := []string{"nav_morale_decay_reduction", "rum_consumption_reduction", "morale_floor"}
+		skillID = skills[rng.Intn(len(skills))]
+	} else if rarity == domain.RarityRare {
+		skills := []string{"interception_chance_bonus", "opening_enemy_morale_damage", "low_morale_speed_bonus"}
+		skillID = skills[rng.Intn(len(skills))]
+	} else {
+		// Legendary
+		skills := []string{"wind_never_unfavorable", "terror_engagement", "absolute_morale_floor"}
+		skillID = skills[rng.Intn(len(skills))]
+	}
+
+	return &domain.Captain{
+		ID:         uuid.New(),
+		PlayerID:   uuid.Nil, // NPC
+		TemplateID: "npc_captain",
+		Name:       fmt.Sprintf("Capitaine T%d", tier),
+		Rarity:     rarity,
+		Level:      level,
+		Stars:      stars,
+		SkillID:    skillID,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
 }

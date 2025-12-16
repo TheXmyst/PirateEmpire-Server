@@ -190,20 +190,24 @@ func CalculateResources(island *domain.Island, delta time.Duration) {
 	if island.Resources == nil {
 		island.Resources = make(map[domain.ResourceType]float64)
 	}
+	// Reset Generation Maps (Transient)
+	island.ResourceGeneration = make(map[domain.ResourceType]float64)
+	island.ResourceGenerationBase = make(map[domain.ResourceType]float64)
+	island.ResourceGenerationBonus = make(map[domain.ResourceType]float64)
 
-	// 1. Calculate Tech Bonuses
-	var bonuses economy.TechBonuses
+	// 1. Calculate Tech Bonuses (New System: TechModifiers)
+	var mods economy.TechModifiers
 	if island.Player.ID != uuid.Nil {
 		var techs []string
 		if len(island.Player.UnlockedTechsJSON) > 0 {
 			if err := json.Unmarshal(island.Player.UnlockedTechsJSON, &techs); err == nil {
-				bonuses = economy.CalculateTechBonuses(techs)
+				mods = economy.ComputeTechModifiers(techs)
 			}
 		} else {
-			bonuses = economy.CalculateTechBonuses(nil)
+			mods = economy.ComputeTechModifiers(nil)
 		}
 	} else {
-		bonuses = economy.CalculateTechBonuses(nil)
+		mods = economy.ComputeTechModifiers(nil)
 	}
 
 	// 2. Base Limits
@@ -252,22 +256,28 @@ func CalculateResources(island *domain.Island, delta time.Duration) {
 			}
 
 			if resType != "" {
-				var prodBonus float64
-				switch resType {
-				case domain.Wood:
-					prodBonus = bonuses.ProdWoodMult
-				case domain.Stone:
-					prodBonus = bonuses.ProdStoneMult
-				case domain.Rum:
-					prodBonus = bonuses.ProdRumMult
-				case domain.Gold:
-					prodBonus = bonuses.ProdGoldMult
-				}
+				// Use new Map-based lookup
+				prodBonus := mods.ResourceProductionMultiplier[resType]
 
-				// Apply Bonus logic manual recalculation
-				// Assuming stats.Production is the Base (no bonus)
-				finalProd := stats.Production * (1.0 + prodBonus)
+				// PRODUCTION CALCULATION (Per Building)
+				// Base production for this building
+				baseCalc := stats.Production
+				// Bonus amount for this building
+				bonusCalc := stats.Production * prodBonus
+				// Total for this building
+				finalProd := baseCalc + bonusCalc
 
+				// Update Island Totals (Totals are per second, but we store per Hour in Base/Bonus for UI?)
+				// NO, `stats.Production` is usually per Hour in config? Let's check.
+				// game_loop.go:262: amount := (finalProd / 3600.0) * delta.Seconds()
+				// This implies stats.Production is Per Hour.
+
+				// Aggregate Generation Rates (Per Hour) onto Island struct for Tooltips
+				island.ResourceGeneration[resType] += finalProd
+				island.ResourceGenerationBase[resType] += baseCalc
+				island.ResourceGenerationBonus[resType] += bonusCalc
+
+				// Apply to actual resources (using delta)
 				amount := (finalProd / 3600.0) * delta.Seconds()
 				island.Resources[resType] += amount
 			}
@@ -279,17 +289,8 @@ func CalculateResources(island *domain.Island, delta time.Duration) {
 		// Now applying Specific Tech Bonuses to Storage.
 		if len(stats.Storage) > 0 {
 			for res, amount := range stats.Storage {
-				var storageBonus float64
-				switch res {
-				case domain.Wood:
-					storageBonus = bonuses.StorageWoodMult
-				case domain.Stone:
-					storageBonus = bonuses.StorageStoneMult
-				case domain.Rum:
-					storageBonus = bonuses.StorageRumMult
-				case domain.Gold:
-					storageBonus = bonuses.StorageGoldMult
-				}
+				// Use new Map-based lookup
+				storageBonus := mods.StorageCapacityMultiplier[res]
 
 				finalStorage := math.Round(amount * (1.0 + storageBonus))
 				if finalStorage > limits[res] {

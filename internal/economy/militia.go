@@ -12,13 +12,13 @@ const (
 	MilitiaRecruitBaseDuration = 15 * time.Second // Base duration
 	MilitiaRecruitPerUnit      = 3 * time.Second  // Per unit duration
 	MilitiaRecruitMinDuration  = 10 * time.Second // Minimum duration (safety)
-	MilitiaRecruitMaxBatch     = 200               // Maximum units per batch
+	MilitiaRecruitMaxBatch     = 200              // Maximum units per batch
 )
 
 // Militia bonus constants
 const (
-	MilitiaBonusPerLevel = 0.005  // 0.5% per level
-	MilitiaBonusMax      = 0.20   // 20% max
+	MilitiaBonusPerLevel = 0.005 // 0.5% per level
+	MilitiaBonusMax      = 0.30  // 30% max (was 0.20)
 )
 
 // Recruitment costs per unit type
@@ -151,4 +151,3 @@ func ProcessMilitiaRecruitment(island *domain.Island, now time.Time) bool {
 
 	return true
 }
-

@@ -13,13 +13,20 @@ var DB *gorm.DB
 
 func InitDB() {
 	var err error
-	DB, err = gorm.Open(sqlite.Open("seadogs.db"), &gorm.Config{})
+	// SQLite config: WAL mode for concurrency + busy_timeout to avoid "database is locked"
+	dsn := "seadogs.db?_journal_mode=WAL&_busy_timeout=10000"
+	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect database")
 	}
 
+	// Limit connections for SQLite (dev environment)
+	sqlDB, _ := DB.DB()
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+
 	absPath, _ := filepath.Abs("seadogs.db")
-	log.Printf("Database initialized at: %s", absPath)
+	log.Printf("Database initialized at: %s (WAL mode)", absPath)
 
 	// Migrate the schema
 	err = DB.AutoMigrate(&domain.Player{}, &domain.Sea{}, &domain.Island{}, &domain.Building{}, &domain.Ship{}, &domain.Fleet{}, &domain.Captain{}, &domain.CaptainShardWallet{})

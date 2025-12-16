@@ -7,8 +7,8 @@
             "base_speed": 1.0,
             "build_time": 3600,
             "cost": {
-                "wood": 12000,
-                "gold": 4000
+                "wood": 5000,
+                "gold": 1500
             },
             "repair_cost_factor": {
                 "wood": 1.0,

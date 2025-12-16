@@ -48,17 +48,14 @@ func GetShipStats(shipType string) (ShipConfig, error) {
 	return ShipConfig{}, fmt.Errorf("ship type not found: %s", shipType)
 }
 
-func CalculateShipBuildTime(shipType string, bonuses TechBonuses) int {
+func CalculateShipBuildTime(shipType string, mods TechModifiers) int {
 	config, err := GetShipStats(shipType)
 	if err != nil {
 		return 3600 // Fallback
 	}
 
 	// Apply Build Reduction (Logistics)
-	// Reuse specific tech key if available, or generic build_reduce
-	// For now, using BuildTimeReduce from tech.go
-
-	reduction := bonuses.BuildTimeReduce
+	reduction := mods.BuildTimeReduction
 	if reduction > 0.9 {
 		reduction = 0.9
 	}
@@ -84,18 +81,7 @@ func GetMaxFleets(shipyardLevel int) int {
 
 // GetMaxShipsPerFleet returns the maximum number of ships a single fleet can hold
 // based on unlocked technologies.
-// Base: 3
-// Tech nav_fleet_1: +1
-// Tech nav_fleet_2: +1
-func GetMaxShipsPerFleet(unlockedTechs []string) int {
-	capacity := 3
-	for _, tech := range unlockedTechs {
-		if tech == "nav_fleet_1" {
-			capacity++
-		}
-		if tech == "nav_fleet_2" {
-			capacity++
-		}
-	}
+func GetMaxShipsPerFleet(mods TechModifiers) int {
+	capacity := 3 + mods.FleetSizeBonus
 	return capacity
 }

@@ -367,7 +367,7 @@ func GetStatus(c echo.Context) error {
 		for _, f := range island.Fleets {
 			fleetInfo = append(fleetInfo, fmt.Sprintf("(%s,%s)", f.ID.String(), f.Name))
 		}
-		fmt.Printf("[STATUS] player=%s island=%s fleets=%d ids=%v\n", 
+		fmt.Printf("[STATUS] player=%s island=%s fleets=%d ids=%v\n",
 			player.ID.String(), island.ID.String(), len(island.Fleets), fleetInfo)
 
 		// Debug log for crew counts (only when DEBUG or CAPTAIN_DEBUG is enabled)
@@ -465,7 +465,9 @@ func GetStatus(c echo.Context) error {
 
 				// Safer approach: use Save() but ensure island.Player is correct (which we did above).
 				// And/Or use Omit("Player") to prevent player updates.
-				db.Omit("Player").Save(island)
+				repository.RetryWrite(func() error {
+					return db.Omit("Player").Save(island).Error
+				}, 3)
 
 				// Optional debug log (only if DEBUG enabled)
 				if os.Getenv("DEBUG") != "" {
@@ -478,7 +480,9 @@ func GetStatus(c echo.Context) error {
 		if economy.ProcessMilitiaRecruitment(island, now) {
 			// Recruitment completed - save island to persist crew stock
 			// Force save even if checkpoint not reached (recruitment is important)
-			db.Omit("Player").Save(island)
+			repository.RetryWrite(func() error {
+				return db.Omit("Player").Save(island).Error
+			}, 3)
 		}
 
 		// HOTFIX: Update Townhall position
@@ -487,6 +491,14 @@ func GetStatus(c echo.Context) error {
 				if island.Buildings[j].X != -40 || island.Buildings[j].Y != -144 {
 					island.Buildings[j].X = -40
 					island.Buildings[j].Y = -144
+					db.Save(&island.Buildings[j])
+				}
+			}
+			// HOTFIX: Update Milice position
+			if island.Buildings[j].Type == "Milice" {
+				if island.Buildings[j].X != -887 || island.Buildings[j].Y != -253 {
+					island.Buildings[j].X = -887
+					island.Buildings[j].Y = -253
 					db.Save(&island.Buildings[j])
 				}
 			}
@@ -578,13 +590,18 @@ func Build(c echo.Context) error {
 		}
 	}()
 
-	// Preload Player with Islands and Buildings so CheckPrerequisites can access them
 	if err := tx.Preload("Player").Preload("Player.Islands.Buildings").Preload("Buildings").First(&island, "id = ? AND player_id = ?", req.IslandID, playerID).Error; err != nil {
 		tx.Rollback()
 		errorMsg := "Island not found"
 		fmt.Printf("Build failed: player_id=%s, island_id=%s, building_type=%s, reason=%s\n",
 			playerID, req.IslandID, req.Type, errorMsg)
 		return c.JSON(http.StatusNotFound, map[string]string{"error": errorMsg})
+	}
+
+	// CHECK HDV LEVEL (Global Rule)
+	if err := canUpgradeBuilding(&island, req.Type, 0); err != nil {
+		tx.Rollback()
+		return c.JSON(http.StatusConflict, err)
 	}
 
 	// CHECK GLOBAL CONSTRUCTION LIMIT
@@ -637,12 +654,12 @@ func Build(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": errorMsg})
 	}
 
-	// Calculate Tech Bonuses
-	var bonuses economy.TechBonuses
+	// Calculate Tech Bonuses (New System: TechModifiers)
+	var mods economy.TechModifiers
 	var techs []string
 	if len(island.Player.UnlockedTechsJSON) > 0 {
 		_ = json.Unmarshal(island.Player.UnlockedTechsJSON, &techs)
-		bonuses = economy.CalculateTechBonuses(techs)
+		mods = economy.ComputeTechModifiers(techs)
 	}
 
 	// Update resources to now before checking (to be fair)
@@ -665,7 +682,7 @@ func Build(c echo.Context) error {
 		island.Resources[res] -= amount
 	}
 
-	reduction := bonuses.BuildTimeReduce
+	reduction := mods.BuildTimeReduction
 	if reduction > 0.9 {
 		reduction = 0.9
 	}
@@ -759,6 +776,11 @@ func Upgrade(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tavern cannot be upgraded."})
 	}
 
+	// CHECK HDV LEVEL (Global Rule)
+	if err := canUpgradeBuilding(&island, building.Type, building.Level); err != nil {
+		return c.JSON(http.StatusConflict, err)
+	}
+
 	// CHECK GLOBAL CONSTRUCTION LIMIT (New Rule)
 	for _, b := range island.Buildings {
 		if b.Constructing {
@@ -801,15 +823,15 @@ func Upgrade(c echo.Context) error {
 		island.Resources[res] -= amount
 	}
 
-	// Calculate Tech Bonuses
-	var bonuses economy.TechBonuses
+	// Calculate Tech Bonuses (New System: TechModifiers)
+	var mods economy.TechModifiers
 	var techs []string
 	if len(island.Player.UnlockedTechsJSON) > 0 {
 		_ = json.Unmarshal(island.Player.UnlockedTechsJSON, &techs)
-		bonuses = economy.CalculateTechBonuses(techs)
+		mods = economy.ComputeTechModifiers(techs)
 	}
 
-	reduction := bonuses.BuildTimeReduce
+	reduction := mods.BuildTimeReduction
 	if reduction > 0.9 {
 		reduction = 0.9
 	}
@@ -986,12 +1008,13 @@ func ResetProgress(c echo.Context) error {
 
 	// 6. Reset Island to initial state (same as Register)
 	island.Level = 1
+
 	island.LastUpdated = time.Now()
 	island.Resources = map[domain.ResourceType]float64{
-		domain.Wood:         2500.0,
-		domain.Gold:         3000.0,
-		domain.Stone:        2500.0,
-		domain.Rum:          1000.0,
+		domain.Wood:          2500.0,
+		domain.Gold:          3000.0,
+		domain.Stone:         2500.0,
+		domain.Rum:           1000.0,
 		domain.CaptainTicket: 0.0, // Explicitly reset tickets to 0
 	}
 	if err := tx.Save(&island).Error; err != nil {
@@ -1014,7 +1037,7 @@ func ResetProgress(c echo.Context) error {
 	}
 
 	// Reset tech fields to initial state (empty unlocked techs, no research)
-	playerToReset.UnlockedTechs = []string{} // Empty array
+	playerToReset.UnlockedTechs = []string{}       // Empty array
 	playerToReset.UnlockedTechsJSON = []byte("[]") // Empty JSON array
 	playerToReset.ResearchingTechID = ""
 	playerToReset.ResearchFinishTime = time.Time{}
@@ -1206,35 +1229,35 @@ func StartResearch(c echo.Context) error {
 	island.Resources[domain.Rum] -= cost.Rum
 
 	// 8. Start Research
-	// Calculate Tech Bonuses (Research Speed)
+	// Calculate Tech Bonuses (New System: TechModifiers)
 	var unlockedList []string
 	if len(player.UnlockedTechsJSON) > 0 {
 		_ = json.Unmarshal(player.UnlockedTechsJSON, &unlockedList)
 	}
-	bonuses := economy.CalculateTechBonuses(unlockedList)
-	
+	mods := economy.ComputeTechModifiers(unlockedList)
+
 	// Calculate Academy Research Bonus
 	academyBonus := economy.CalculateAcademyResearchBonus(maxAcad)
-	
+
 	// Combine tech bonus and academy bonus
-	totalReduction := bonuses.ResearchTimeReduce + academyBonus
+	totalReduction := mods.ResearchTimeReduction + academyBonus
 	if totalReduction > 0.9 {
 		totalReduction = 0.9
 	} // Cap total reduction at 90%
-	
+
 	baseTime := float64(tech.TimeSec)
 	finalDuration := baseTime * (1.0 - totalReduction)
-	
+
 	// Store the final duration in seconds for client progress bar
 	player.ResearchTotalDurationSeconds = finalDuration
 
 	finishTime := time.Now().Add(time.Duration(finalDuration) * time.Second)
 	player.ResearchingTechID = req.TechID
 	player.ResearchFinishTime = finishTime
-	
+
 	// Debug logging
 	fmt.Printf("[TECH] StartResearch: tech=%s academyLevel=%d base=%.2fs bonusTech=%.3f bonusAcademy=%.3f totalReduction=%.3f final=%.2fs\n",
-		req.TechID, maxAcad, baseTime, bonuses.ResearchTimeReduce, academyBonus, totalReduction, finalDuration)
+		req.TechID, maxAcad, baseTime, mods.ResearchTimeReduction, academyBonus, totalReduction, finalDuration)
 
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
@@ -1345,8 +1368,8 @@ func StartShipConstruction(c echo.Context) error {
 	if len(island.Player.UnlockedTechsJSON) > 0 {
 		_ = json.Unmarshal(island.Player.UnlockedTechsJSON, &techs)
 	}
-	bonuses := economy.CalculateTechBonuses(techs)
-	buildTimeSec := economy.CalculateShipBuildTime(req.ShipType, bonuses)
+	mods := economy.ComputeTechModifiers(techs)
+	buildTimeSec := economy.CalculateShipBuildTime(req.ShipType, mods)
 	finishTime := time.Now().Add(time.Duration(buildTimeSec) * time.Second)
 
 	// 9. Create Ship (use authenticated playerID, not req.PlayerID)
@@ -1521,7 +1544,7 @@ func AddShipToFleet(c echo.Context) error {
 			requiredTech = "nav_fleet_2"
 			techName = "Grande Armada"
 		}
-		
+
 		if requiredTech != "" {
 			fmt.Printf("[FLEET] AddShipToFleet: Fleet is locked: fleet_name=%s, required_tech=%s\n", fleet.Name, requiredTech)
 			return c.JSON(http.StatusForbidden, map[string]string{
@@ -1534,10 +1557,11 @@ func AddShipToFleet(c echo.Context) error {
 	}
 
 	// 3. Check Capacity using active ships only (authoritative server-side validation)
-	maxShips := economy.GetMaxShipsPerFleet(player.UnlockedTechs)
+	mods := economy.ComputeTechModifiers(player.UnlockedTechs)
+	maxShips := economy.GetMaxShipsPerFleet(mods)
 	activeShips := economy.GetActiveFleetShips(&fleet)
 	activeCount := len(activeShips)
-	
+
 	// Count ships under construction separately for logging
 	underConstructionCount := 0
 	for _, ship := range activeShips {
@@ -1545,11 +1569,11 @@ func AddShipToFleet(c echo.Context) error {
 			underConstructionCount++
 		}
 	}
-	
+
 	// Detailed diagnostic: log each ship's state for debugging
 	fmt.Printf("[FLEET] AddShipToFleet: Fleet %s has %d total ships in DB\n", fleet.ID.String()[:8], len(fleet.Ships))
 	for i, ship := range fleet.Ships {
-		fmt.Printf("[FLEET] AddShipToFleet: Ship[%d] id=%s name=%s state=%s health=%.0f fleet_id=%v\n", 
+		fmt.Printf("[FLEET] AddShipToFleet: Ship[%d] id=%s name=%s state=%s health=%.0f fleet_id=%v\n",
 			i, ship.ID.String()[:8], ship.Name, ship.State, ship.Health, ship.FleetID)
 	}
 	fmt.Printf("[FLEET] AddShipToFleet: Capacity check: active=%d (uc=%d) total=%d max=%d\n", activeCount, underConstructionCount, len(fleet.Ships), maxShips)
@@ -1627,6 +1651,60 @@ type AssignCrewResponse struct {
 	} `json:"stock_after"`
 }
 
+// SetActiveFleetRequest is the request for POST /fleets/set-active
+type SetActiveFleetRequest struct {
+	FleetID string `json:"fleet_id"`
+}
+
+// SetActiveFleet sets the active fleet for PvE
+func SetActiveFleet(c echo.Context) error {
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non authentifié"})
+	}
+
+	req := new(SetActiveFleetRequest)
+	if err := c.Bind(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
+	}
+
+	fleetID, err := uuid.Parse(req.FleetID)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ID de flotte invalide"})
+	}
+
+	db := repository.GetDB()
+
+	// Start transaction
+	tx := db.Begin()
+	defer tx.Rollback()
+
+	// Loading island
+	var island domain.Island
+	if err := tx.Where("player_id = ?", player.ID).First(&island).Error; err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
+	}
+
+	// Verify fleet ownership and existence
+	var fleet domain.Fleet
+	if err := tx.Where("id = ? AND island_id = ?", fleetID, island.ID).First(&fleet).Error; err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte introuvable ou ne vous appartient pas"})
+	}
+
+	// Update active fleet
+	island.ActiveFleetID = &fleetID
+	if err := tx.Save(&island).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde"})
+	}
+
+	tx.Commit()
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"ok":              true,
+		"active_fleet_id": fleetID.String(),
+	})
+}
+
 // AssignCrew assigns crew from island stock to a ship
 func AssignCrew(c echo.Context) error {
 	// Get authenticated player
@@ -1695,24 +1773,24 @@ func AssignCrew(c echo.Context) error {
 	if island.CrewWarriors < req.Warriors {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Stock insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"error":          "Stock insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_STOCK",
 			"reason_message": fmt.Sprintf("Guerriers insuffisants (nécessaire: %d, disponible: %d)", req.Warriors, island.CrewWarriors),
 		})
 	}
 	if island.CrewArchers < req.Archers {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Stock insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"error":          "Stock insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_STOCK",
 			"reason_message": fmt.Sprintf("Archers insuffisants (nécessaire: %d, disponible: %d)", req.Archers, island.CrewArchers),
 		})
 	}
 	if island.CrewGunners < req.Gunners {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Stock insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_STOCK",
+			"error":          "Stock insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_STOCK",
 			"reason_message": fmt.Sprintf("Artilleurs insuffisants (nécessaire: %d, disponible: %d)", req.Gunners, island.CrewGunners),
 		})
 	}
@@ -1728,8 +1806,8 @@ func AssignCrew(c echo.Context) error {
 	if totalCrew > maxCrew {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Capacité dépassée",
-			"reason_code":  "CREW_OVER_CAPACITY",
+			"error":          "Capacité dépassée",
+			"reason_code":    "CREW_OVER_CAPACITY",
 			"reason_message": fmt.Sprintf("Capacité maximale pour un %s: %d (actuel: %d, assignation: %d)", ship.Type, maxCrew, economy.CrewTotal(&ship), totalCrew),
 		})
 	}
@@ -1868,24 +1946,24 @@ func UnassignCrew(c echo.Context) error {
 	if ship.CrewWarriors < req.Warriors {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Équipage insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"error":          "Équipage insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_ON_SHIP",
 			"reason_message": fmt.Sprintf("Guerriers insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Warriors, ship.CrewWarriors),
 		})
 	}
 	if ship.CrewArchers < req.Archers {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Équipage insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"error":          "Équipage insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_ON_SHIP",
 			"reason_message": fmt.Sprintf("Archers insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Archers, ship.CrewArchers),
 		})
 	}
 	if ship.CrewGunners < req.Gunners {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        "Équipage insuffisant",
-			"reason_code":  "CREW_INSUFFICIENT_ON_SHIP",
+			"error":          "Équipage insuffisant",
+			"reason_code":    "CREW_INSUFFICIENT_ON_SHIP",
 			"reason_message": fmt.Sprintf("Artilleurs insuffisants sur le navire (nécessaire: %d, disponible: %d)", req.Gunners, ship.CrewGunners),
 		})
 	}
@@ -2088,7 +2166,7 @@ func ensurePlayerFleets(db *gorm.DB, island *domain.Island) error {
 				}
 			}
 		}
-		
+
 		// Auto-set flagship if nil and fleet has active ships
 		if allFleets[i].FlagshipShipID == nil && len(allFleets[i].Ships) > 0 {
 			// Filter out destroyed ships
@@ -2398,17 +2476,17 @@ func DevGrantCaptain(c echo.Context) error {
 
 	// Create new captain
 	captain := domain.Captain{
-		ID:            uuid.New(),
-		PlayerID:      playerID,
-		TemplateID:    req.TemplateID,
-		Name:          req.Name,
-		Rarity:        rarity,
-		Level:         1,
-		XP:            0,
-		SkillID:       req.SkillID,
+		ID:             uuid.New(),
+		PlayerID:       playerID,
+		TemplateID:     req.TemplateID,
+		Name:           req.Name,
+		Rarity:         rarity,
+		Level:          1,
+		XP:             0,
+		SkillID:        req.SkillID,
 		AssignedShipID: nil,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	if err := db.Create(&captain).Error; err != nil {
@@ -2491,28 +2569,28 @@ func GetCaptains(c echo.Context) error {
 	// Create response DTO with computed passive effects and naval bonuses
 	type CaptainResponse struct {
 		domain.Captain
-		PassiveID                string          `json:"passive_id,omitempty"`
-		PassiveValue             float64         `json:"passive_value,omitempty"`
-		PassiveIntValue          int             `json:"passive_int_value,omitempty"`
-		Threshold                int             `json:"threshold,omitempty"`
-		DrainPerMinute           float64         `json:"drain_per_minute,omitempty"`
-		Flags                    map[string]bool `json:"flags,omitempty"`
-		NavalHPBonusPct          float64         `json:"naval_hp_bonus_pct,omitempty"`
-		NavalSpeedBonusPct       float64         `json:"naval_speed_bonus_pct,omitempty"`
-		NavalDamageReductionPct  float64         `json:"naval_damage_reduction_pct,omitempty"`
-		RumConsumptionReductionPct float64      `json:"rum_consumption_reduction_pct,omitempty"`
+		PassiveID                  string          `json:"passive_id,omitempty"`
+		PassiveValue               float64         `json:"passive_value,omitempty"`
+		PassiveIntValue            int             `json:"passive_int_value,omitempty"`
+		Threshold                  int             `json:"threshold,omitempty"`
+		DrainPerMinute             float64         `json:"drain_per_minute,omitempty"`
+		Flags                      map[string]bool `json:"flags,omitempty"`
+		NavalHPBonusPct            float64         `json:"naval_hp_bonus_pct,omitempty"`
+		NavalSpeedBonusPct         float64         `json:"naval_speed_bonus_pct,omitempty"`
+		NavalDamageReductionPct    float64         `json:"naval_damage_reduction_pct,omitempty"`
+		RumConsumptionReductionPct float64         `json:"rum_consumption_reduction_pct,omitempty"`
 	}
 
 	responses := make([]CaptainResponse, 0, len(captains))
 	for _, captain := range captains {
 		effect := economy.ComputeCaptainPassive(captain)
 		navalBonus := economy.ComputeNavalBonuses(captain)
-		
+
 		// Log captain passive computation (once per request, not spammy)
 		fmt.Printf("[CAPTAIN] id=%s lvl=%d stars=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d\n",
 			captain.ID, captain.Level, captain.Stars, captain.Rarity, captain.SkillID,
 			effect.ID, effect.Value, effect.IntValue, effect.Threshold)
-		
+
 		// Debug log for naval bonuses (only if CAPTAIN_DEBUG env var is set)
 		if os.Getenv("CAPTAIN_DEBUG") == "true" {
 			fmt.Printf("[STARS] captain=%s rarity=%s stars=%d hp=%.3f spd=%.3f dr=%.3f rum=%.3f\n",
@@ -2522,16 +2600,16 @@ func GetCaptains(c echo.Context) error {
 		}
 
 		response := CaptainResponse{
-			Captain:                  captain,
-			PassiveID:                effect.ID,
-			PassiveValue:             effect.Value,
-			PassiveIntValue:          effect.IntValue,
-			Threshold:                effect.Threshold,
-			DrainPerMinute:           effect.DrainPerMinute,
-			Flags:                    effect.Flags,
-			NavalHPBonusPct:          navalBonus.NavalHPBonusPct,
-			NavalSpeedBonusPct:       navalBonus.NavalSpeedBonusPct,
-			NavalDamageReductionPct:  navalBonus.NavalDamageReductionPct,
+			Captain:                    captain,
+			PassiveID:                  effect.ID,
+			PassiveValue:               effect.Value,
+			PassiveIntValue:            effect.IntValue,
+			Threshold:                  effect.Threshold,
+			DrainPerMinute:             effect.DrainPerMinute,
+			Flags:                      effect.Flags,
+			NavalHPBonusPct:            navalBonus.NavalHPBonusPct,
+			NavalSpeedBonusPct:         navalBonus.NavalSpeedBonusPct,
+			NavalDamageReductionPct:    navalBonus.NavalDamageReductionPct,
 			RumConsumptionReductionPct: navalBonus.RumConsumptionReductionPct,
 		}
 		responses = append(responses, response)
@@ -2843,12 +2921,12 @@ func SummonCaptain(c echo.Context) error {
 
 	// Prepare results array
 	type SummonResult struct {
-		Rarity        string           `json:"rarity"`
-		TemplateID    string           `json:"template_id"`
-		Name          string           `json:"name"`
-		IsDuplicate   bool             `json:"is_duplicate"`
-		ShardsGranted int              `json:"shards_granted,omitempty"`
-		Captain       *domain.Captain  `json:"captain,omitempty"`
+		Rarity        string          `json:"rarity"`
+		TemplateID    string          `json:"template_id"`
+		Name          string          `json:"name"`
+		IsDuplicate   bool            `json:"is_duplicate"`
+		ShardsGranted int             `json:"shards_granted,omitempty"`
+		Captain       *domain.Captain `json:"captain,omitempty"`
 	}
 
 	results := make([]SummonResult, 0, req.Count)
@@ -2928,18 +3006,18 @@ func SummonCaptain(c echo.Context) error {
 		} else {
 			// Create new captain
 			newCaptain := domain.Captain{
-				ID:            uuid.New(),
-				PlayerID:      playerID,
-				TemplateID:    template.TemplateID,
-				Name:          template.Name,
-				Rarity:        template.Rarity,
-				Level:         1,
-				XP:            0,
-				Stars:         0, // Start at 0 stars
-				SkillID:       template.SkillID,
+				ID:             uuid.New(),
+				PlayerID:       playerID,
+				TemplateID:     template.TemplateID,
+				Name:           template.Name,
+				Rarity:         template.Rarity,
+				Level:          1,
+				XP:             0,
+				Stars:          0, // Start at 0 stars
+				SkillID:        template.SkillID,
 				AssignedShipID: nil,
-				CreatedAt:     time.Now(),
-				UpdatedAt:     time.Now(),
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
 			}
 
 			if err := tx.Create(&newCaptain).Error; err != nil {
@@ -3123,8 +3201,8 @@ func UpgradeCaptainStars(c echo.Context) error {
 
 // Exchange rates: shards per ticket (rebalanced to be usable while still punitive)
 const (
-	ShardsPerTicketCommon    = 120 // Common: 120 shards => 1 ticket
-	ShardsPerTicketRare      = 180 // Rare: 180 shards => 1 ticket
+	ShardsPerTicketCommon = 120 // Common: 120 shards => 1 ticket
+	ShardsPerTicketRare   = 180 // Rare: 180 shards => 1 ticket
 	// Legendary exchange is NOT allowed (disabled for economy balance)
 )
 
@@ -3326,13 +3404,12 @@ func ExchangeShards(c echo.Context) error {
 	})
 }
 
-
 // --- ENGAGEMENT MORALE SYSTEM ---
 
 type SimulateEngagementRequest struct {
-	FleetAID      string `json:"fleet_a_id"`      // Accept as string, parse to UUID
-	FleetBID      string `json:"fleet_b_id"`      // Accept as string, parse to UUID
-	SimulateCombat bool  `json:"simulate_combat"` // If true, simulate full combat (default: false)
+	FleetAID       string `json:"fleet_a_id"`            // Accept as string, parse to UUID
+	FleetBID       string `json:"fleet_b_id"`            // Accept as string, parse to UUID
+	SimulateCombat bool   `json:"simulate_combat"`       // If true, simulate full combat (default: false)
 	CombatSeed     *int64 `json:"combat_seed,omitempty"` // Optional deterministic RNG seed for combat
 }
 
@@ -3348,7 +3425,7 @@ func DevSimulateEngagement(c echo.Context) error {
 	}
 	// Restore body for Echo
 	c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	
+
 	fmt.Printf("[ENGAGE] Raw request body: %s\n", string(bodyBytes))
 
 	// Parse request
@@ -3412,7 +3489,7 @@ func DevSimulateEngagement(c echo.Context) error {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Flotte A introuvable (id=%s)", fleetAID)})
 		}
 	}
-	fmt.Printf("[ENGAGE] FleetA loaded successfully: id=%s island_id=%s name=%s ships=%d\n", 
+	fmt.Printf("[ENGAGE] FleetA loaded successfully: id=%s island_id=%s name=%s ships=%d\n",
 		fleetA.ID, fleetA.IslandID, fleetA.Name, len(fleetA.Ships))
 
 	// Load Fleet B by ID only (no island_id constraint, no pre-filtering)
@@ -3434,7 +3511,7 @@ func DevSimulateEngagement(c echo.Context) error {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Sprintf("Flotte B introuvable (id=%s)", fleetBID)})
 		}
 	}
-	fmt.Printf("[ENGAGE] FleetB loaded successfully: id=%s island_id=%s name=%s ships=%d\n", 
+	fmt.Printf("[ENGAGE] FleetB loaded successfully: id=%s island_id=%s name=%s ships=%d\n",
 		fleetB.ID, fleetB.IslandID, fleetB.Name, len(fleetB.Ships))
 
 	// Load islands for ownership verification (using IslandID from loaded fleets, NOT pre-selected island)
@@ -3555,14 +3632,14 @@ func DevSimulateEngagement(c echo.Context) error {
 	// Add flagship info to applied notes (with selection reason and crew info)
 	if flagshipA != nil {
 		dominantCrewA := economy.GetDominantCrewType(flagshipA)
-		result.Applied = append([]string{fmt.Sprintf("FleetA flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)", 
+		result.Applied = append([]string{fmt.Sprintf("FleetA flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)",
 			explicitA, flagshipA.ID, flagshipA.Type, reasonA, dominantCrewA, flagshipA.CrewWarriors, flagshipA.CrewArchers, flagshipA.CrewGunners)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetA: no flagship"}, result.Applied...)
 	}
 	if flagshipB != nil {
 		dominantCrewB := economy.GetDominantCrewType(flagshipB)
-		result.Applied = append([]string{fmt.Sprintf("FleetB flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)", 
+		result.Applied = append([]string{fmt.Sprintf("FleetB flagship selection: explicit=%v ship_id=%s type=%s reason=%s crew_dominant=%s (warriors=%d archers=%d gunners=%d)",
 			explicitB, flagshipB.ID, flagshipB.Type, reasonB, dominantCrewB, flagshipB.CrewWarriors, flagshipB.CrewArchers, flagshipB.CrewGunners)}, result.Applied...)
 	} else {
 		result.Applied = append([]string{"FleetB: no flagship"}, result.Applied...)
@@ -3589,10 +3666,10 @@ func DevSimulateEngagement(c echo.Context) error {
 		"engagement_morale_b": result.EngagementMoraleB,
 		"delta":               result.Delta,
 		"bonus_percent":       result.BonusPercent,
-		"atk_mult_a":         result.AtkMultA,
-		"def_mult_a":         result.DefMultA,
-		"atk_mult_b":         result.AtkMultB,
-		"def_mult_b":         result.DefMultB,
+		"atk_mult_a":          result.AtkMultA,
+		"def_mult_a":          result.DefMultA,
+		"atk_mult_b":          result.AtkMultB,
+		"def_mult_b":          result.DefMultB,
 		"applied":             result.Applied,
 	}
 
@@ -3625,14 +3702,14 @@ func DevSimulateEngagement(c echo.Context) error {
 		} else {
 			// Add combat result to response
 			response["combat"] = map[string]interface{}{
-				"winner":             combatResult.Winner,
-				"rounds":             combatResult.Rounds,
-				"ships_destroyed_a":  combatResult.ShipsDestroyedA,
-				"ships_destroyed_b":  combatResult.ShipsDestroyedB,
-				"captain_injured_a":  combatResult.CaptainInjuredA,
-				"captain_injured_b":  combatResult.CaptainInjuredB,
-				"combat_applied":     combatResult.Applied,
-				"combat_seed":        combatSeed,
+				"winner":            combatResult.Winner,
+				"rounds":            combatResult.Rounds,
+				"ships_destroyed_a": combatResult.ShipsDestroyedA,
+				"ships_destroyed_b": combatResult.ShipsDestroyedB,
+				"captain_injured_a": combatResult.CaptainInjuredA,
+				"captain_injured_b": combatResult.CaptainInjuredB,
+				"combat_applied":    combatResult.Applied,
+				"combat_seed":       combatSeed,
 			}
 		}
 	}
@@ -3649,10 +3726,10 @@ func sortShipsByID(ships *[]domain.Ship) {
 
 // DevSetShipCrewRequest is the request for the /dev/set-ship-crew endpoint
 type DevSetShipCrewRequest struct {
-	ShipID   string `json:"ship_id"`   // UUID as string
-	Warriors int    `json:"warriors"`  // Must be >= 0
-	Archers  int    `json:"archers"`   // Must be >= 0
-	Gunners  int    `json:"gunners"`   // Must be >= 0
+	ShipID   string `json:"ship_id"`  // UUID as string
+	Warriors int    `json:"warriors"` // Must be >= 0
+	Archers  int    `json:"archers"`  // Must be >= 0
+	Gunners  int    `json:"gunners"`  // Must be >= 0
 }
 
 // DevSetShipCrewResponse is the response for the /dev/set-ship-crew endpoint
@@ -3722,9 +3799,9 @@ func DevSetShipCrew(c echo.Context) error {
 	isValid, reasonCode, reasonMsg := economy.ValidateShipCrewBounds(&ship)
 	if !isValid {
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        reasonMsg,
-			"reason_code":  reasonCode,
-			"message":      reasonMsg,
+			"error":       reasonMsg,
+			"reason_code": reasonCode,
+			"message":     reasonMsg,
 		})
 	}
 
@@ -3754,8 +3831,8 @@ type MilitiaRecruitRequest struct {
 
 // MilitiaRecruitResponse is the response for POST /militia/recruit
 type MilitiaRecruitResponse struct {
-	DoneAt    time.Time `json:"done_at"`
-	Pending   struct {
+	DoneAt  time.Time `json:"done_at"`
+	Pending struct {
 		Warriors int `json:"warriors"`
 		Archers  int `json:"archers"`
 		Gunners  int `json:"gunners"`
@@ -3810,8 +3887,8 @@ func MilitiaRecruit(c echo.Context) error {
 	if !isValid {
 		tx.Rollback()
 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
-			"error":        reasonMsg,
-			"reason_code":  reasonCode,
+			"error":          reasonMsg,
+			"reason_code":    reasonCode,
 			"reason_message": reasonMsg,
 		})
 	}
@@ -3862,4 +3939,40 @@ func MilitiaRecruit(c echo.Context) error {
 	response.Pending.Gunners = req.Gunners
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// canUpgradeBuilding checks if a building can be upgraded based on the HDV Global Rule
+// Rule: No building can exceed the Town Hall level
+// Returns nil if OK, or an error struct (HdvLimitError) if blocked.
+func canUpgradeBuilding(island *domain.Island, buildingType string, currentLevel int) interface{} {
+	// EXCEPTION: Town Hall itself checks nothing (it limits others)
+	if buildingType == "Hôtel de Ville" {
+		return nil
+	}
+
+	// Find Town Hall Level
+	hdvLevel := 0
+	for _, b := range island.Buildings {
+		if b.Type == "Hôtel de Ville" {
+			hdvLevel = b.Level
+			break
+		}
+	}
+
+	// Rule: Building Level (Next) <= HDV Level
+	// If currentLevel is X, next is X+1.
+	// We want X+1 <= HDV.
+	// So if X+1 > HDV, block.
+	nextLevel := currentLevel + 1
+
+	if nextLevel > hdvLevel {
+		return map[string]interface{}{
+			"code":           "HDV_LEVEL_TOO_LOW",
+			"required_level": nextLevel,
+			"current_level":  hdvLevel,
+			"message":        fmt.Sprintf("Hôtel de Ville niveau %d requis.", nextLevel),
+		}
+	}
+
+	return nil
 }

@@ -57,6 +57,7 @@ func main() {
 		protected.POST("/build-ship", api.StartShipConstruction)
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
+		protected.POST("/fleets/set-active", api.SetActiveFleet)
 		protected.POST("/fleets/assign-crew", api.AssignCrew)
 		protected.POST("/fleets/unassign-crew", api.UnassignCrew)
 		protected.GET("/fleets", api.GetFleets)
@@ -71,6 +72,9 @@ func main() {
 		// PVE endpoints
 		protected.GET("/pve/targets", api.GetPveTargets)
 		protected.POST("/pve/engage", api.EngagePve)
+		// PVP endpoints
+		protected.GET("/pvp/targets", api.GetPvpTargets)
+		protected.POST("/pvp/attack", api.AttackPvp)
 		// Militia endpoints
 		protected.POST("/militia/recruit", api.MilitiaRecruit)
 	}

@@ -68,42 +68,7 @@ type TechRoot struct {
 	Logistics []Technology `json:"logistics"`
 }
 
-// TechBonuses aggregates bonuses for use in game logic
-type TechBonuses struct {
-	ProdWoodMult     float64
-	ProdStoneMult    float64
-	ProdRumMult      float64
-	ProdGoldMult     float64
-	LootBonus        float64
-	StorageWoodMult  float64
-	StorageStoneMult float64
-	StorageRumMult   float64
-	StorageGoldMult  float64
-
-	// Naval
-	SpeedBonus  float64
-	WindBonus   float64
-	CounterWind float64 // Factor to Reduce Malus (0.1 means 10% less malus)
-	TravelTime  float64 // Reduction (0.1 means 10% faster)
-	RepairWood  float64 // Reduction
-	RepairGold  float64 // Reduction
-	ExtraShips  int
-
-	// Combat
-	CrewHP         float64
-	CrewDamage     float64
-	GuerrierBonus  float64
-	ArcherBonus    float64
-	FusilierBonus  float64
-	TriangleBonus  float64 // Add to 1.5
-	TriangleMalus  float64 // Reduce from 0.5 (so positive value is good)
-	CrewLossReduce float64
-
-	// Logistics
-	BuildTimeReduce    float64
-	ResearchTimeReduce float64
-	ExtraQueue         int
-}
+// TechBonuses removed (Migrated to TechModifiers)
 
 var (
 	techMap    map[string]Technology // Flattened map for ID lookup
@@ -165,67 +130,6 @@ func GetTech(id string) (*Technology, error) {
 // GetTechDuration returns Duration for timers
 func (t *Technology) GetDuration() time.Duration {
 	return time.Duration(t.TimeSec) * time.Second
-}
-
-// CalculateTechBonuses aggregates effects from a list of unlocked tech IDs
-func CalculateTechBonuses(unlockedTechs []string) TechBonuses {
-	techMu.RLock()
-	defer techMu.RUnlock()
-
-	b := TechBonuses{
-		// Default Multipliers (Base 1.0 logic handled in calculator,
-		// here we return ADDITIVE bonuses usually, e.g. 0.05)
-		// Or should we return totals?
-		// User prompt said "prodFinal = base * (1 + sum(ProdWood...))"
-		// So we return the SUM of bonuses (0.05 + 0.05 = 0.10)
-	}
-
-	for _, id := range unlockedTechs {
-		tech, ok := techMap[id]
-		if !ok {
-			continue // Should not happen if data integrity is kept
-		}
-		e := tech.Effects
-
-		// Economy
-		b.ProdWoodMult += e.ProdWood
-		b.ProdStoneMult += e.ProdStone
-		b.ProdRumMult += e.ProdRum
-		b.ProdGoldMult += e.ProdGold
-		b.LootBonus += e.LootBonus
-		b.StorageWoodMult += e.StorageWood
-		b.StorageStoneMult += e.StorageStone
-		b.StorageRumMult += e.StorageRum
-		b.StorageGoldMult += e.StorageGold
-
-		// Naval
-		b.SpeedBonus += e.SpeedBonus
-		b.WindBonus += e.WindBonus
-		b.CounterWind += e.CounterWind
-		b.TravelTime += e.TravelTime
-		b.RepairWood += e.RepairWood
-		b.RepairGold += e.RepairGold
-		b.RepairGold += e.RepairGlobal // Global applies to both
-		b.RepairWood += e.RepairGlobal
-		b.ExtraShips += e.ExtraShips
-
-		// Combat
-		b.CrewHP += e.CrewHP
-		b.CrewDamage += e.CrewDamage
-		b.GuerrierBonus += e.GuerrierBonus
-		b.ArcherBonus += e.ArcherBonus
-		b.FusilierBonus += e.FusilierBonus
-		b.TriangleBonus += e.TriangleBonus
-		b.TriangleMalus += e.TriangleMalus
-		b.CrewLossReduce += e.CrewLossReduce
-
-		// Logistics
-		b.BuildTimeReduce += e.BuildReduce
-		b.ResearchTimeReduce += e.ResearchReduce
-		b.ExtraQueue += e.ExtraQueue
-	}
-
-	return b
 }
 
 // CalculateAcademyResearchBonus calculates the research time reduction bonus from Academy level
