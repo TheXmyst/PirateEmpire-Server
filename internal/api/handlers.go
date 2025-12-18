@@ -3976,3 +3976,149 @@ func canUpgradeBuilding(island *domain.Island, buildingType string, currentLevel
 
 	return nil
 }
+
+// DevSpawnDummy creates a dummy player for PvP testing
+func DevSpawnDummy(c echo.Context) error {
+	// 1. Auth Check (Admin only)
+	admin := auth.GetAuthenticatedPlayer(c)
+	if admin == nil || !admin.IsAdmin {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "Admin access required"})
+	}
+
+	db := repository.GetDB()
+
+	// 2. Check if Dummy already exists
+	var dummyPlayer domain.Player
+	username := "DummyTarget"
+	if err := db.Where("username = ?", username).First(&dummyPlayer).Error; err == nil {
+		// Already exists - maybe reset position?
+		// Ensure it has an island
+		var island domain.Island
+		if err := db.Where("player_id = ?", dummyPlayer.ID).First(&island).Error; err == nil {
+			// Move island near admin player for visibility
+			// Get Admin Island
+			var adminIsland domain.Island
+			if err := db.Where("player_id = ?", admin.ID).First(&adminIsland).Error; err == nil {
+				island.X = adminIsland.X + 200 // Offset by 200
+				island.Y = adminIsland.Y + 200
+				db.Save(&island)
+				return c.JSON(http.StatusOK, map[string]string{
+					"message":   "Dummy already exists, moved near you.",
+					"player_id": dummyPlayer.ID.String(),
+				})
+			}
+		}
+	}
+
+	// 3. Create Dummy Player
+	dummyID := uuid.New()
+	dummyPlayer = domain.Player{
+		ID:        dummyID,
+		Username:  username,
+		Email:     "dummy@sea.com",
+		Password:  "$2a$10$NotARealHashJustDummy", // Dummy hash
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Role:      "USER",
+		IsAdmin:   false,
+	}
+
+	if err := db.Create(&dummyPlayer).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create dummy player"})
+	}
+
+	// 4. Create Dummy Island (Near Admin)
+	var adminIsland domain.Island
+	// Attempt to find admin island to place near
+	db.Where("player_id = ?", admin.ID).First(&adminIsland) // Ignore error, default 0,0 if not found
+
+	island := domain.Island{
+		ID:          uuid.New(),
+		PlayerID:    dummyPlayer.ID,
+		SeaID:       adminIsland.SeaID, // Same sea
+		Name:        "Pirate Cove",
+		Level:       5,
+		X:           adminIsland.X + 200,
+		Y:           adminIsland.Y + 200,
+		LastUpdated: time.Now(),
+		Resources: map[domain.ResourceType]float64{
+			domain.Wood:  10000,
+			domain.Gold:  10000,
+			domain.Stone: 10000,
+			domain.Rum:   5000,
+		},
+	}
+	if err := db.Create(&island).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create dummy island"})
+	}
+
+	// 4.5 Create Town Hall (Level 5) to ensure visibility (bypass beginner protection)
+	th := domain.Building{
+		ID:           uuid.New(),
+		IslandID:     island.ID,
+		Type:         "Hôtel de Ville",
+		Level:        5,
+		X:            float64(island.X), // Center of island
+		Y:            float64(island.Y),
+		Constructing: false,
+		FinishTime:   time.Time{}, // Finished
+	}
+	if err := db.Create(&th).Error; err != nil {
+		fmt.Printf("[DEV] Failed to create dummy TH: %v\n", err)
+	}
+
+	// 5. Create Fleets & Ships
+	// Fleet 1: Weak
+	f1 := domain.Fleet{
+		ID:       uuid.New(),
+		IslandID: island.ID,
+		Name:     "Patrol",
+	}
+	db.Create(&f1)
+	s1 := domain.Ship{
+		ID:           uuid.New(),
+		FleetID:      &f1.ID,
+		IslandID:     island.ID,
+		Type:         "Sloop",
+		Name:         "Target Practice",
+		State:        "Idle",
+		Health:       500,
+		MaxHealth:    500,
+		CrewWarriors: 10,
+		CrewArchers:  5,
+		CrewGunners:  0,
+	}
+	db.Create(&s1)
+	island.ActiveFleetID = &f1.ID // Set active
+	db.Save(&island)
+
+	// Fleet 2: Stronger
+	f2 := domain.Fleet{
+		ID:       uuid.New(),
+		IslandID: island.ID,
+		Name:     "Guard",
+	}
+	db.Create(&f2)
+	s2 := domain.Ship{
+		ID:           uuid.New(),
+		FleetID:      &f2.ID,
+		IslandID:     island.ID,
+		Type:         "Frigate",
+		Name:         "The Wall",
+		State:        "Idle",
+		Health:       2000,
+		MaxHealth:    2000,
+		CrewWarriors: 50,
+		CrewArchers:  30,
+		CrewGunners:  20,
+	}
+	db.Create(&s2)
+
+	// Refresh fleet list (ensure validity)
+	ensurePlayerFleets(db, &island)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message":   "Dummy spawned successfully!",
+		"player_id": dummyPlayer.ID.String(),
+	})
+}

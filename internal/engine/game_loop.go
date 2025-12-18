@@ -68,12 +68,18 @@ func (e *Engine) Tick() {
 		fmt.Println("Error loading ship config:", err)
 	}
 
+	// Update PvE Target Simulation (Random Walk)
+	// Assume 1.0s delta since ticker is 1s
 	var islands []domain.Island
 	// Preload buildings AND Player AND Ships
 	if err := db.Preload("Buildings").Preload("Player").Preload("Ships").Find(&islands).Error; err != nil {
 		fmt.Println("Tick: Error listing islands:", err)
 		return
 	}
+
+	// Update PvE Target Simulation (Random Walk)
+	// Moved here to access 'islands' for collision avoidance
+	economy.UpdatePveTargetSimulation(1.0, islands)
 
 	now := time.Now()
 

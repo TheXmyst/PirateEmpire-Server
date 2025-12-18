@@ -174,10 +174,153 @@ type PveTargetCacheEntry struct {
 // PveTarget represents a PVE target (NPC fleet) on the world map
 type PveTarget struct {
 	ID   string `json:"id"`   // Stable ID: "npc-<playerID>-<slotIndex>"
-	X    int    `json:"x"`    // Position X on world map
-	Y    int    `json:"y"`    // Position Y on world map
-	Tier int    `json:"tier"` // Tier 1, 2, or 3 (difficulty)
-	Name string `json:"name"` // Display name (e.g., "Corsaires égarés")
+	X    int    `json:"x"`    // Current Position X
+	Y    int    `json:"y"`    // Current Position Y
+	Tier int    `json:"tier"` // Tier 1, 2, or 3
+	Name string `json:"name"` // Display name
+
+	// Random Waypoint Movement Parameters
+	OrbitCenterX int `json:"orbit_center_x"` // Keep for reference (island center)
+	OrbitCenterY int `json:"orbit_center_y"` // Keep for reference (island center)
+
+	TargetX float64 `json:"target_x"` // Destination X
+	TargetY float64 `json:"target_y"` // Destination Y
+	Speed   float64 `json:"speed"`    // Speed in units/sec
+
+	// Deprecated Orbit Fields (Removed)
+	// RadiusX, RadiusY, SpeedX, SpeedY, OrbitAngle
+}
+
+// UpdatePosition updates the ship's position towards its target
+// Returns true if position changed
+func (t *PveTarget) UpdatePosition(deltaSeconds float64, islands []domain.Island) bool {
+	// Calculate vector to target
+	dx := t.TargetX - float64(t.X)
+	dy := t.TargetY - float64(t.Y)
+	dist := math.Sqrt(dx*dx + dy*dy)
+
+	// If reached target (within small threshold), pick new target
+	if dist < 5.0 {
+		// Pick new random target in the annulus (250-600)
+
+		// Attempt to find a clear path (up to 10 tries)
+		foundValid := false
+		for attempt := 0; attempt < 10; attempt++ {
+			angle := rand.Float64() * 2 * math.Pi
+			radius := 250.0 + rand.Float64()*350.0 // 250 to 600
+
+			candX := float64(t.OrbitCenterX) + radius*math.Cos(angle)
+			candY := float64(t.OrbitCenterY) + radius*math.Sin(angle)
+
+			// Check if path from Current(X,Y) to Candidate is clear
+			if IsPathClear(float64(t.X), float64(t.Y), candX, candY, islands) {
+				t.TargetX = candX
+				t.TargetY = candY
+				foundValid = true
+				break
+			}
+		}
+
+		// If no valid path found after retries, just pick the last one (avoid stuck loop)
+		// or stay put? Let's just pick strictly the last attempt to keep moving.
+		if !foundValid {
+			// Fallback: Do NOT update TargetX/TargetY.
+			// The ship will aim for the same spot (already reached), effectively idling/waiting.
+			// Next frame/tick will retry finding a path.
+			// Ideally we could slightly jitter or wait, but keeping same target effectively stops it.
+			// Explicitly set target to current position to FORCE STOP
+			t.TargetX = float64(t.X)
+			t.TargetY = float64(t.Y)
+			fmt.Printf("[PVE] Force Stop for %s at (%d,%d) due to collision risk\n", t.ID, t.X, t.Y)
+		}
+
+		return true
+	}
+
+	// Move towards target
+	moveDist := t.Speed * deltaSeconds
+	if moveDist > dist {
+		moveDist = dist
+	}
+
+	// Normalized direction * moveDist
+	t.X += int((dx / dist) * moveDist)
+	t.Y += int((dy / dist) * moveDist)
+
+	return true
+}
+
+// UpdatePveTargetSimulation updates all cached targets
+// Includes Global Collision Avoidance against all player islands
+func UpdatePveTargetSimulation(deltaSeconds float64, islands []domain.Island) {
+	pveCacheMutex.Lock()
+	defer pveCacheMutex.Unlock()
+
+	for _, entry := range pveTargetCache {
+		// Only update if cache is valid (not expired)
+		if time.Now().Before(entry.ExpiresAt) {
+			for i := range entry.Targets {
+				entry.Targets[i].UpdatePosition(deltaSeconds, islands)
+			}
+		}
+	}
+}
+
+// IsPathClear checks if a direct line between Start and End intersects any island safety zone
+// Safety zone = Island Radius (~100 units?)
+// Simple check: Distance from IslandCenter to LineSegment < SafetyRadius
+func IsPathClear(sx, sy, ex, ey float64, islands []domain.Island) bool {
+	// Const for safety radius around an island (Visual size is approx 50-80, let's use 250 for VERY safe buffer)
+	// User reported clipping, so we increased this from 120 to 250.
+	const IslandSafetyRadius = 250.0
+
+	for _, isl := range islands {
+		ix := float64(isl.X)
+		iy := float64(isl.Y)
+
+		// Check distance from Point (ix,iy) to Segment (sx,sy)-(ex,ey)
+		// Vector AB (Start to End)
+		abx := ex - sx
+		aby := ey - sy
+
+		// Vector AP (Start to Point)
+		apx := ix - sx
+		apy := iy - sy
+
+		// Project AP onto AB to find "t" (closest point projected on infinite line)
+		// t = (AP . AB) / (AB . AB)
+		abLenSq := abx*abx + aby*aby
+		if abLenSq == 0 {
+			// Start and End are same point - check distance to point
+			dist := math.Sqrt((sx-ix)*(sx-ix) + (sy-iy)*(sy-iy))
+			if dist < IslandSafetyRadius {
+				return false
+			}
+			continue
+		}
+
+		t := (apx*abx + apy*aby) / abLenSq
+
+		// Clamp t to segment [0, 1]
+		if t < 0 {
+			t = 0
+		}
+		if t > 1 {
+			t = 1
+		}
+
+		// Closest point on segment
+		cx := sx + t*abx
+		cy := sy + t*aby
+
+		// Distance from Island Center to Closest Point
+		distSq := (cx-ix)*(cx-ix) + (cy-iy)*(cy-iy)
+
+		if distSq < IslandSafetyRadius*IslandSafetyRadius {
+			return false // Collision detected
+		}
+	}
+	return true
 }
 
 var (
@@ -188,7 +331,8 @@ var (
 
 // GetPveTargets returns 3 PVE targets for a player's island
 // Uses cache if available and not expired, otherwise generates new targets
-func GetPveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
+// Accepts allIslands for safe spawn generation
+func GetPveTargets(playerID uuid.UUID, islandX, islandY int, allIslands []domain.Island) []PveTarget {
 	pveCacheMutex.RLock()
 	entry, exists := pveTargetCache[playerID]
 	pveCacheMutex.RUnlock()
@@ -198,8 +342,8 @@ func GetPveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
 		return entry.Targets
 	}
 
-	// Generate new targets
-	targets := generatePveTargets(playerID, islandX, islandY)
+	// Generate new targets with collision check
+	targets := generatePveTargets(playerID, islandX, islandY, allIslands)
 
 	// Update cache
 	pveCacheMutex.Lock()
@@ -259,9 +403,29 @@ func ConsumePveTarget(playerID uuid.UUID, targetID string) {
 	}
 }
 
+// IsPositionClear checks if a point (x,y) is safely away from all islands
+func IsPositionClear(x, y float64, islands []domain.Island) bool {
+	// Safety radius for spawning (keep them well clear)
+	const SpawnSafetyRadius = 400.0 // Match path safety
+
+	for _, isl := range islands {
+		dx := x - float64(isl.X)
+		dy := y - float64(isl.Y)
+		distSq := dx*dx + dy*dy
+
+		if distSq < SpawnSafetyRadius*SpawnSafetyRadius {
+			return false
+		}
+	}
+	return true
+}
+
 // generatePveTargets generates 3 PVE targets around the player's island
-func generatePveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
-	targets := make([]PveTarget, 3)
+// Accepts allIslands to avoiding spawning on neighbors
+func generatePveTargets(playerID uuid.UUID, islandX, islandY int, allIslands []domain.Island) []PveTarget {
+	// Generate 5 targets at different positions
+	targetCount := 5
+	targets := make([]PveTarget, targetCount)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano() + int64(playerID[0])))
 
 	// Tier names
@@ -271,39 +435,74 @@ func generatePveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
 		3: {"Escadre fantôme", "Armada redoutable", "Légion noire"},
 	}
 
-	// Generate 3 targets at different positions
-	for i := 0; i < 3; i++ {
-		tier := i + 1 // Tier 1, 2, 3
+	for i := 0; i < targetCount; i++ {
+		tier := i%3 + 1 // Tier 1, 2, 3, 1, 2...
 
-		// Generate position in radius 250-450 units from island
-		angle := float64(i) * 2.0 * 3.14159 / 3.0 // 120 degrees apart
-		radius := 250.0 + rng.Float64()*200.0     // 250-450 units
-		x := islandX + int(radius*math.Cos(angle))
-		y := islandY + int(radius*math.Sin(angle))
+		var startX, startY, targetX, targetY, speed float64
+		// Initial Placement Retry Loop
+		// Maximum 10 tries to reasonable spawn position
+		validSpawn := false
+		for attempt := 0; attempt < 10; attempt++ {
+			// Random Start Position
+			angle := rng.Float64() * 2 * math.Pi
+			radius := 250.0 + rng.Float64()*350.0 // 250-600
 
-		// Clamp to world bounds (-1000 to 1000)
-		if x < -1000 {
-			x = -1000
-		} else if x > 1000 {
-			x = 1000
+			startX = float64(islandX) + radius*math.Cos(angle)
+			startY = float64(islandY) + radius*math.Sin(angle)
+
+			// Random Initial Target
+			targetAngle := rng.Float64() * 2 * math.Pi
+			targetRadius := 250.0 + rng.Float64()*350.0
+			targetX = float64(islandX) + targetRadius*math.Cos(targetAngle)
+			targetY = float64(islandY) + targetRadius*math.Sin(targetAngle)
+
+			// 1. Check if Start Position is clear
+			if !IsPositionClear(startX, startY, allIslands) {
+				continue
+			}
+
+			// 2. Check if INITIAL PATH (Start -> Target) is clear
+			// This was the missing link causing clipping traverse on spawn
+			if !IsPathClear(startX, startY, targetX, targetY, allIslands) {
+				continue
+			}
+
+			validSpawn = true
+			break
 		}
-		if y < -1000 {
-			y = -1000
-		} else if y > 1000 {
-			y = 1000
+
+		if !validSpawn {
+			fmt.Printf("[PVE] Warning: Could not find clear spawn/path for target %d after 10 attempts\n", i)
 		}
+
+		// If fails after 10 tries, we accept the last generated one to avoid infinite loop
+		// But it's highly likely to be safe if map isn't saturated.
+		// If map IS saturated, well, pirates have to go somewhere.
+
+		// Speed (Pixels per second)
+		// User requested visual movement.
+		// Reduced to 10-18 units/sec (Third Reduction)
+		speed = 10.0 + rng.Float64()*8.0
 
 		// Select random name for tier
 		names := tierNames[tier]
 		name := names[rng.Intn(len(names))]
 
 		targets[i] = PveTarget{
-			ID:   fmt.Sprintf("npc-%s-%d", playerID.String(), i),
-			X:    x,
-			Y:    y,
-			Tier: tier,
-			Name: name,
+			ID:           fmt.Sprintf("npc-%s-%d", playerID.String(), i),
+			X:            int(startX),
+			Y:            int(startY),
+			Tier:         tier,
+			Name:         name,
+			OrbitCenterX: islandX,
+			OrbitCenterY: islandY,
+			TargetX:      targetX,
+			TargetY:      targetY,
+			Speed:        speed,
 		}
+
+		fmt.Printf("[PVE] Generated Target %d (Attempted Clear Spawn): ID=%s Tier=%d Speed=%.1f Start=(%d,%d)\n",
+			i, targets[i].ID, tier, speed, int(startX), int(startY))
 	}
 
 	return targets

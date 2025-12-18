@@ -38,8 +38,15 @@ func GetPveTargets(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
-	// Get PVE targets (from cache or generate new)
-	targets := economy.GetPveTargets(playerID, island.X, island.Y)
+	// Load all islands for collision avoidance during spawn
+	var allIslands []domain.Island
+	if err := db.Find(&allIslands).Error; err != nil {
+		fmt.Printf("GetPveTargets: Error listing islands: %v\n", err)
+		// Proceed with empty list if error (fallback to unsafe spawn rather than crash)
+	}
+
+	// Get PVE targets (from cache or generate new using allIslands for safety)
+	targets := economy.GetPveTargets(playerID, island.X, island.Y, allIslands)
 
 	return c.JSON(http.StatusOK, GetPveTargetsResponse{
 		Targets: targets,
@@ -283,8 +290,10 @@ func EngagePve(c echo.Context) error {
 		Rum:   loot[domain.Rum],
 	}
 
-	// Consume target from cache
-	economy.ConsumePveTarget(playerID, req.TargetID)
+	// Consume target from cache ONLY IF PLAYER WON
+	if combatResult.Winner == "fleet_a" {
+		economy.ConsumePveTarget(playerID, req.TargetID)
+	}
 
 	// Commit transaction (Save island with new resources)
 	if err := tx.Save(&island).Error; err != nil {

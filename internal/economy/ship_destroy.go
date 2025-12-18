@@ -52,6 +52,18 @@ func DestroyShipHard(tx *gorm.DB, shipID uuid.UUID) error {
 		}
 	}
 
+	// Unassign captain if present
+	if ship.CaptainID != nil {
+		var captain domain.Captain
+		if err := tx.First(&captain, "id = ?", *ship.CaptainID).Error; err == nil {
+			captain.AssignedShipID = nil
+			if err := tx.Save(&captain).Error; err != nil {
+				return fmt.Errorf("failed to unassign captain from destroyed ship: %w", err)
+			}
+			fmt.Printf("[COMBAT] unassigned captain %s from destroyed ship %s\n", captain.ID, shipID)
+		}
+	}
+
 	// Hard delete the ship (Unscoped() ensures permanent deletion even if using soft deletes)
 	if err := tx.Unscoped().Delete(&ship).Error; err != nil {
 		return fmt.Errorf("failed to hard delete ship: %w", err)
@@ -60,4 +72,3 @@ func DestroyShipHard(tx *gorm.DB, shipID uuid.UUID) error {
 	fmt.Printf("[COMBAT] ship destroyed hard-delete ship=%s fleet=%s\n", shipID.String()[:8], fleetIDStr)
 	return nil
 }
-

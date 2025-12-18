@@ -1,6 +1,7 @@
 package economy
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -41,26 +42,34 @@ func GetPvpTargets(playerID uuid.UUID, x, y int) ([]PvpTarget, error) {
 
 	// Query: distinct players, not self, within bounds, TH >= MinTownHallForPvP
 	// We scan islands.
-	err := db.Preload("Player").
+	err := db.Preload("Player").Preload("Buildings").
 		Where("player_id != ? AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?", playerID, minX, maxX, minY, maxY).
 		Find(&islands).Error
 
 	if err != nil {
+		fmt.Printf("[PVP_DEBUG] DB Error: %v\n", err)
 		return nil, err
 	}
+
+	fmt.Printf("[PVP_DEBUG] Searching near X:%d Y:%d (Bounds: %d-%d, %d-%d)\n", x, y, minX, maxX, minY, maxY)
+	fmt.Printf("[PVP_DEBUG] Found %d potential islands in square radius.\n", len(islands))
 
 	for _, island := range islands {
 		// 1. Beginner Protection Check
 		townHallLevel := GetBuildingLevel(&island, "Hôtel de Ville")
 		if townHallLevel < MinTownHallForPvP {
+			fmt.Printf("[PVP_DEBUG] SKIP %s (TH: %d < %d)\n", island.Player.Username, townHallLevel, MinTownHallForPvP)
 			continue
 		}
 
 		// 2. Distance Check (Euclidean)
 		dist := math.Sqrt(math.Pow(float64(island.X-x), 2) + math.Pow(float64(island.Y-y), 2))
 		if dist > PvpSearchRadius {
+			fmt.Printf("[PVP_DEBUG] SKIP %s (Dist: %.1f > %d)\n", island.Player.Username, dist, PvpSearchRadius)
 			continue
 		}
+
+		fmt.Printf("[PVP_DEBUG] KEEP %s (Dist: %.1f, TH: %d)\n", island.Player.Username, dist, townHallLevel)
 
 		// 3. Estimate Resources (Spy Report Lite)
 		totalRes := 0.0

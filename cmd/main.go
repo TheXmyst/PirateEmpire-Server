@@ -40,6 +40,25 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// Auto-Updater Routes
+	// Helper variable for version - ideally load from config or Env
+	const ServerClientVersion = "1.0.1"
+	e.GET("/version", func(c echo.Context) error {
+		scheme := "http"
+		if c.Request().TLS != nil {
+			scheme = "https"
+		}
+		host := c.Request().Host
+		downloadURL := fmt.Sprintf("%s://%s/dist/client.exe", scheme, host)
+
+		return c.JSON(http.StatusOK, map[string]string{
+			"version": ServerClientVersion,
+			"url":     downloadURL,
+		})
+	})
+	// Serve static files from 'dist' directory
+	e.Static("/dist", "dist")
+
 	// Public routes (no authentication required)
 	e.POST("/register", api.Register)
 	e.POST("/login", api.Login)
@@ -101,6 +120,7 @@ func main() {
 			devRoutes.POST("/grant-tickets", api.DevGrantTickets)
 			devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
 			devRoutes.POST("/set-ship-crew", api.DevSetShipCrew)
+			devRoutes.POST("/spawn-dummy", api.DevSpawnDummy)
 		}
 	}
 
