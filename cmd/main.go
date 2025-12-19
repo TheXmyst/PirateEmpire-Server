@@ -99,6 +99,9 @@ func main() {
 		protected.POST("/fleets/station", api.StationFleet)
 		protected.POST("/fleets/recall", api.RecallFleet)
 		protected.GET("/fleets/resource-nodes", api.GetResourceNodes)
+		// Cargo Transfer endpoints
+		protected.POST("/fleets/cargo/transfer-to-fleet", api.TransferToFleet)
+		protected.POST("/fleets/cargo/transfer-to-island", api.TransferToIsland)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)

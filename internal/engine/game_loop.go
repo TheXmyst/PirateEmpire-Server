@@ -313,7 +313,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 			}
 		} else if f.State == "Stationed" && f.StationedAt != nil {
 			// Gathering Logic
-			// 1. Calculate Capacity
+			// 1. Calculate Capacity (Total Hull)
 			capacity := 0.0
 			for _, s := range f.Ships {
 				cap := 500.0
@@ -340,13 +340,31 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 			}
 
 			ratePerSec := 2.0 * bonusMultiplier
+			amountToAdd := ratePerSec * deltaSeconds
 
-			// Add to StoredAmount
-			f.StoredAmount += ratePerSec * deltaSeconds
+			// 3. Add to Cargo (Initialize if nil)
+			if f.Cargo == nil {
+				f.Cargo = make(map[domain.ResourceType]float64)
+			}
+			resType := domain.ResourceType(f.StoredResource)
+			if resType == "" {
+				resType = domain.Wood // Fallback
+			}
+			f.Cargo[resType] += amountToAdd
 
-			// Check Capacity
-			if f.StoredAmount >= capacity {
-				f.StoredAmount = capacity
+			// 4. Check Total Load vs Capacity
+			totalLoad := 0.0
+			for _, amount := range f.Cargo {
+				totalLoad += amount
+			}
+
+			if totalLoad >= capacity {
+				// Clamp
+				diff := totalLoad - capacity
+				if diff > 0 {
+					f.Cargo[resType] -= diff
+				}
+
 				f.State = "Returning"
 				f.StationedAt = nil
 				f.StationedNodeID = nil
@@ -354,7 +372,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 				homeY := island.Y
 				f.TargetX = &homeX
 				f.TargetY = &homeY
-				fmt.Printf("[STATIONING] Fleet %s full (%.0f). Returning home.\n", f.Name, f.StoredAmount)
+				fmt.Printf("[STATIONING] Fleet %s full (%.0f/%.0f). Returning home.\n", f.Name, totalLoad, capacity)
 			}
 		} else if f.State == "Returning" && f.TargetX != nil {
 			// Move Home
@@ -374,15 +392,28 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 					f.TargetX = nil
 					f.TargetY = nil
 
-					// Deposit Resources
-					resType := domain.ResourceType(f.StoredResource)
-					island.Resources[resType] += f.StoredAmount
+					// Deposit Resources from Cargo
+					if island.Resources == nil {
+						island.Resources = make(map[domain.ResourceType]float64)
+					}
+					depositedLog := ""
+					for res, amount := range f.Cargo {
+						if amount > 0 {
+							island.Resources[res] += amount
+							depositedLog += fmt.Sprintf("%.0f %s, ", amount, res)
+							f.Cargo[res] = 0 // Clear cargo
+						}
+					}
 
-					msg := fmt.Sprintf("Fleet %s returned with %.0f %s", f.Name, f.StoredAmount, resType)
-					fmt.Printf("[STATIONING] %s\n", msg)
-
+					// Clear deprecated fields just in case
 					f.StoredAmount = 0
 					f.StoredResource = ""
+
+					if depositedLog != "" {
+						fmt.Printf("[STATIONING] Fleet %s returned and deposited: %s\n", f.Name, depositedLog)
+					} else {
+						fmt.Printf("[STATIONING] Fleet %s returned empty.\n", f.Name)
+					}
 				} else {
 					// Calculate Wind Angle (Same as Moving)
 					angleRad := math.Atan2(dy, dx)

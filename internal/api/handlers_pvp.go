@@ -13,9 +13,19 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// PvpTargetDTO matches the client-side PveTarget struct expectations
+type PvpTargetDTO struct {
+	ID    string  `json:"id"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	Tier  int     `json:"tier"`
+	Name  string  `json:"name"`
+	Speed float64 `json:"speed,omitempty"` // Compatible with PveTarget
+}
+
 // GetPvpTargetsResponse response structure
 type GetPvpTargetsResponse struct {
-	Targets []economy.PvpTarget `json:"targets"`
+	Targets []PvpTargetDTO `json:"targets"`
 }
 
 // GetPvpTargets returns a list of attackable players near the user
@@ -39,16 +49,28 @@ func GetPvpTargets(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la recherche de cibles"})
 	}
 
+	// Map to DTO for client compatibility (Client uses PveTarget struct with specific JSON tags)
+	dtos := make([]PvpTargetDTO, len(targets))
+	for i, t := range targets {
+		dtos[i] = PvpTargetDTO{
+			ID:   t.IslandID.String(), // Use Island ID for stability
+			X:    float64(t.X),
+			Y:    float64(t.Y),
+			Tier: t.TownHallLvl, // Map TH Level to Tier
+			Name: t.PlayerName,  // Map PlayerName to Name
+		}
+	}
+
 	// Diagnostic log
-	ids := make([]string, 0, len(targets))
-	for _, t := range targets {
-		ids = append(ids, t.IslandID.String())
+	ids := make([]string, 0, len(dtos))
+	for _, t := range dtos {
+		ids = append(ids, t.ID)
 	}
 	fmt.Printf("[DIAGNOSTIC] requester=%s (admin=%v), count_islands_returned=%d, ids=%v\n",
-		player.ID.String(), player.IsAdmin, len(targets), ids)
+		player.ID.String(), player.IsAdmin, len(dtos), ids)
 
 	return c.JSON(http.StatusOK, GetPvpTargetsResponse{
-		Targets: targets,
+		Targets: dtos,
 	})
 }
 

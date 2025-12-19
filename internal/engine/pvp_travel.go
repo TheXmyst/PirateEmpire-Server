@@ -94,11 +94,18 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 
 		// Store loot in fleet
 		if combatResult.Winner == "fleet_a" && len(loot) > 0 {
+			// 1. Keep AttackLoot for "Battle Report" UI
 			fleet.AttackLoot = loot
-
-			// Serialize loot to JSON
 			lootJSON, _ := json.Marshal(loot)
 			fleet.AttackLootJSON = lootJSON
+
+			// 2. Add to Cargo for physical transport
+			if fleet.Cargo == nil {
+				fleet.Cargo = make(map[domain.ResourceType]float64)
+			}
+			for res, amount := range loot {
+				fleet.Cargo[res] += amount
+			}
 		}
 
 		// Set returning state
@@ -169,8 +176,9 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 	if distance < 5 {
 		logger.Info("[PVP_TRAVEL] Fleet arrived home, depositing loot", "fleet_id", fleet.ID)
 
-		// Deposit loot
-		if len(fleet.AttackLoot) > 0 {
+		// Deposit loot (From Cargo now, covering both Loot and any other stock)
+		depositedLog := ""
+		if fleet.Cargo != nil && len(fleet.Cargo) > 0 {
 			var island domain.Island
 			if err := db.Where("id = ?", fleet.IslandID).First(&island).Error; err == nil {
 				// Deserialize resources if needed
@@ -178,10 +186,12 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 					island.Resources = make(map[domain.ResourceType]float64)
 				}
 
-				// Add loot to island
-				for resType, amount := range fleet.AttackLoot {
-					island.Resources[resType] += amount
-					logger.Debug("[PVP_TRAVEL] Deposited loot", "amount", amount, "resource", resType)
+				// Add all Cargo to island
+				for resType, amount := range fleet.Cargo {
+					if amount > 0 {
+						island.Resources[resType] += amount
+						depositedLog += fmt.Sprintf("%.0f %s, ", amount, resType)
+					}
 				}
 
 				// Serialize resources
@@ -192,12 +202,32 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 			}
 		}
 
+		// Fallback: If Cargo was empty but AttackLoot existed (migration case?), deposit AttackLoot
+		// This handles in-flight fleets during update
+		if (fleet.Cargo == nil || len(fleet.Cargo) == 0) && len(fleet.AttackLoot) > 0 {
+			var island domain.Island
+			if err := db.Where("id = ?", fleet.IslandID).First(&island).Error; err == nil {
+				// Deserialize resources if needed
+				if island.Resources == nil {
+					island.Resources = make(map[domain.ResourceType]float64)
+				}
+				for resType, amount := range fleet.AttackLoot {
+					island.Resources[resType] += amount
+					depositedLog += fmt.Sprintf("%.0f %s (legacy), ", amount, resType)
+				}
+				resJSON, _ := json.Marshal(island.Resources)
+				island.ResourcesJSON = resJSON
+				db.Save(&island)
+			}
+		}
+
 		// Reset fleet
 		fleet.State = "Idle"
 		fleet.TargetX = nil
 		fleet.TargetY = nil
 		fleet.AttackLoot = nil
 		fleet.AttackLootJSON = nil
+		fleet.Cargo = nil // Clear cargo after deposit
 
 		db.Save(fleet)
 		logger.Info("[PVP_TRAVEL] Fleet reset to Idle", "fleet_id", fleet.ID)

@@ -175,12 +175,18 @@ type Fleet struct {
 	AttackLoot     map[ResourceType]float64 `json:"attack_loot,omitempty" gorm:"-"`
 
 	// Stationing fields (STUB - no logic implemented)
+	// Cargo Inventory (New System)
+	CargoJSON []byte                   `json:"-" gorm:"column:cargo"`
+	Cargo     map[ResourceType]float64 `json:"cargo" gorm:"-"`
+
+	// Stationing fields (DEPRECATED - Use Cargo instead, kept for migration)
 	StationedAt     *time.Time `json:"stationed_at,omitempty"`
 	StationedNodeID *string    `json:"stationed_node_id,omitempty"`
-	StoredAmount    float64    `json:"stored_amount" gorm:"default:0"`
-	StoredResource  string     `json:"stored_resource" gorm:"default:''"`
+	StoredAmount    float64    `json:"stored_amount" gorm:"default:0"`    // DEPRECATED
+	StoredResource  string     `json:"stored_resource" gorm:"default:''"` // DEPRECATED
 }
 
+// Fleet hooks for JSON serialization
 // Fleet hooks for JSON serialization
 func (f *Fleet) BeforeSave(tx *gorm.DB) (err error) {
 	if f.AttackLoot != nil {
@@ -190,10 +196,19 @@ func (f *Fleet) BeforeSave(tx *gorm.DB) (err error) {
 		}
 		f.AttackLootJSON = data
 	}
+	// Serialize Cargo
+	if f.Cargo != nil {
+		data, err := json.Marshal(f.Cargo)
+		if err != nil {
+			return err
+		}
+		f.CargoJSON = data
+	}
 	return nil
 }
 
 func (f *Fleet) AfterFind(tx *gorm.DB) (err error) {
+	// Deserialize AttackLoot
 	if len(f.AttackLootJSON) > 0 {
 		if err := json.Unmarshal(f.AttackLootJSON, &f.AttackLoot); err != nil {
 			return err
@@ -202,6 +217,28 @@ func (f *Fleet) AfterFind(tx *gorm.DB) (err error) {
 	if f.AttackLoot == nil {
 		f.AttackLoot = make(map[ResourceType]float64)
 	}
+
+	// Deserialize Cargo
+	if len(f.CargoJSON) > 0 {
+		if err := json.Unmarshal(f.CargoJSON, &f.Cargo); err != nil {
+			return err
+		}
+	}
+	if f.Cargo == nil {
+		f.Cargo = make(map[ResourceType]float64)
+	}
+
+	// Runtime Migration: Move StoredAmount to Cargo if present
+	if f.StoredAmount > 0 && f.StoredResource != "" {
+		resType := ResourceType(f.StoredResource)
+		f.Cargo[resType] += f.StoredAmount
+
+		// Mark legacy fields as empty in struct (will be persisted on next save)
+		// We do NOT save immediately here to avoid write amplification on every read
+		f.StoredAmount = 0
+		f.StoredResource = ""
+	}
+
 	return nil
 }
 
