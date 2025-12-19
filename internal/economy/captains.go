@@ -9,12 +9,12 @@ import (
 
 // CaptainPassiveEffect represents the computed passive effect of a captain
 type CaptainPassiveEffect struct {
-	ID            string             `json:"passive_id,omitempty"`
-	Value         float64            `json:"passive_value,omitempty"`
-	IntValue      int                `json:"passive_int_value,omitempty"`
-	Threshold     int                `json:"threshold,omitempty"`
-	DrainPerMinute float64           `json:"drain_per_minute,omitempty"`
-	Flags         map[string]bool    `json:"flags,omitempty"`
+	ID             string          `json:"passive_id,omitempty"`
+	Value          float64         `json:"passive_value,omitempty"`
+	IntValue       int             `json:"passive_int_value,omitempty"`
+	Threshold      int             `json:"threshold,omitempty"`
+	DrainPerMinute float64         `json:"drain_per_minute,omitempty"`
+	Flags          map[string]bool `json:"flags,omitempty"`
 }
 
 // ClampCaptainLevel ensures level is between 1 and 80
@@ -117,3 +117,24 @@ func ComputeCaptainPassive(c domain.Captain) CaptainPassiveEffect {
 	return effect
 }
 
+// CalculateCaptainSpeedMultiplier returns the speed multiplier based on captain skills
+func CalculateCaptainSpeedMultiplier(c domain.Captain, isFavorableWind bool) float64 {
+	multiplier := 1.0
+	passive := ComputeCaptainPassive(c)
+
+	switch c.SkillID {
+	case "wind_favorable_speed_bonus":
+		if isFavorableWind {
+			multiplier += passive.Value
+		}
+	case "wind_never_unfavorable":
+		if isFavorableWind {
+			multiplier += passive.Value // +10% at max level as per ComputeCaptainPassive
+		}
+	case "low_morale_speed_bonus":
+		// For NPC fleets, we could assume they are always at good morale
+		// or random. V1 simplification: Skip morale-based speed in random walk.
+	}
+
+	return multiplier
+}

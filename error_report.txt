@@ -1,0 +1,50 @@
+﻿go : # github.com/The
+Xmyst/Sea-Dogs/server
+/internal/economy
+Au caractère Ligne:1 
+: 1
++ go build ./cmd 
+2>&1 | Out-File 
+-FilePath 
+error_report.txt 
+-Encoding u ...
++ ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (# githu   
+ b.com/Th...ntern    
+al/economy:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+internal\economy\reso
+urce_nodes.go:16:21: 
+undefined: 
+domain.ResourceNode
+internal\economy\reso
+urce_nodes.go:30:102:
+ undefined: 
+domain.ResourceNode
+internal\economy\reso
+urce_nodes.go:58:91: 
+undefined: 
+domain.ResourceNode
+internal\economy\reso
+urce_nodes.go:69:107:
+ undefined: 
+domain.ResourceNode
+internal\economy\reso
+urce_nodes.go:71:25: 
+undefined: 
+domain.ResourceNode
+internal\economy\reso
+urce_nodes.go:92:7: 
+undefined: 
+IsPositionClear
+internal\economy\reso
+urce_nodes.go:100:33:
+ undefined: 
+domain.ResourceNode

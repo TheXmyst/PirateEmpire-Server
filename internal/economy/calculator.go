@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 )
 
 var (
@@ -33,7 +34,7 @@ func LoadConfig(path string) error {
 	}
 
 	loaded = true
-	fmt.Println("Economy System: Config Loaded Successfully")
+	logger.Info("Economy System: Config Loaded Successfully")
 	return nil
 }
 
@@ -187,11 +188,6 @@ func ComputeWarehouseStorage(cfg BuildingConfig, level int) map[domain.ResourceT
 		mult := math.Pow(growth, float64(level-1))
 		val := math.Round(baseVal * mult)
 		storage[domain.ResourceType(res)] = val
-
-		// Debug Log for Warehouse (Entrepôt) to verify exponential curve
-		if cfg.BaseStorage["gold"] == 50000 && (level == 2 || level == 3) {
-			fmt.Printf("[DebugStorage] level=%d res=%s base=%.0f growth=%.2f result=%.0f\n", level, res, baseVal, growth, val)
-		}
 	}
 	return storage
 }

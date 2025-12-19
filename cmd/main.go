@@ -8,16 +8,31 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/api"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/engine"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
+	// Initialize Logger
+	logger.Init()
+
 	// Initialize Database
 	repository.InitDB()
+
+	// Clean up stale destroyed ships (one-time logic to align with new permanent destruction rule)
+	db := repository.GetDB()
+	var result struct{ Count int64 }
+	db.Model(&domain.Ship{}).Where("state = ?", "Destroyed").Count(&result.Count)
+	if result.Count > 0 {
+		fmt.Printf("[CLEANUP] Found %d destroyed ships in DB. Purging...\n", result.Count)
+		db.Where("state = ?", "Destroyed").Delete(&domain.Ship{})
+		fmt.Printf("[CLEANUP] Success. Fleet capacity freed for all players.\n")
+	}
 
 	// Initialize Economy
 	if err := economy.LoadConfig("configs/buildings.json"); err != nil {
@@ -40,25 +55,6 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	// Auto-Updater Routes
-	// Helper variable for version - ideally load from config or Env
-	const ServerClientVersion = "1.0.1"
-	e.GET("/version", func(c echo.Context) error {
-		scheme := "http"
-		if c.Request().TLS != nil {
-			scheme = "https"
-		}
-		host := c.Request().Host
-		downloadURL := fmt.Sprintf("%s://%s/dist/client.exe", scheme, host)
-
-		return c.JSON(http.StatusOK, map[string]string{
-			"version": ServerClientVersion,
-			"url":     downloadURL,
-		})
-	})
-	// Serve static files from 'dist' directory
-	e.Static("/dist", "dist")
-
 	// Public routes (no authentication required)
 	e.POST("/register", api.Register)
 	e.POST("/login", api.Login)
@@ -72,13 +68,12 @@ func main() {
 		protected.POST("/upgrade", api.Upgrade)
 		protected.POST("/research/start", api.StartResearch)
 		protected.POST("/reset", api.ResetProgress)
-		protected.POST("/add-resources", api.AddResources) // Dev Tool
+
+		protected.POST("/dev/set-ship-militia", api.DevSetShipMilitia)
+		protected.POST("/dev/set-ship-crew", api.DevSetShipMilitia) // Deprecated alias
 		protected.POST("/build-ship", api.StartShipConstruction)
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
-		protected.POST("/fleets/set-active", api.SetActiveFleet)
-		protected.POST("/fleets/assign-crew", api.AssignCrew)
-		protected.POST("/fleets/unassign-crew", api.UnassignCrew)
 		protected.GET("/fleets", api.GetFleets)
 		// Captain endpoints
 		protected.GET("/captains", api.GetCaptains)
@@ -91,11 +86,19 @@ func main() {
 		// PVE endpoints
 		protected.GET("/pve/targets", api.GetPveTargets)
 		protected.POST("/pve/engage", api.EngagePve)
-		// PVP endpoints
+		// Ship Militia endpoints
+		protected.POST("/ship/militia/assign", api.AssignShipMilitia)
+		protected.POST("/ship/militia/unassign", api.UnassignShipMilitia)
+		protected.POST("/ship/militia/recruit", api.RecruitMilitia)
+		// Weather endpoint
+		protected.GET("/weather", api.GetWeather)
+		// PvP endpoints
 		protected.GET("/pvp/targets", api.GetPvpTargets)
 		protected.POST("/pvp/attack", api.AttackPvp)
-		// Militia endpoints
-		protected.POST("/militia/recruit", api.MilitiaRecruit)
+		// Stationing endpoints
+		protected.POST("/fleets/station", api.StationFleet)
+		protected.POST("/fleets/recall", api.RecallFleet)
+		protected.GET("/fleets/resource-nodes", api.GetResourceNodes)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)
@@ -105,7 +108,7 @@ func main() {
 	if devRoutesEnv == "1" || strings.ToLower(devRoutesEnv) == "true" {
 		devRoutesEnabled = true
 	}
-	fmt.Printf("[BOOT] dev routes enabled=%v\n", devRoutesEnabled)
+	logger.Info("[BOOT] dev routes enabled", "enabled", devRoutesEnabled)
 
 	if devRoutesEnabled {
 		devRoutes := e.Group("/dev")
@@ -119,8 +122,8 @@ func main() {
 			devRoutes.POST("/grant-captain", api.DevGrantCaptain)
 			devRoutes.POST("/grant-tickets", api.DevGrantTickets)
 			devRoutes.POST("/simulate-engagement", api.DevSimulateEngagement)
-			devRoutes.POST("/set-ship-crew", api.DevSetShipCrew)
-			devRoutes.POST("/spawn-dummy", api.DevSpawnDummy)
+			devRoutes.POST("/set-ship-militia", api.DevSetShipMilitia)
+			devRoutes.POST("/set-ship-crew", api.DevSetShipMilitia)
 		}
 	}
 

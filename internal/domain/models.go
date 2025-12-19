@@ -27,6 +27,17 @@ type Resource struct {
 	Amount float64      `json:"amount" gorm:"-"`
 }
 
+// ResourceNode represents a resource gathering point (STUB - no logic implemented)
+type ResourceNode struct {
+	ID           string       `json:"id"`
+	Type         ResourceType `json:"type"`
+	X            int          `json:"x"`
+	Y            int          `json:"y"`
+	Amount       float64      `json:"amount"`
+	Regeneration float64      `json:"regeneration"`
+	Richness     float64      `json:"richness"` // Quality/multiplier of the node
+}
+
 // Player represents a user in the game
 type Player struct {
 	ID        uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
@@ -93,24 +104,6 @@ type Sea struct {
 	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:SeaID"`
 }
 
-// Requirement represents a single missing prerequisite
-type Requirement struct {
-	Kind    string `json:"kind"`    // "building_level", "tech", "resource", "other"
-	ID      string `json:"id"`      // "TownHall", "Shipyard", "tech_naval_1"
-	Name    string `json:"name"`    // Label humain FR, ex: "Hôtel de ville"
-	Needed  int    `json:"needed"`  // Niveau requis si applicable
-	Current int    `json:"current"` // Niveau actuel si applicable
-	Message string `json:"message"` // Message FR court
-}
-
-// RequirementsError represents a structured error for missing prerequisites
-type RequirementsError struct {
-	Code         string        `json:"code"`         // "REQUIREMENTS_NOT_MET"
-	Message      string        `json:"message"`      // "Prérequis non remplis"
-	Error        string        `json:"error"`        // Pour compatibilité avec anciens clients
-	Requirements []Requirement `json:"requirements"` // Liste des prérequis manquants
-}
-
 // Island represents a player's base
 type Island struct {
 	ID       uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
@@ -127,13 +120,8 @@ type Island struct {
 	Resources     map[ResourceType]float64 `json:"resources" gorm:"-"`
 	StorageLimits map[ResourceType]float64 `json:"storage_limits" gorm:"-"`
 
-	// Resource Generation breakdown (Transient, for UI tooltips)
-	ResourceGeneration      map[ResourceType]float64 `json:"resource_generation" gorm:"-"`
-	ResourceGenerationBase  map[ResourceType]float64 `json:"resource_generation_base" gorm:"-"`
-	ResourceGenerationBonus map[ResourceType]float64 `json:"resource_generation_bonus" gorm:"-"`
-
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`
-	Crew     map[UnitType]int `json:"crew" gorm:"-"`
+	Crew     map[UnitType]int `json:"militia_stock" gorm:"-"`
 
 	Buildings []Building `json:"buildings,omitempty" gorm:"foreignKey:IslandID"`
 	Fleets    []Fleet    `json:"fleets,omitempty" gorm:"foreignKey:IslandID"`
@@ -145,23 +133,21 @@ type Island struct {
 	// Used to reduce DB writes: /status only saves island every 5 seconds max
 	LastCheckpointSavedAt *time.Time `json:"-" gorm:"column:last_checkpoint_saved_at"`
 
-	// Global crew stock (for militia recruitment)
-	CrewWarriors int `json:"crew_warriors" gorm:"default:0"`
-	CrewArchers  int `json:"crew_archers" gorm:"default:0"`
-	CrewGunners  int `json:"crew_gunners" gorm:"default:0"`
+	// PVP fields (STUB - no logic implemented)
+	ProtectedUntil *time.Time `json:"protected_until,omitempty"`
+	ActiveFleetID  *uuid.UUID `json:"active_fleet_id,omitempty" gorm:"type:uuid"`
 
-	// Militia recruitment queue
+	// Resource generation (transient, for UI - not persisted)
+	ResourceGeneration      map[ResourceType]float64 `json:"resource_generation,omitempty" gorm:"-"`
+	ResourceGenerationBase  map[ResourceType]float64 `json:"resource_generation_base,omitempty" gorm:"-"`
+	ResourceGenerationBonus map[ResourceType]float64 `json:"resource_generation_bonus,omitempty" gorm:"-"`
+
+	// Militia Recruitment fields
 	MilitiaRecruiting      bool       `json:"militia_recruiting" gorm:"default:false"`
-	MilitiaRecruitDoneAt   *time.Time `json:"militia_recruit_done_at,omitempty" gorm:"column:militia_recruit_done_at"`
+	MilitiaRecruitDoneAt   *time.Time `json:"militia_recruit_done_at,omitempty"`
 	MilitiaRecruitWarriors int        `json:"militia_recruit_warriors" gorm:"default:0"`
 	MilitiaRecruitArchers  int        `json:"militia_recruit_archers" gorm:"default:0"`
 	MilitiaRecruitGunners  int        `json:"militia_recruit_gunners" gorm:"default:0"`
-
-	// Active fleet for PvE (selected by player)
-	ActiveFleetID *uuid.UUID `json:"active_fleet_id,omitempty" gorm:"type:uuid;column:active_fleet_id"`
-
-	// PvP Protection (Peace Shield)
-	ProtectedUntil *time.Time `json:"protected_until,omitempty" gorm:"column:protected_until"`
 }
 
 // Fleet represents a group of ships
@@ -177,6 +163,46 @@ type Fleet struct {
 
 	// Flagship selection (deterministic and explicit)
 	FlagshipShipID *uuid.UUID `json:"flagship_ship_id,omitempty" gorm:"type:uuid;index"` // Nullable, explicit flagship ship ID
+
+	// Fleet state and movement (STUB - no logic implemented)
+	State   string `json:"state" gorm:"default:'Idle'"` // Idle, Moving, Stationed, Returning, Traveling_To_Attack, Returning_From_Attack
+	TargetX *int   `json:"target_x,omitempty"`
+	TargetY *int   `json:"target_y,omitempty"`
+
+	// PVP fields (STUB - no logic implemented)
+	TargetIslandID *uuid.UUID               `json:"target_island_id,omitempty" gorm:"type:uuid"`
+	AttackLootJSON []byte                   `json:"-" gorm:"column:attack_loot"`
+	AttackLoot     map[ResourceType]float64 `json:"attack_loot,omitempty" gorm:"-"`
+
+	// Stationing fields (STUB - no logic implemented)
+	StationedAt     *time.Time `json:"stationed_at,omitempty"`
+	StationedNodeID *string    `json:"stationed_node_id,omitempty"`
+	StoredAmount    float64    `json:"stored_amount" gorm:"default:0"`
+	StoredResource  string     `json:"stored_resource" gorm:"default:''"`
+}
+
+// Fleet hooks for JSON serialization
+func (f *Fleet) BeforeSave(tx *gorm.DB) (err error) {
+	if f.AttackLoot != nil {
+		data, err := json.Marshal(f.AttackLoot)
+		if err != nil {
+			return err
+		}
+		f.AttackLootJSON = data
+	}
+	return nil
+}
+
+func (f *Fleet) AfterFind(tx *gorm.DB) (err error) {
+	if len(f.AttackLootJSON) > 0 {
+		if err := json.Unmarshal(f.AttackLootJSON, &f.AttackLoot); err != nil {
+			return err
+		}
+	}
+	if f.AttackLoot == nil {
+		f.AttackLoot = make(map[ResourceType]float64)
+	}
+	return nil
 }
 
 // Building represents a structure on an island
@@ -294,14 +320,15 @@ type Ship struct {
 
 	CaptainID *uuid.UUID `json:"captain_id" gorm:"type:uuid;index"`
 
-	// Crew composition per ship (for RPS combat system)
-	CrewWarriors int `json:"crew_warriors,omitempty" gorm:"default:0"`
-	CrewArchers  int `json:"crew_archers,omitempty" gorm:"default:0"`
-	CrewGunners  int `json:"crew_gunners,omitempty" gorm:"default:0"`
+	// Militia composition per ship (for RPS combat system)
+	MilitiaWarriors int `json:"militia_warriors" gorm:"default:0"`
+	MilitiaArchers  int `json:"militia_archers" gorm:"default:0"`
+	MilitiaGunners  int `json:"militia_gunners" gorm:"default:0"`
+	MilitiaCapacity int `json:"militia_capacity" gorm:"default:50"`
 
-	// Legacy crew map (kept for backward compatibility, but RPS uses CrewWarriors/Archers/Gunners)
+	// Legacy crew map (kept for backward compatibility, but RPS uses MilitiaWarriors/Archers/Gunners)
 	CrewJSON []byte           `json:"-" gorm:"column:crew"`
-	Crew     map[UnitType]int `json:"crew" gorm:"-"`
+	Crew     map[UnitType]int `json:"-" gorm:"-"`
 }
 
 func (s *Ship) BeforeSave(tx *gorm.DB) (err error) {

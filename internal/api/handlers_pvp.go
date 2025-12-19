@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -33,10 +34,18 @@ func GetPvpTargets(c echo.Context) error {
 	}
 
 	// Get targets
-	targets, err := economy.GetPvpTargets(player.ID, island.X, island.Y)
+	targets, err := economy.GetPvpTargets(player.ID, island.X, island.Y, player.IsAdmin)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la recherche de cibles"})
 	}
+
+	// Diagnostic log
+	ids := make([]string, 0, len(targets))
+	for _, t := range targets {
+		ids = append(ids, t.IslandID.String())
+	}
+	fmt.Printf("[DIAGNOSTIC] requester=%s (admin=%v), count_islands_returned=%d, ids=%v\n",
+		player.ID.String(), player.IsAdmin, len(targets), ids)
 
 	return c.JSON(http.StatusOK, GetPvpTargetsResponse{
 		Targets: targets,
@@ -105,9 +114,9 @@ func AttackPvp(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": msg})
 	}
 
-	// 3. Load Defender Island & Fleet
+	// 3. Load Defender Island & Fleet (with Buildings for protection check)
 	var targetIsland domain.Island
-	if err := tx.Preload("Player").First(&targetIsland, "id = ?", targetIslandID).Error; err != nil {
+	if err := tx.Preload("Player").Preload("Buildings").First(&targetIsland, "id = ?", targetIslandID).Error; err != nil {
 		tx.Rollback()
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Cible introuvable"})
 	}
@@ -118,17 +127,41 @@ func AttackPvp(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Vous ne pouvez pas vous attaquer vous-même"})
 	}
 
-	// Protection Check
-	if targetIsland.ProtectedUntil != nil && time.Now().Before(*targetIsland.ProtectedUntil) {
-		tx.Rollback()
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Ce joueur est sous protection de paix"})
+	// Protection Check (Peace Shield after defeat)
+	// Skip if attacker is admin (for testing)
+	if !player.IsAdmin {
+		if targetIsland.ProtectedUntil != nil && time.Now().Before(*targetIsland.ProtectedUntil) {
+			tx.Rollback()
+			return c.JSON(http.StatusConflict, map[string]string{"error": "Ce joueur est sous protection de paix"})
+		}
 	}
 
-	// Beginner Protection
+	// Beginner Protection (TH must be level 4+ and completed)
+	// Get defender TH level (needed for loot calculation later)
 	defenderTH := economy.GetBuildingLevel(&targetIsland, "Hôtel de Ville")
-	if defenderTH < 3 {
-		tx.Rollback()
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Ce joueur bénéficie de la protection débutant"})
+
+	// Skip protection check if attacker is admin (for testing)
+	if !player.IsAdmin {
+		if defenderTH < economy.MinTownHallForPvP {
+			// Get TH construction status for detailed error message
+			thConstructing := false
+			thActualLevel := 0
+			for _, b := range targetIsland.Buildings {
+				if b.Type == "Hôtel de Ville" {
+					thActualLevel = b.Level
+					thConstructing = b.Constructing
+					break
+				}
+			}
+
+			tx.Rollback()
+			errorMsg := fmt.Sprintf("Ce joueur bénéficie de la protection débutant (TH niveau %d", thActualLevel)
+			if thConstructing {
+				errorMsg += " en construction"
+			}
+			errorMsg += fmt.Sprintf(", complété: %d, requis: %d)", defenderTH, economy.MinTownHallForPvP)
+			return c.JSON(http.StatusConflict, map[string]string{"error": errorMsg})
+		}
 	}
 
 	// 4. Determine Defender Logic
@@ -162,7 +195,7 @@ func AttackPvp(c echo.Context) error {
 	if !hasDefenderFleet {
 		// Verify militia count
 		// For now simple implementation: Tier 1 NPC Fleet equivalent if Militia > 0
-		// Better: Generate Militia Fleet based on targetIsland.CrewWarriors...
+		// Better: Generate Militia Fleet based on targetIsland.MilitiaWarriors...
 		// V1 Simplification: Generate Weak Militia Fleet based on TH level
 		defenderFleet = economy.GenerateNpcFleet(1, "militia_"+targetIslandID.String())
 		defenderFleet.Name = "Milice locale"
@@ -224,15 +257,7 @@ func AttackPvp(c echo.Context) error {
 		shieldEnd := time.Now().Add(4 * time.Hour)
 		targetIsland.ProtectedUntil = &shieldEnd
 
-		// Lock Attacker Fleet (Cooldown / Return trip)
-		lockEnd := time.Now().Add(5 * time.Minute) // 5 min travel back
-		attackerFleet.LockedUntil = &lockEnd
-		tx.Save(&attackerFleet)
-	} else {
-		// Defender Won -> Attacker flees (Locked for return trip)
-		lockEnd := time.Now().Add(10 * time.Minute) // 10 min "limping" back
-		attackerFleet.LockedUntil = &lockEnd
-		tx.Save(&attackerFleet)
+		// Fleet locking removed - fleets are immediately available after combat
 	}
 
 	// Save everything

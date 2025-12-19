@@ -85,3 +85,36 @@ func GetMaxShipsPerFleet(mods TechModifiers) int {
 	capacity := 3 + mods.FleetSizeBonus
 	return capacity
 }
+
+// CalculateFleetSpeed calculates the effective speed of a fleet based on its ship composition.
+// Returns a weighted average speed multiplier that should be applied to the global base speed (5.0).
+// Formula: fleetSpeed = globalBase * (sum(shipCount * shipTypeMultiplier) / totalShips)
+func CalculateFleetSpeed(fleet *domain.Fleet) float64 {
+	if fleet == nil || len(fleet.Ships) == 0 {
+		return 5.0 // Default fallback
+	}
+
+	totalWeightedSpeed := 0.0
+	totalShips := 0
+
+	for _, ship := range fleet.Ships {
+		config, err := GetShipStats(ship.Type)
+		if err != nil {
+			// Fallback to 1.0 multiplier if ship type not found
+			totalWeightedSpeed += 1.0
+		} else {
+			totalWeightedSpeed += config.BaseSpeed
+		}
+		totalShips++
+	}
+
+	if totalShips == 0 {
+		return 5.0
+	}
+
+	// Calculate average multiplier
+	avgMultiplier := totalWeightedSpeed / float64(totalShips)
+
+	// Apply to global base speed
+	return 5.0 * avgMultiplier
+}

@@ -38,15 +38,8 @@ func GetPveTargets(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
-	// Load all islands for collision avoidance during spawn
-	var allIslands []domain.Island
-	if err := db.Find(&allIslands).Error; err != nil {
-		fmt.Printf("GetPveTargets: Error listing islands: %v\n", err)
-		// Proceed with empty list if error (fallback to unsafe spawn rather than crash)
-	}
-
-	// Get PVE targets (from cache or generate new using allIslands for safety)
-	targets := economy.GetPveTargets(playerID, island.X, island.Y, allIslands)
+	// Get PVE targets (from cache or generate new)
+	targets := economy.GetPveTargets(playerID, island.X, island.Y)
 
 	return c.JSON(http.StatusOK, GetPveTargetsResponse{
 		Targets: targets,
@@ -91,18 +84,7 @@ func EngagePve(c echo.Context) error {
 
 	// Validate fleet_id
 	if req.FleetID == "" {
-		// Try to use active fleet from island
-		db := repository.GetDB()
-		var island domain.Island
-		if err := db.Where("player_id = ?", playerID).First(&island).Error; err == nil {
-			if island.ActiveFleetID != nil {
-				req.FleetID = island.ActiveFleetID.String()
-			}
-		}
-
-		if req.FleetID == "" {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_id manquant et aucune flotte active définie"})
-		}
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "fleet_id manquant"})
 	}
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
@@ -162,31 +144,21 @@ func EngagePve(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable ou ne vous appartient pas"})
 	}
 
-	// Validate fleet for combat (includes crew validation)
-	isValid, reasonCode, reasonMsg := economy.ValidateFleetForCombat(&fleet)
-	if !isValid {
+	// Check if fleet is locked
+	if economy.IsFleetLocked(&fleet) {
 		tx.Rollback()
-		statusCode := http.StatusBadRequest
-		if reasonCode == "FLEET_LOCKED" {
-			statusCode = http.StatusConflict
+		lockedUntil := "indéterminé"
+		if fleet.LockedUntil != nil {
+			lockedUntil = fleet.LockedUntil.Format("2006-01-02 15:04:05")
 		}
-		// Log validation failure
-		fmt.Printf("[PVE] validate crew failed fleet=%s code=%s msg=%s\n", fleet.ID.String()[:8], reasonCode, reasonMsg)
-		return c.JSON(statusCode, map[string]interface{}{
-			"error":          reasonMsg,
-			"reason_code":    reasonCode,
-			"reason_message": reasonMsg,
-		})
+		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Flotte verrouillée jusqu'à %s", lockedUntil)})
 	}
 
-	// Log successful validation
-	activeShipsCount := 0
-	for _, ship := range fleet.Ships {
-		if ship.State != "Destroyed" && ship.Health > 0 {
-			activeShipsCount++
-		}
+	// Check if fleet has ships
+	if len(fleet.Ships) == 0 {
+		tx.Rollback()
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte vide"})
 	}
-	fmt.Printf("[PVE] validate crew ok fleet=%s ships=%d\n", fleet.ID.String()[:8], activeShipsCount)
 
 	// Lock fleet for 60 seconds
 	lockDuration := 60 * time.Second
@@ -207,17 +179,11 @@ func EngagePve(c echo.Context) error {
 		var captain domain.Captain
 		if err := tx.First(&captain, "id = ?", *flagshipA.CaptainID).Error; err == nil {
 			captA = &captain
-			// Validate captain for combat
-			isValid, reasonCode, reasonMsg := economy.ValidateFleetCaptainForCombat(captA)
-			if !isValid {
-				tx.Rollback()
-				return c.JSON(http.StatusBadRequest, map[string]string{"error": reasonMsg, "reason_code": reasonCode})
-			}
 		}
 	}
 
-	// Generate NPC captain (Tier 1 = Common, etc.)
-	captB := economy.GenerateNpcCaptain(tier)
+	// NPC fleet has no captain (v1)
+	var captB *domain.Captain = nil
 
 	// Compute engagement morale
 	engagementResult := economy.ComputeEngagementMorale(fleet, npcFleet, captA, captB)
@@ -240,12 +206,17 @@ func EngagePve(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Erreur lors du combat: %v", err)})
 	}
 
-	// Apply combat results: hard delete destroyed ships, injure captain
-	// Ships destroyed from player fleet - hard delete them
+	// Apply combat results: destroy ships, injure captain
+	// Ships destroyed from player fleet
 	for _, destroyedShipID := range combatResult.ShipsDestroyedA {
-		if err := economy.DestroyShipHard(tx, destroyedShipID); err != nil {
-			tx.Rollback()
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("Échec suppression navire détruit: %v", err)})
+		var ship domain.Ship
+		if err := tx.First(&ship, "id = ? AND fleet_id = ?", destroyedShipID, fleetID).Error; err == nil {
+			// PERMANENT DESTRUCTION: Physical delete from database
+			if err := tx.Delete(&ship).Error; err != nil {
+				fmt.Printf("[PVE] Failed to delete destroyed ship %s: %v\n", ship.ID, err)
+			} else {
+				fmt.Printf("[SHIP_DESTROYED] ship_id=%s fleet_id=%s reason=PVE_COMBAT\n", ship.ID, fleetID)
+			}
 		}
 	}
 
@@ -259,61 +230,21 @@ func EngagePve(c echo.Context) error {
 		}
 	}
 
-	// Distribute Rewards (Loot)
-	// 1. Identify destroyed ship types from NPC fleet
-	destroyedTypes := make([]string, 0)
-	for _, destroyedID := range combatResult.ShipsDestroyedB {
-		for _, ship := range npcFleet.Ships {
-			if ship.ID == destroyedID {
-				destroyedTypes = append(destroyedTypes, ship.Type)
-				break
-			}
-		}
-	}
+	// Consume target from cache
+	economy.ConsumePveTarget(playerID, req.TargetID)
 
-	// 2. Calculate Rewards
-	loot := economy.CalculateCombatRewards(destroyedTypes)
-
-	// 3. Apply to Island
-	if island.Resources == nil {
-		island.Resources = make(map[domain.ResourceType]float64)
-	}
-	for res, amount := range loot {
-		island.Resources[res] += amount
-	}
-
-	// 4. Update Response Structure
-	rewardsStruct := &PveRewards{
-		Gold:  loot[domain.Gold],
-		Wood:  loot[domain.Wood],
-		Stone: loot[domain.Stone],
-		Rum:   loot[domain.Rum],
-	}
-
-	// Consume target from cache ONLY IF PLAYER WON
-	if combatResult.Winner == "fleet_a" {
-		economy.ConsumePveTarget(playerID, req.TargetID)
-	}
-
-	// Commit transaction (Save island with new resources)
-	if err := tx.Save(&island).Error; err != nil {
-		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde du butin"})
-	}
-
-	// Commit transaction (Original commit was below, now we do it here to ensure atomicity with island save)
+	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la validation finale"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur lors de la sauvegarde"})
 	}
 
-	// Log result
-	fmt.Printf("[PVE] EngagePve: player=%s fleet=%s target=%s tier=%d winner=%s ships_destroyed=%d loot_gold=%.0f\n",
-		playerID, fleetID, req.TargetID, tier, combatResult.Winner, len(combatResult.ShipsDestroyedA), loot[domain.Gold])
+	fmt.Printf("[PVE] EngagePve: player=%s fleet=%s target=%s tier=%d winner=%s ships_destroyed=%d\n",
+		playerID, fleetID, req.TargetID, tier, combatResult.Winner, len(combatResult.ShipsDestroyedA))
 
 	// Build response
 	response := EngagePveResponse{
 		CombatResult: combatResult,
-		Rewards:      rewardsStruct,
+		// Rewards: nil for v1 (no rewards yet)
 	}
 
 	return c.JSON(http.StatusOK, response)

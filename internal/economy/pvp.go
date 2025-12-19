@@ -12,7 +12,7 @@ import (
 
 // PvP Constants
 const (
-	MinTownHallForPvP = 3             // Beginner protection until TH 3
+	MinTownHallForPvP = 4             // Beginner protection until TH 3 completed (TH4 unlocks PvP)
 	PvpSearchRadius   = 500           // Search radius in map units
 	PvpPeaceDuration  = 4 * time.Hour // Shield duration after defeat
 )
@@ -30,8 +30,9 @@ type PvpTarget struct {
 	TownHallLvl int       `json:"town_hall_lvl"`
 }
 
-// GetPvpTargets finds attackable players near the given coordinates
-func GetPvpTargets(playerID uuid.UUID, x, y int) ([]PvpTarget, error) {
+// GetPvpTargets finds attackable players near the given coordinates.
+// If all is true, search radius and TH level protection are bypassed.
+func GetPvpTargets(playerID uuid.UUID, x, y int, all bool) ([]PvpTarget, error) {
 	db := repository.GetDB()
 	var targets []PvpTarget
 	var islands []domain.Island
@@ -40,11 +41,12 @@ func GetPvpTargets(playerID uuid.UUID, x, y int) ([]PvpTarget, error) {
 	minX, maxX := x-PvpSearchRadius, x+PvpSearchRadius
 	minY, maxY := y-PvpSearchRadius, y+PvpSearchRadius
 
-	// Query: distinct players, not self, within bounds, TH >= MinTownHallForPvP
-	// We scan islands.
-	err := db.Preload("Player").Preload("Buildings").
-		Where("player_id != ? AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?", playerID, minX, maxX, minY, maxY).
-		Find(&islands).Error
+	// Query: distinct players, not self, within bounds (if not "all")
+	query := db.Preload("Player").Preload("Buildings")
+	if !all {
+		query = query.Where("x BETWEEN ? AND ? AND y BETWEEN ? AND ?", minX, maxX, minY, maxY)
+	}
+	err := query.Where("player_id != ?", playerID).Find(&islands).Error
 
 	if err != nil {
 		fmt.Printf("[PVP_DEBUG] DB Error: %v\n", err)
@@ -55,21 +57,21 @@ func GetPvpTargets(playerID uuid.UUID, x, y int) ([]PvpTarget, error) {
 	fmt.Printf("[PVP_DEBUG] Found %d potential islands in square radius.\n", len(islands))
 
 	for _, island := range islands {
-		// 1. Beginner Protection Check
+		// 1. Beginner Protection Check (Skip if Admin/All)
 		townHallLevel := GetBuildingLevel(&island, "Hôtel de Ville")
-		if townHallLevel < MinTownHallForPvP {
+		if !all && townHallLevel < MinTownHallForPvP {
 			fmt.Printf("[PVP_DEBUG] SKIP %s (TH: %d < %d)\n", island.Player.Username, townHallLevel, MinTownHallForPvP)
 			continue
 		}
 
-		// 2. Distance Check (Euclidean)
+		// 2. Distance Check (Euclidean) (Skip if Admin/All)
 		dist := math.Sqrt(math.Pow(float64(island.X-x), 2) + math.Pow(float64(island.Y-y), 2))
-		if dist > PvpSearchRadius {
+		if !all && dist > PvpSearchRadius {
 			fmt.Printf("[PVP_DEBUG] SKIP %s (Dist: %.1f > %d)\n", island.Player.Username, dist, PvpSearchRadius)
 			continue
 		}
 
-		fmt.Printf("[PVP_DEBUG] KEEP %s (Dist: %.1f, TH: %d)\n", island.Player.Username, dist, townHallLevel)
+		fmt.Printf("[PVP_DEBUG] KEEP %s (ID: %s, Dist: %.1f, TH: %d)\n", island.Player.Username, island.ID.String(), dist, townHallLevel)
 
 		// 3. Estimate Resources (Spy Report Lite)
 		totalRes := 0.0
@@ -105,9 +107,10 @@ func GetPvpTargets(playerID uuid.UUID, x, y int) ([]PvpTarget, error) {
 }
 
 // GetBuildingLevel returns the level of a specific building type on an island
+// Only counts completed buildings (not under construction)
 func GetBuildingLevel(island *domain.Island, buildingType string) int {
 	for _, b := range island.Buildings {
-		if b.Type == buildingType {
+		if b.Type == buildingType && !b.Constructing {
 			return b.Level
 		}
 	}

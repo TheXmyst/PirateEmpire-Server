@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 )
 
 // TechEffect holds all possible bonuses from technologies
@@ -71,45 +73,54 @@ type TechRoot struct {
 // TechBonuses removed (Migrated to TechModifiers)
 
 var (
-	techMap    map[string]Technology // Flattened map for ID lookup
-	techTrees  TechRoot              // Original tree structure
-	techLoaded bool
-	techMu     sync.RWMutex
+	techMap      map[string]Technology // Flattened map for ID lookup
+	techTrees    TechRoot              // Original tree structure
+	techLoaded   bool
+	techMu       sync.RWMutex
+	techLoadOnce sync.Once // Ensure LoadTechConfig only runs once
 )
 
-// LoadTechConfig loads the tech.json file
+// LoadTechConfig loads the tech.json file (only once)
 func LoadTechConfig(path string) error {
-	techMu.Lock()
-	defer techMu.Unlock()
+	var loadErr error
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read tech config: %w", err)
-	}
+	// Use sync.Once to ensure this only runs once, even if called multiple times
+	techLoadOnce.Do(func() {
+		techMu.Lock()
+		defer techMu.Unlock()
 
-	if err := json.Unmarshal(data, &techTrees); err != nil {
-		return fmt.Errorf("failed to parse tech config: %w", err)
-	}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			loadErr = fmt.Errorf("failed to read tech config: %w", err)
+			return
+		}
 
-	// Flatten into Map
-	techMap = make(map[string]Technology)
+		if err := json.Unmarshal(data, &techTrees); err != nil {
+			loadErr = fmt.Errorf("failed to parse tech config: %w", err)
+			return
+		}
 
-	for _, t := range techTrees.Economy {
-		techMap[t.ID] = t
-	}
-	for _, t := range techTrees.Naval {
-		techMap[t.ID] = t
-	}
-	for _, t := range techTrees.Combat {
-		techMap[t.ID] = t
-	}
-	for _, t := range techTrees.Logistics {
-		techMap[t.ID] = t
-	}
+		// Flatten into Map
+		techMap = make(map[string]Technology)
 
-	techLoaded = true
-	fmt.Printf("Technology System: Loaded %d technologies.\n", len(techMap))
-	return nil
+		for _, t := range techTrees.Economy {
+			techMap[t.ID] = t
+		}
+		for _, t := range techTrees.Naval {
+			techMap[t.ID] = t
+		}
+		for _, t := range techTrees.Combat {
+			techMap[t.ID] = t
+		}
+		for _, t := range techTrees.Logistics {
+			techMap[t.ID] = t
+		}
+
+		techLoaded = true
+		logger.Info("Technology System: Loaded technologies", "count", len(techMap))
+	})
+
+	return loadErr
 }
 
 // GetTech returns a specific technology config
