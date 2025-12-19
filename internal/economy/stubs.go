@@ -22,6 +22,19 @@ func DestroyShipHard(db *gorm.DB, shipID uuid.UUID) error {
 		fleetID = ship.FleetID.String()
 	}
 
+	// Unassign captain if present (Ghost Captain Fix)
+	if ship.CaptainID != nil {
+		var assignedCaptain domain.Captain
+		if err := db.First(&assignedCaptain, "id = ?", *ship.CaptainID).Error; err == nil {
+			assignedCaptain.AssignedShipID = nil
+			if err := db.Save(&assignedCaptain).Error; err != nil {
+				fmt.Printf("[ERROR] Failed to unassign captain %s from destroyed ship %s: %v\n", assignedCaptain.ID, shipID, err)
+			} else {
+				fmt.Printf("[INFO] Unassigned captain %s from destroyed ship %s\n", assignedCaptain.ID, shipID)
+			}
+		}
+	}
+
 	if err := db.Delete(&ship).Error; err != nil {
 		fmt.Printf("[ERROR] Failed to delete ship %s: %v\n", shipID, err)
 		return err

@@ -69,7 +69,8 @@ type Player struct {
 	DailyShardExchangeCount int    `json:"daily_shard_exchange_count" gorm:"default:0"` // Count of exchanges today
 	DailyShardExchangeDay   string `json:"daily_shard_exchange_day" gorm:"default:''"`  // Format: YYYY-MM-DD
 
-	Islands []Island `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
+	Islands  []Island  `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
+	Captains []Captain `json:"captains,omitempty" gorm:"foreignKey:PlayerID"`
 }
 
 func (p *Player) BeforeSave(tx *gorm.DB) (err error) {
@@ -154,6 +155,7 @@ type Island struct {
 type Fleet struct {
 	ID           uuid.UUID `json:"id" gorm:"type:uuid;primary_key;"`
 	IslandID     uuid.UUID `json:"island_id" gorm:"type:uuid;index"`
+	Island       Island    `json:"-" gorm:"foreignKey:IslandID"`
 	Name         string    `json:"name"`
 	Ships        []Ship    `json:"ships,omitempty" gorm:"foreignKey:FleetID"`
 	MoraleCruise *int      `json:"morale_cruise,omitempty" gorm:"column:morale_cruise"` // Morale during cruise (0-100), NULL means uninitialized (defaults to 50)
@@ -171,6 +173,7 @@ type Fleet struct {
 
 	// PVP fields (STUB - no logic implemented)
 	TargetIslandID *uuid.UUID               `json:"target_island_id,omitempty" gorm:"type:uuid"`
+	TargetPveID    *uuid.UUID               `json:"target_pve_id,omitempty" gorm:"type:uuid"` // Track specific NPC target (Phase K)
 	AttackLootJSON []byte                   `json:"-" gorm:"column:attack_loot"`
 	AttackLoot     map[ResourceType]float64 `json:"attack_loot,omitempty" gorm:"-"`
 
@@ -178,6 +181,11 @@ type Fleet struct {
 	// Cargo Inventory (New System)
 	CargoJSON []byte                   `json:"-" gorm:"column:cargo"`
 	Cargo     map[ResourceType]float64 `json:"cargo" gorm:"-"`
+
+	// Transient Capacity Fields (Computed in AfterFind)
+	CargoCapacity float64 `json:"cargo_capacity" gorm:"-"`
+	CargoUsed     float64 `json:"cargo_used" gorm:"-"`
+	CargoFree     float64 `json:"cargo_free" gorm:"-"`
 
 	// Stationing fields (DEPRECATED - Use Cargo instead, kept for migration)
 	StationedAt     *time.Time `json:"stationed_at,omitempty"`
@@ -240,6 +248,57 @@ func (f *Fleet) AfterFind(tx *gorm.DB) (err error) {
 	}
 
 	return nil
+}
+
+// ComputePayload calculates transient cargo stats.
+// Logic moved here to avoid circular dependency with economy package.
+func (f *Fleet) ComputePayload() {
+	capacity := 0.0
+	for _, s := range f.Ships {
+		cap := 0.0
+		switch s.Type {
+		case "sloop":
+			cap = 500
+		case "brigantine":
+			cap = 1500
+		case "frigate":
+			cap = 3000
+		case "galleon":
+			cap = 8000
+		case "manowar":
+			cap = 12000
+		default:
+			cap = 500 // Fallback
+		}
+		capacity += cap
+	}
+
+	used := 0.0
+	if f.Cargo != nil {
+		for _, amount := range f.Cargo {
+			used += amount
+		}
+	}
+
+	free := capacity - used
+	if free < 0 {
+		free = 0
+	}
+
+	f.CargoCapacity = capacity
+	f.CargoUsed = used
+	f.CargoFree = free
+}
+
+// CargoLoaded returns the total amount of resources currently in cargo.
+func (f *Fleet) CargoLoaded() float64 {
+	used := 0.0
+	if f.Cargo != nil {
+		for _, amount := range f.Cargo {
+			used += amount
+		}
+	}
+	return used
 }
 
 // Building represents a structure on an island

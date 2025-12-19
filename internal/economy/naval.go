@@ -115,6 +115,26 @@ func CalculateFleetSpeed(fleet *domain.Fleet) float64 {
 	// Calculate average multiplier
 	avgMultiplier := totalWeightedSpeed / float64(totalShips)
 
-	// Apply to global base speed
+	// Base speed score (without global multiplier)
 	return 5.0 * avgMultiplier
+}
+
+// ComputeTravelSpeed calculates the final travel speed (units/sec) for a fleet
+// applying the correct global multiplier based on whether it is an NPC or Player fleet.
+func ComputeTravelSpeed(fleet *domain.Fleet, isNPC bool) float64 {
+	baseSpeed := CalculateFleetSpeed(fleet)
+	if isNPC {
+		return baseSpeed * NpcTravelSpeedMultiplier
+	}
+	return baseSpeed * PlayerTravelSpeedMultiplier
+}
+
+// ComputeRumConsumption calculates the rum consumption rate per second for a fleet
+// applying the correct global multiplier (Player only).
+func ComputeRumConsumption(shipCount int, isNPC bool) float64 {
+	baseCons := 0.02 * float64(shipCount)
+	if isNPC {
+		return 0 // NPCs don't consume rum
+	}
+	return baseCons * PlayerRumConsumptionMultiplier
 }

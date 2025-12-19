@@ -81,7 +81,7 @@ func (e *Engine) Tick() {
 	// Assume 1.0s delta since ticker is 1s
 	var islands []domain.Island
 	// Preload everything needed
-	if err := db.Preload("Buildings").Preload("Player").Preload("Ships").Preload("Fleets.Ships").Find(&islands).Error; err != nil {
+	if err := db.Preload("Buildings").Preload("Player").Preload("Player.Captains").Preload("Ships").Preload("Fleets.Ships").Find(&islands).Error; err != nil {
 		fmt.Println("Tick: Error listing islands:", err)
 		return
 	}
@@ -253,6 +253,74 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 					mods := economy.ComputeTechModifiers(techs)
 					baseSpeed *= (1.0 + mods.ShipSpeedMultiplier)
 				}
+			}
+		}
+
+		// RUM MECHANIC: Speed Penalty & Consumption (Movement Only)
+		// Phase B & C Impl
+		hasRum := false
+		if f.Cargo != nil && f.Cargo[domain.Rum] > 0 {
+			hasRum = true
+		}
+
+		// 1. Speed Penalty if Out of Rum
+		if !hasRum {
+			baseSpeed *= 0.8
+		}
+
+		// 2. Consumption (Only when Moving/Returning)
+		if f.State == "Moving" || f.State == "Returning" {
+			// Consumption (SSOT w/ Multiplier)
+			// Tick is 100ms (0.1s) BUT UpdateFleetStationing is called with deltaSeconds.
+			// deltaSeconds matches the actual wall-clock time passed.
+			// CalculateFleetRumConsumption returns rate Per Second.
+			consPerSec := economy.ComputeRumConsumption(len(f.Ships), false) // isNPC=false
+			consumption := consPerSec * deltaSeconds
+
+			// Captain Bonus
+			var captain *domain.Captain
+			if island.Player.ID != uuid.Nil {
+				for _, s := range f.Ships {
+					for k := range island.Player.Captains {
+						c := &island.Player.Captains[k]
+						if c.AssignedShipID != nil && *c.AssignedShipID == s.ID {
+							captain = c
+							break
+						}
+					}
+					if captain != nil {
+						break
+					}
+				}
+			}
+
+			if captain != nil {
+				reduc := economy.CaptainRumConsumptionReductionPct(captain)
+				if reduc > 0 {
+					consumption *= (1.0 - reduc)
+					// Log (Throttled ~1%)
+					if time.Now().UnixNano()/int64(time.Millisecond)%10000 < 100 { // ~10s interval
+						fmt.Printf("[RUM] fleet=%s ships=%d baseSec=%.4f reduc=%.2f final=%.4f\n", f.Name, len(f.Ships), consPerSec, reduc, consumption)
+					}
+				}
+			}
+
+			if f.Cargo == nil {
+				f.Cargo = make(map[domain.ResourceType]float64)
+			}
+
+			if f.Cargo[domain.Rum] > 0 {
+				f.Cargo[domain.Rum] -= consumption
+				if f.Cargo[domain.Rum] < 0 {
+					f.Cargo[domain.Rum] = 0
+					fmt.Printf("[RUM] Fleet %s ran out of Rum!\n", f.Name)
+				}
+			}
+
+			// Log Speed (Throttled)
+			if time.Now().UnixNano()/int64(time.Millisecond)%10000 < 100 {
+				finalSpeed := economy.ComputeTravelSpeed(f, false)
+				fmt.Printf("[NAV] fleet=%s speed=%.4f/sec\n", f.Name, finalSpeed)
 			}
 		}
 

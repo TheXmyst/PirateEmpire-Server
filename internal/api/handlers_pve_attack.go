@@ -12,21 +12,19 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// SendPvpAttackRequest payload for sending fleet to attack
-type SendPvpAttackRequest struct {
-	FleetID        string `json:"fleet_id"`
-	TargetIslandID string `json:"target_island_id"`
+// SendPveAttackRequest payload for sending fleet to attack NPC
+type SendPveAttackRequest struct {
+	FleetID     string `json:"fleet_id"`
+	TargetPveID string `json:"target_pve_id"` // UUID of the NPC target
 }
 
-// SendPvpAttackResponse response for send attack
-type SendPvpAttackResponse struct {
-	TravelTimeMinutes float64 `json:"travel_time_minutes"`
-	Distance          float64 `json:"distance"`
-	Message           string  `json:"message"`
+// SendPveAttackResponse response for send pve attack
+type SendPveAttackResponse struct {
+	Message string `json:"message"`
 }
 
-// SendPvpAttack initiates fleet travel to enemy island
-func SendPvpAttack(c echo.Context) error {
+// SendPveAttack initiates fleet chase on moving NPC
+func SendPveAttack(c echo.Context) error {
 	// Get authenticated player
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
@@ -34,7 +32,7 @@ func SendPvpAttack(c echo.Context) error {
 	}
 
 	// Parse request
-	var req SendPvpAttackRequest
+	var req SendPveAttackRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
@@ -45,9 +43,9 @@ func SendPvpAttack(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid fleet ID"})
 	}
 
-	targetIslandID, err := uuid.Parse(req.TargetIslandID)
+	targetPveID, err := uuid.Parse(req.TargetPveID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid target island ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid target PVE ID"})
 	}
 
 	db := repository.GetDB()
@@ -78,34 +76,34 @@ func SendPvpAttack(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La flotte est vide"})
 	}
 
-	// Load target island
-	var targetIsland domain.Island
-	if err := db.Where("id = ?", targetIslandID).First(&targetIsland).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île cible introuvable"})
+	// Load PvE target from cache
+	// IMPORTANT: Use the new UUID lookup
+	pveTarget := economy.GetPveTargetByUUID(player.ID, targetPveID)
+	if pveTarget == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Cible PvE introuvable ou expirée"})
 	}
 
-	// Calculate distance
-	distance := economy.CalculateDistance(island.X, island.Y, targetIsland.X, targetIsland.Y)
-
-	// Calculate travel time (50 units per minute)
-	travelTimeMinutes := distance / 50.0
+	// Initial Position Update
+	tx := int(pveTarget.RealX)
+	ty := int(pveTarget.RealY)
 
 	// Update fleet state
-	fleet.State = "Traveling_To_Attack"
-	fleet.TargetIslandID = &targetIslandID
-	fleet.TargetX = &targetIsland.X
-	fleet.TargetY = &targetIsland.Y
+	fleet.State = "Chasing_PvE"
+	fleet.TargetPveID = &targetPveID
+	fleet.TargetX = &tx
+	fleet.TargetY = &ty
+
+	// Clear other target types
+	fleet.TargetIslandID = nil
 
 	if err := db.Save(&fleet).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur sauvegarde flotte"})
 	}
 
-	// Checkpoint: Log success
-	fmt.Printf("[PVP_TRAVEL] send_attack requester=%s fleet=%s target_island=%s ok\n", player.ID, fleet.ID, targetIsland.ID)
+	// Log (Minimal)
+	fmt.Printf("[PVE_TRACK] start fleet=%s target=%s (uuid=%s)\n", fleet.ID, pveTarget.Name, targetPveID)
 
-	return c.JSON(http.StatusOK, SendPvpAttackResponse{
-		TravelTimeMinutes: travelTimeMinutes,
-		Distance:          distance,
-		Message:           fmt.Sprintf("Flotte en route vers %s (ETA: %.1f min)", targetIsland.Name, travelTimeMinutes),
+	return c.JSON(http.StatusOK, SendPveAttackResponse{
+		Message: fmt.Sprintf("À l'abordage ! Poursuite de %s engagée.", pveTarget.Name),
 	})
 }

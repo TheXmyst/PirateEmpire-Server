@@ -24,9 +24,9 @@ const (
 
 // Pity thresholds
 const (
-	PityLegendaryThreshold = 80 // Guaranteed legendary at 80 pulls
-	PityRareThreshold       = 10 // Guaranteed rare at 10 pulls (optional)
-	PityEnabled             = true // Toggle pity system
+	PityLegendaryThreshold = 80   // Guaranteed legendary at 80 pulls
+	PityRareThreshold      = 10   // Guaranteed rare at 10 pulls (optional)
+	PityEnabled            = true // Toggle pity system
 )
 
 // CaptainTemplate represents a captain template that can be rolled
@@ -88,7 +88,7 @@ func RollCaptainRarityWithPity(pityLegendary, pityRare int) (domain.CaptainRarit
 			return domain.RarityRare, true
 		}
 	}
-	
+
 	// Normal roll
 	rarity := RollCaptainRarity()
 	return rarity, false
@@ -101,9 +101,11 @@ func PickCaptainTemplateByRarity(rarity domain.CaptainRarity) (CaptainTemplate, 
 		return CaptainTemplate{}, fmt.Errorf("no templates available for rarity: %s", rarity)
 	}
 
-	// Use time-based seed for randomness (called from handler, so each request gets different seed)
-	rand.Seed(time.Now().UnixNano())
-	index := rand.Intn(len(templates))
+	// Use local random source instead of global Seed (deprecated)
+	src := rand.NewSource(time.Now().UnixNano())
+	rng := rand.New(src)
+
+	index := rng.Intn(len(templates))
 	return templates[index], nil
 }
 
@@ -127,4 +129,3 @@ func GetTemplatesByRarity(rarity domain.CaptainRarity) []CaptainTemplate {
 	}
 	return templates
 }
-

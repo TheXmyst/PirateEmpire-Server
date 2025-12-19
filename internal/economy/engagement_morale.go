@@ -11,27 +11,28 @@ import (
 type EngagementResult struct {
 	FleetAID          string   `json:"fleet_a_id"`
 	FleetBID          string   `json:"fleet_b_id"`
-	EngagementMoraleA int     `json:"engagement_morale_a"`
-	EngagementMoraleB int     `json:"engagement_morale_b"`
-	Delta             int     `json:"delta"`
-	BonusPercent      float64 `json:"bonus_percent"`
-	AtkMultA          float64 `json:"atk_mult_a"`
-	DefMultA          float64 `json:"def_mult_a"`
-	AtkMultB          float64 `json:"atk_mult_b"`
-	DefMultB          float64 `json:"def_mult_b"`
-	PanicThresholdA  int     `json:"panic_threshold_a,omitempty"` // Future use: panic immunity threshold
-	PanicThresholdB  int     `json:"panic_threshold_b,omitempty"` // Future use: panic immunity threshold
-	Applied           []string `json:"applied,omitempty"` // Human-readable debug notes
+	EngagementMoraleA int      `json:"engagement_morale_a"`
+	EngagementMoraleB int      `json:"engagement_morale_b"`
+	Delta             int      `json:"delta"`
+	BonusPercent      float64  `json:"bonus_percent"`
+	AtkMultA          float64  `json:"atk_mult_a"`
+	DefMultA          float64  `json:"def_mult_a"`
+	AtkMultB          float64  `json:"atk_mult_b"`
+	DefMultB          float64  `json:"def_mult_b"`
+	PanicThresholdA   int      `json:"panic_threshold_a,omitempty"` // Future use: panic immunity threshold
+	PanicThresholdB   int      `json:"panic_threshold_b,omitempty"` // Future use: panic immunity threshold
+	Applied           []string `json:"applied,omitempty"`           // Human-readable debug notes
 }
 
 // tierBonus returns the bonus percentage based on absolute delta using punitive tier table
 // abs(dM) in:
-//   0-4   -> 0%
-//   5-9   -> 5%
-//   10-19 -> 10%
-//   20-29 -> 18%
-//   30-39 -> 28%
-//   40+   -> 40% (hard cap)
+//
+//	0-4   -> 0%
+//	5-9   -> 5%
+//	10-19 -> 10%
+//	20-29 -> 18%
+//	30-39 -> 28%
+//	40+   -> 40% (hard cap)
 func tierBonus(absDelta int) float64 {
 	if absDelta <= 4 {
 		return 0.0
@@ -59,7 +60,6 @@ func clampMorale(morale int) int {
 	return morale
 }
 
-
 // ComputeEngagementMorale computes the engagement morale snapshot for two fleets
 // captA and captB are the captains assigned to the flagship of each fleet (can be nil)
 func ComputeEngagementMorale(fleetA, fleetB domain.Fleet, captA, captB *domain.Captain) EngagementResult {
@@ -86,6 +86,17 @@ func ComputeEngagementMorale(fleetA, fleetB domain.Fleet, captA, captB *domain.C
 	} else {
 		moraleB = *fleetB.MoraleCruise
 		result.Applied = append(result.Applied, fmt.Sprintf("FleetB: base morale_cruise=%d", moraleB))
+	}
+
+	// RUM PENALTY (-20 if Out of Rum)
+	// Phase D: Combat Morale Penalty
+	if fleetA.Cargo == nil || fleetA.Cargo[domain.Rum] <= 0 {
+		moraleA -= 20
+		result.Applied = append(result.Applied, "FleetA: Out of Rum (-20)")
+	}
+	if fleetB.Cargo == nil || fleetB.Cargo[domain.Rum] <= 0 {
+		moraleB -= 20
+		result.Applied = append(result.Applied, "FleetB: Out of Rum (-20)")
 	}
 
 	// Apply captain engagement effects
@@ -213,5 +224,3 @@ func ComputeEngagementMorale(fleetA, fleetB domain.Fleet, captA, captB *domain.C
 
 	return result
 }
-
-

@@ -23,6 +23,9 @@ type CargoTransferRequest struct {
 type CargoTransferResponse struct {
 	FleetCargo      map[domain.ResourceType]float64 `json:"fleet_cargo"`
 	IslandResources map[domain.ResourceType]float64 `json:"island_resources"`
+	CargoCapacity   float64                         `json:"cargo_capacity"`
+	CargoUsed       float64                         `json:"cargo_used"`
+	CargoFree       float64                         `json:"cargo_free"`
 	Message         string                          `json:"message"`
 }
 
@@ -77,26 +80,29 @@ func TransferToFleet(c echo.Context) error {
 			return fmt.Errorf("fleet must be Idle or Stationed to transfer cargo (current: %s)", fleet.State)
 		}
 
-		// Calculate Fleet Max Capacity
-		capacity := calculateFleetCapacity(&fleet)
-
-		// Calculate Current Load
-		if fleet.Cargo == nil {
-			fleet.Cargo = make(map[domain.ResourceType]float64)
-		}
-		currentLoad := 0.0
-		for _, v := range fleet.Cargo {
-			currentLoad += v
-		}
+		// SSOT: Compute Capacity immediately
+		fleet.ComputePayload()
 
 		// Check Capacity
-		if currentLoad+req.Amount > capacity {
-			return fmt.Errorf("insufficient fleet capacity: available %.0f, need %.0f", capacity-currentLoad, req.Amount)
+		if fleet.CargoLoaded()+req.Amount > fleet.CargoCapacity {
+			// Debug Log (Requested for diagnosis)
+			logger.Warn("[CARGO] transfer refused",
+				"fleet", fleet.Name,
+				"ships", len(fleet.Ships),
+				"cap", fleet.CargoCapacity,
+				"used", fleet.CargoLoaded(),
+				"free", fleet.CargoCapacity-fleet.CargoLoaded(),
+				"need", req.Amount,
+				"cargo", fleet.Cargo)
+			return fmt.Errorf("insufficient fleet capacity: available %.0f, need %.0f", fleet.CargoCapacity-fleet.CargoLoaded(), req.Amount)
 		}
 
 		// EXECUTE TRANSFER
 		island.Resources[req.Resource] -= req.Amount
 		fleet.Cargo[req.Resource] += req.Amount
+
+		// Update transient fields for response
+		fleet.ComputePayload()
 
 		// Save hook handles JSON serialization
 		if err := tx.Save(&island).Error; err != nil {
@@ -123,6 +129,9 @@ func TransferToFleet(c echo.Context) error {
 	resp := CargoTransferResponse{
 		FleetCargo:      fleet.Cargo,
 		IslandResources: island.Resources,
+		CargoCapacity:   fleet.CargoCapacity,
+		CargoUsed:       fleet.CargoUsed,
+		CargoFree:       fleet.CargoFree,
 		Message:         fmt.Sprintf("Transferred %.0f %s to fleet", req.Amount, req.Resource),
 	}
 	return c.JSON(http.StatusOK, resp)

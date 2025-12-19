@@ -34,6 +34,23 @@ func main() {
 		fmt.Printf("[CLEANUP] Success. Fleet capacity freed for all players.\n")
 	}
 
+	// Clean up ghost captains (assigned to non-existent ships)
+	// This happens if a ship was physically deleted but the captain's foreign key wasn't nulled (no CASCADE/SET NULL)
+	var ghostCount int64
+	db.Model(&domain.Captain{}).
+		Where("assigned_ship_id IS NOT NULL AND assigned_ship_id NOT IN (SELECT id FROM ships)").
+		Count(&ghostCount)
+
+	if ghostCount > 0 {
+		fmt.Printf("[CLEANUP] Found %d ghost captains (assigned to deleted ships). Unassigning...\n", ghostCount)
+		err := db.Exec("UPDATE captains SET assigned_ship_id = NULL WHERE assigned_ship_id IS NOT NULL AND assigned_ship_id NOT IN (SELECT id FROM ships)").Error
+		if err != nil {
+			fmt.Printf("[CLEANUP] Failed to unassign ghost captains: %v\n", err)
+		} else {
+			fmt.Printf("[CLEANUP] Success. %d captains freed.\n", ghostCount)
+		}
+	}
+
 	// Initialize Economy
 	if err := economy.LoadConfig("configs/buildings.json"); err != nil {
 		panic(err)
@@ -85,7 +102,8 @@ func main() {
 		protected.POST("/tavern/exchange-shards", api.ExchangeShards)
 		// PVE endpoints
 		protected.GET("/pve/targets", api.GetPveTargets)
-		protected.POST("/pve/engage", api.EngagePve)
+		protected.POST("/pve/engage", api.EngagePve)     // Deprecated?
+		protected.POST("/pve/attack", api.SendPveAttack) // Phase K: PvE Chase Start
 		// Ship Militia endpoints
 		protected.POST("/ship/militia/assign", api.AssignShipMilitia)
 		protected.POST("/ship/militia/unassign", api.UnassignShipMilitia)
@@ -95,6 +113,7 @@ func main() {
 		// PvP endpoints
 		protected.GET("/pvp/targets", api.GetPvpTargets)
 		protected.POST("/pvp/attack", api.AttackPvp)
+		protected.POST("/pvp/send-attack", api.SendPvpAttack) // Fix: Register travel route
 		// Stationing endpoints
 		protected.POST("/fleets/station", api.StationFleet)
 		protected.POST("/fleets/recall", api.RecallFleet)

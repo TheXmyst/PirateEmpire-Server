@@ -345,9 +345,19 @@ func GetStatus(c echo.Context) error {
 	db := repository.GetDB()
 	var player domain.Player
 
-	// Preload Islands, Buildings, Ships AND Fleets
-	if err := db.Preload("Islands.Buildings").Preload("Islands.Ships").Preload("Islands.Fleets.Ships").First(&player, "id = ?", playerID).Error; err != nil {
+	// Preload Islands, Buildings, Ships, Fleets AND Captains
+	if err := db.Preload("Islands.Buildings").Preload("Islands.Ships").Preload("Islands.Fleets.Ships").Preload("Captains").First(&player, "id = ?", playerID).Error; err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+	}
+
+	// Logs for debugging missing captains
+	if os.Getenv("DEBUG") != "" || os.Getenv("CAPTAIN_DEBUG") != "" {
+		// Rate limit? Or just log. User requested throttled logging in AUDIT instructions, but for this specific "Missing Captains" fix,
+		// "Ajouter un log debug temporaire (throttlé) : [CAPTAINS] status player=%s captains=%d"
+		// Simple throttle: log only if second is even? or simplified.
+		if time.Now().Unix()%10 == 0 { // ~10% sample
+			fmt.Printf("[CAPTAINS] status player=%s captains=%d\n", player.ID, len(player.Captains))
+		}
 	}
 
 	// Ensure player has 3 fleets (create missing ones) - migration path for old accounts
@@ -494,6 +504,12 @@ func GetStatus(c echo.Context) error {
 					db.Save(&island.Buildings[j])
 				}
 			}
+		}
+
+		// SSOT Capacity Calculation (Manual Injection)
+		// We do this here instead of model hooks to control side effects.
+		for j := range island.Fleets {
+			island.Fleets[j].ComputePayload()
 		}
 
 		// CRITICAL FIX 2: Break the Cycle!
@@ -2161,6 +2177,19 @@ func GetCaptains(c echo.Context) error {
 		NavalSpeedBonusPct         float64         `json:"naval_speed_bonus_pct,omitempty"`
 		NavalDamageReductionPct    float64         `json:"naval_damage_reduction_pct,omitempty"`
 		RumConsumptionReductionPct float64         `json:"rum_consumption_reduction_pct,omitempty"`
+		// New fields for UI Upgrade Tab
+		Shards       int  `json:"shards"`
+		NextStarCost int  `json:"next_star_cost"`
+		CanUpgrade   bool `json:"can_upgrade"`
+	}
+
+	// Load shards
+	var wallets []domain.CaptainShardWallet
+	shardsMap := make(map[string]int)
+	if err := db.Where("player_id = ?", playerID).Find(&wallets).Error; err == nil {
+		for _, w := range wallets {
+			shardsMap[w.TemplateID] = w.Shards
+		}
 	}
 
 	responses := make([]CaptainResponse, 0, len(captains))
@@ -2168,10 +2197,20 @@ func GetCaptains(c echo.Context) error {
 		effect := economy.ComputeCaptainPassive(captain)
 		navalBonus := economy.ComputeNavalBonuses(captain)
 
+		// Compute Upgrade Info
+		shards := shardsMap[captain.TemplateID]
+		cost, _ := economy.GetStarUpgradeCost(captain.Rarity, captain.Stars)
+		// Check if upgradable
+		canUpgrade := false
+		maxStars := economy.GetMaxStars(captain.Rarity)
+		if captain.Stars < maxStars && cost > 0 && shards >= cost {
+			canUpgrade = true
+		}
+
 		// Log captain passive computation (once per request, not spammy)
-		fmt.Printf("[CAPTAIN] id=%s lvl=%d stars=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d\n",
+		fmt.Printf("[CAPTAIN] id=%s lvl=%d stars=%d rarity=%s skill=%s effect_id=%s value=%.3f int_value=%d threshold=%d cost=%d shards=%d\n",
 			captain.ID, captain.Level, captain.Stars, captain.Rarity, captain.SkillID,
-			effect.ID, effect.Value, effect.IntValue, effect.Threshold)
+			effect.ID, effect.Value, effect.IntValue, effect.Threshold, cost, shards)
 
 		// Debug log for naval bonuses (only if CAPTAIN_DEBUG env var is set)
 		if os.Getenv("CAPTAIN_DEBUG") == "true" {
@@ -2193,6 +2232,9 @@ func GetCaptains(c echo.Context) error {
 			NavalSpeedBonusPct:         navalBonus.NavalSpeedBonusPct,
 			NavalDamageReductionPct:    navalBonus.NavalDamageReductionPct,
 			RumConsumptionReductionPct: navalBonus.RumConsumptionReductionPct,
+			Shards:                     shards,
+			NextStarCost:               cost,
+			CanUpgrade:                 canUpgrade,
 		}
 		responses = append(responses, response)
 	}

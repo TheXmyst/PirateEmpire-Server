@@ -27,11 +27,12 @@ const (
 
 // PveTarget represents a PVE target (NPC fleet) on the world map
 type PveTarget struct {
-	ID   string `json:"id"`   // Stable ID: "npc-<playerID>-<slotIndex>"
-	X    int    `json:"x"`    // Position X on world map (Legacy/Int)
-	Y    int    `json:"y"`    // Position Y on world map (Legacy/Int)
-	Tier int    `json:"tier"` // Tier 1, 2, or 3 (difficulty)
-	Name string `json:"name"` // Display name (e.g., "Corsaires égarés")
+	ID       uuid.UUID `json:"id"`                  // Stable ID (UUID) - Canonical SSOT
+	LegacyID string    `json:"legacy_id,omitempty"` // Legacy ID: "npc-<playerID>-<slotIndex>"
+	X        int       `json:"x"`                   // Position X on world map (Legacy/Int)
+	Y        int       `json:"y"`                   // Position Y on world map (Legacy/Int)
+	Tier     int       `json:"tier"`                // Tier 1, 2, or 3 (difficulty)
+	Name     string    `json:"name"`                // Display name (e.g., "Corsaires égarés")
 
 	// Movement Simulation (New)
 	RealX        float64        `json:"real_x"`                   // High-precision X
@@ -78,7 +79,7 @@ func GetPveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
 	return targets
 }
 
-// GetPveTargetByID returns a target by ID from cache (for tier lookup)
+// GetPveTargetByID returns a target by ID (Legacy or UUID)
 func GetPveTargetByID(playerID uuid.UUID, targetID string) *PveTarget {
 	pveCacheMutex.RLock()
 	defer pveCacheMutex.RUnlock()
@@ -89,7 +90,26 @@ func GetPveTargetByID(playerID uuid.UUID, targetID string) *PveTarget {
 	}
 
 	for i := range entry.Targets {
-		if entry.Targets[i].ID == targetID {
+		if entry.Targets[i].LegacyID == targetID || entry.Targets[i].ID.String() == targetID {
+			return &entry.Targets[i]
+		}
+	}
+
+	return nil
+}
+
+// GetPveTargetByUUID returns a target by UUID from cache
+func GetPveTargetByUUID(playerID uuid.UUID, targetUUID uuid.UUID) *PveTarget {
+	pveCacheMutex.RLock()
+	defer pveCacheMutex.RUnlock()
+
+	entry, exists := pveTargetCache[playerID]
+	if !exists {
+		return nil
+	}
+
+	for i := range entry.Targets {
+		if entry.Targets[i].ID == targetUUID {
 			return &entry.Targets[i]
 		}
 	}
@@ -110,7 +130,7 @@ func ConsumePveTarget(playerID uuid.UUID, targetID string) {
 	// Remove the target from the list
 	newTargets := make([]PveTarget, 0, len(entry.Targets))
 	for _, t := range entry.Targets {
-		if t.ID != targetID {
+		if t.LegacyID != targetID && t.ID.String() != targetID {
 			newTargets = append(newTargets, t)
 		}
 	}
@@ -178,7 +198,8 @@ func generatePveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
 					{Type: shipType},
 				},
 			}
-			baseSpeed := CalculateFleetSpeed(&dummyFleet)
+			// SSOT: Use ComputeTravelSpeed with isNPC=true (x1 multiplier)
+			baseSpeed := ComputeTravelSpeed(&dummyFleet, true)
 
 			// 3. Generate a representative captain based on tier
 			names := tierNames[tier]
@@ -192,8 +213,12 @@ func generatePveTargets(playerID uuid.UUID, islandX, islandY int) []PveTarget {
 			skills := []string{"wind_favorable_speed_bonus", "wind_never_unfavorable", "nav_morale_decay_reduction"}
 			captain.SkillID = skills[rng.Intn(len(skills))]
 
+			// Deterministic UUID for the target
+			targetUUID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("npc-%s-%d", playerID.String(), count)))
+
 			targets = append(targets, PveTarget{
-				ID:           fmt.Sprintf("npc-%s-%d", playerID.String(), count),
+				LegacyID:     fmt.Sprintf("npc-%s-%d", playerID.String(), count),
+				ID:           targetUUID, // UUID for DB referencing
 				X:            int(x),
 				Y:            int(y),
 				RealX:        x,

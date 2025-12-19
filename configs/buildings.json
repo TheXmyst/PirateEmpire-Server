@@ -468,6 +468,27 @@
                     "req_townhall": 3
                 }
             ]
+        },
+        "Infirmary": {
+            "category": "utility",
+            "base_cost": {
+                "wood": 300,
+                "stone": 300,
+                "gold": 300
+            },
+            "cost_growth": 1.40,
+            "base_build_time": 10,
+            "time_growth": 1.12,
+            "base_production": 0,
+            "production_growth": 0,
+            "base_storage": {},
+            "storage_growth": {},
+            "prerequisites": [
+                {
+                    "level": 1,
+                    "req_townhall": 4
+                }
+            ]
         }
     }
 }

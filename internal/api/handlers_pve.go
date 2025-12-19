@@ -41,6 +41,11 @@ func GetPveTargets(c echo.Context) error {
 	// Get PVE targets (from cache or generate new)
 	targets := economy.GetPveTargets(playerID, island.X, island.Y)
 
+	// Log Sample (SSOT Validation)
+	if len(targets) > 0 {
+		fmt.Printf("[PVE_TARGETS] count=%d sample_id=%s\n", len(targets), targets[0].ID.String())
+	}
+
 	return c.JSON(http.StatusOK, GetPveTargetsResponse{
 		Targets: targets,
 	})
@@ -208,10 +213,29 @@ func EngagePve(c echo.Context) error {
 
 	// Apply combat results: destroy ships, injure captain
 	// Ships destroyed from player fleet
+	// Ships destroyed from player fleet
 	for _, destroyedShipID := range combatResult.ShipsDestroyedA {
 		var ship domain.Ship
 		if err := tx.First(&ship, "id = ? AND fleet_id = ?", destroyedShipID, fleetID).Error; err == nil {
-			// PERMANENT DESTRUCTION: Physical delete from database
+
+			// 1. Unassign captain if present (Ghost Captain Fix)
+			if ship.CaptainID != nil {
+				// We need to update the captain to remove the reference to this dying ship
+				var assignedCaptain domain.Captain
+				if err := tx.First(&assignedCaptain, "id = ?", *ship.CaptainID).Error; err == nil {
+					assignedCaptain.AssignedShipID = nil
+					// Also worth ensuring they are injured if not already handled by flagship logic
+					// (But flagship logic handles injury separately below. For non-flagship captains,
+					// maybe they should be injured too? For now, just unassign to avoid ghost state.)
+					if err := tx.Save(&assignedCaptain).Error; err != nil {
+						fmt.Printf("[PVE] Failed to unassign captain %s from destroyed ship: %v\n", assignedCaptain.ID, err)
+					} else {
+						fmt.Printf("[PVE] Unassigned captain %s from destroyed ship %s\n", assignedCaptain.ID, ship.ID)
+					}
+				}
+			}
+
+			// 2. PERMANENT DESTRUCTION: Physical delete from database
 			if err := tx.Delete(&ship).Error; err != nil {
 				fmt.Printf("[PVE] Failed to delete destroyed ship %s: %v\n", ship.ID, err)
 			} else {

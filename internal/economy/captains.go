@@ -138,3 +138,34 @@ func CalculateCaptainSpeedMultiplier(c domain.Captain, isFavorableWind bool) flo
 
 	return multiplier
 }
+
+// CaptainRumConsumptionReductionPct calculates the total percentage reduction for Rum consumption
+// It combines Passive effects (Traits) and Star Bonuses.
+// Returns a value between 0.0 and 0.30 (30% max).
+func CaptainRumConsumptionReductionPct(c *domain.Captain) float64 {
+	if c == nil {
+		return 0.0
+	}
+
+	total := 0.0
+
+	// 1. Passive / Skill
+	passive := ComputeCaptainPassive(*c)
+	if passive.ID == "rum_consumption_reduction" {
+		total += passive.Value
+	}
+
+	// 2. Star Bonuses
+	starBonuses := ComputeNavalBonuses(*c)
+	total += starBonuses.RumConsumptionReductionPct
+
+	// CLAMP
+	if total > 0.30 {
+		total = 0.30
+	}
+	if total < 0 {
+		total = 0
+	}
+
+	return total
+}
