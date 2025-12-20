@@ -69,7 +69,7 @@ func SendPvpAttack(c echo.Context) error {
 	}
 
 	// Check fleet is idle
-	if fleet.State != "Idle" {
+	if fleet.State != domain.FleetStateIdle {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "La flotte n'est pas disponible"})
 	}
 
@@ -91,7 +91,10 @@ func SendPvpAttack(c echo.Context) error {
 	travelTimeMinutes := distance / 50.0
 
 	// Update fleet state
-	fleet.State = "Traveling_To_Attack"
+	oldState := fleet.State
+	fleet.State = domain.FleetStateTravelingToAttack
+	fmt.Printf("[FLEET_STATE] fleet=%s from=%s to=%s reason=SendPvpAttack\n", fleet.ID, oldState, fleet.State)
+
 	fleet.TargetIslandID = &targetIslandID
 	fleet.TargetX = &targetIsland.X
 	fleet.TargetY = &targetIsland.Y

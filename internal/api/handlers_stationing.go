@@ -57,7 +57,7 @@ func StationFleet(c echo.Context) error {
 	}
 
 	// Must be Idle OR Returning
-	if fleet.StationedNodeID != nil || fleet.State == "Stationed" {
+	if fleet.StationedNodeID != nil || fleet.State == domain.FleetStateStationed {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "Fleet is already stationed"})
 	}
 
@@ -75,7 +75,10 @@ func StationFleet(c echo.Context) error {
 		}
 	}()
 
-	fleet.State = "Moving"
+	oldState := fleet.State
+	fleet.State = domain.FleetStateMoving
+	fmt.Printf("[FLEET_STATE] fleet=%s from=%s to=%s reason=StationFleet\n", fleet.ID, oldState, fleet.State)
+
 	fleet.StationedNodeID = &node.ID
 	fleet.StoredResource = string(node.Type)
 	fleet.StoredAmount = 0
@@ -91,7 +94,7 @@ func StationFleet(c echo.Context) error {
 		s := &fleet.Ships[i]
 		if s.State != "UnderConstruction" {
 			// FORCE SNAP if Idle (to avoid starting from 0,0 if uninitialized)
-			if fleet.State == "Idle" || (s.X == 0 && s.Y == 0) {
+			if fleet.State == domain.FleetStateIdle || (s.X == 0 && s.Y == 0) {
 				s.X = float64(island.X)
 				s.Y = float64(island.Y)
 			}
@@ -155,13 +158,15 @@ func RecallFleet(c echo.Context) error {
 	}
 
 	// If already Returning or Idle, error
-	if fleet.State == "Returning" || fleet.State == "Idle" {
+	if fleet.State == domain.FleetStateReturning || fleet.State == domain.FleetStateIdle {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Fleet is not stationed or moving"})
 	}
 
 	// Trigger Return
 	tx := db.Begin()
-	fleet.State = "Returning"
+	oldState := fleet.State
+	fleet.State = domain.FleetStateReturning
+	fmt.Printf("[FLEET_STATE] fleet=%s from=%s to=%s reason=RecallFleet\n", fleet.ID, oldState, fleet.State)
 
 	// Set Target to Home
 	homeX := island.X

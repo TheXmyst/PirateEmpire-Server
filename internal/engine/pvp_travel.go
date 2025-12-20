@@ -18,17 +18,22 @@ func ProcessPvpTravelFleets(db *gorm.DB) {
 	var fleets []domain.Fleet
 
 	// Get all fleets in PvP travel states
-	if err := db.Preload("Ships").Preload("Island.Player.Captains").Where("state IN ?", []string{"Traveling_To_Attack", "Returning_From_Attack", "Chasing_PvE"}).Find(&fleets).Error; err != nil {
+	states := []string{
+		string(domain.FleetStateTravelingToAttack),
+		string(domain.FleetStateReturningFromAttack),
+		string(domain.FleetStateChasingPvE),
+	}
+	if err := db.Preload("Ships").Preload("Island.Player.Captains").Where("state IN ?", states).Find(&fleets).Error; err != nil {
 		logger.Warn("[PVP_TRAVEL] Error loading fleets", "error", err)
 		return
 	}
 
 	for _, fleet := range fleets {
-		if fleet.State == "Traveling_To_Attack" {
+		if fleet.State == domain.FleetStateTravelingToAttack {
 			handleTravelingToAttack(db, &fleet)
-		} else if fleet.State == "Returning_From_Attack" {
+		} else if fleet.State == domain.FleetStateReturningFromAttack {
 			handleReturningFromAttack(db, &fleet)
-		} else if fleet.State == "Chasing_PvE" {
+		} else if fleet.State == domain.FleetStateChasingPvE {
 			handleChasingPvE(db, &fleet)
 		}
 	}
@@ -166,7 +171,7 @@ func handleChasingPvE(db *gorm.DB, fleet *domain.Fleet) {
 }
 
 func returnHome(db *gorm.DB, fleet *domain.Fleet) {
-	fleet.State = "Returning_From_Attack"
+	fleet.State = domain.FleetStateReturningFromAttack
 	fleet.TargetPveID = nil
 	fleet.TargetIslandID = nil
 
@@ -253,7 +258,7 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 			ID:       uuid.New(),
 			IslandID: targetIsland.ID,
 			Name:     "Militia",
-			State:    "Idle",
+			State:    domain.FleetStateIdle,
 			Ships:    []domain.Ship{}, // Empty fleet = militia uses island garrison
 		}
 	}
@@ -316,7 +321,7 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 	if fleet.TargetX == nil || fleet.TargetY == nil || fleet.TargetIslandID == nil {
 		logger.Warn("[PVP_TRAVEL] Fleet has invalid target, resetting to Idle", "fleet_id", fleet.ID)
-		fleet.State = "Idle"
+		fleet.State = domain.FleetStateIdle
 		db.Save(fleet)
 		return
 	}
@@ -407,7 +412,7 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 		combatResult, loot, err := executePvpCombat(db, fleet, *fleet.TargetIslandID)
 		if err != nil {
 			logger.Error("[PVP_TRAVEL] Combat error", "error", err)
-			fleet.State = "Idle"
+			fleet.State = domain.FleetStateIdle
 			db.Save(fleet)
 			return
 		}
@@ -429,7 +434,7 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 		}
 
 		// Set returning state
-		fleet.State = "Returning_From_Attack"
+		fleet.State = domain.FleetStateReturningFromAttack
 		fleet.TargetIslandID = nil
 
 		// Set target to home island
@@ -450,7 +455,7 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 	if fleet.TargetX == nil || fleet.TargetY == nil {
 		logger.Warn("[PVP_TRAVEL] Fleet has invalid return target, resetting to Idle", "fleet_id", fleet.ID)
-		fleet.State = "Idle"
+		fleet.State = domain.FleetStateIdle
 		db.Save(fleet)
 		return
 	}
@@ -576,7 +581,7 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 		}
 
 		// Reset fleet
-		fleet.State = "Idle"
+		fleet.State = domain.FleetStateIdle
 		fleet.TargetX = nil
 		fleet.TargetY = nil
 		fleet.AttackLoot = nil

@@ -21,6 +21,19 @@ const (
 	CaptainTicket ResourceType = "captain_ticket"
 )
 
+// FleetState defines the possible states of a fleet
+type FleetState string
+
+const (
+	FleetStateIdle                FleetState = "Idle"
+	FleetStateMoving              FleetState = "Moving"
+	FleetStateReturning           FleetState = "Returning"
+	FleetStateStationed           FleetState = "Stationed"
+	FleetStateChasingPvE          FleetState = "Chasing_PvE"
+	FleetStateTravelingToAttack   FleetState = "Traveling_To_Attack"
+	FleetStateReturningFromAttack FleetState = "Returning_From_Attack"
+)
+
 // Resource represents a quantity of a specific resource
 type Resource struct {
 	Type   ResourceType `json:"type" gorm:"-"`
@@ -166,10 +179,10 @@ type Fleet struct {
 	// Flagship selection (deterministic and explicit)
 	FlagshipShipID *uuid.UUID `json:"flagship_ship_id,omitempty" gorm:"type:uuid;index"` // Nullable, explicit flagship ship ID
 
-	// Fleet state and movement (STUB - no logic implemented)
-	State   string `json:"state" gorm:"default:'Idle'"` // Idle, Moving, Stationed, Returning, Traveling_To_Attack, Returning_From_Attack
-	TargetX *int   `json:"target_x,omitempty"`
-	TargetY *int   `json:"target_y,omitempty"`
+	// Fleet state and movement
+	State   FleetState `json:"state" gorm:"default:'Idle'"` // Idle, Moving, Stationed, Returning, Traveling_To_Attack, Returning_From_Attack
+	TargetX *int       `json:"target_x,omitempty"`
+	TargetY *int       `json:"target_y,omitempty"`
 
 	// PVP fields (STUB - no logic implemented)
 	TargetIslandID *uuid.UUID               `json:"target_island_id,omitempty" gorm:"type:uuid"`
@@ -299,6 +312,78 @@ func (f *Fleet) CargoLoaded() float64 {
 		}
 	}
 	return used
+}
+
+// IsMoving returns true if the fleet is visually moving on the map
+func (f *Fleet) IsMoving() bool {
+	return f.State == FleetStateMoving ||
+		f.State == FleetStateReturning ||
+		f.State == FleetStateChasingPvE ||
+		f.State == FleetStateTravelingToAttack ||
+		f.State == FleetStateReturningFromAttack
+}
+
+// ConsumesRum returns true if the fleet consumes rum in this state
+func (f *Fleet) ConsumesRum() bool {
+	// Typically same as IsMoving, but might exclude Stationed?
+	// User said: "Moving/Returning/Chasing/Traveling... uniquement"
+	// Stationed does NOT consume rum.
+	return f.IsMoving()
+}
+
+// BlocksOrders returns true if the fleet cannot accept new manual orders
+func (f *Fleet) BlocksOrders() bool {
+	// Cannot change orders if Chasing? Or if Traveling to Attack (Locked flow)?
+	// Assuming Attack Flows blocks orders.
+	// Chasing PvE usually allows user to Cancel? (User said "Chasing_PvE -> Returning OK")
+	// So Chasing does NOT strictly block, but might need "Cancel" command explicitly.
+	// Traveling_To_Attack IS locked.
+	return f.State == FleetStateTravelingToAttack ||
+		f.State == FleetStateReturningFromAttack
+}
+
+// CanTransitionTo checks if a state transition is valid (SSOT Guard)
+func (f *Fleet) CanTransitionTo(next FleetState) bool {
+	current := f.State
+
+	// Identity is always OK (no-op)
+	if current == next {
+		return true
+	}
+
+	switch current {
+	case FleetStateIdle:
+		// Idle can go anywhere except Returning (makes no sense to return if idle)
+		// But maybe ReturningFromAttack if setting up for anim?
+		return true
+
+	case FleetStateMoving:
+		// Can stop (Idle), Arrive (Idle/Stationed?), Return, Chase?
+		return true
+
+	case FleetStateStationed:
+		// Can only go to Moving (if valid order) or Idle (Recall)
+		// User rule: "Stationed -> Moving OK"
+		// Stationed -> Idle matches "Recall" (instant in V1?) or "Recall" triggers Return?
+		// Usually Stationed -> Moving (Recall trip)
+		return next == FleetStateMoving || next == FleetStateIdle
+
+	case FleetStateChasingPvE:
+		// Can match "Returning" (Abort/Lost)
+		// Can match "Idle" (Cancel immediate?)
+		// Can match "Moving" (Redirect?)
+		return true
+
+	case FleetStateTravelingToAttack:
+		// LOCKED state. Can only go to Returning_From_Attack (Result) or Idle (Reset/Bug)
+		return next == FleetStateReturningFromAttack || next == FleetStateIdle
+
+	case FleetStateReturningFromAttack:
+		// Can only go to Idle (Arrival)
+		return next == FleetStateIdle
+	}
+
+	return true
 }
 
 // Building represents a structure on an island

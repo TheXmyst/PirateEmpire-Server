@@ -227,7 +227,7 @@ func (e *Engine) Tick() {
 		// This ensures clients polling every 1s see movement, even if the island checkpoint is 5s.
 		for i := range island.Fleets {
 			f := &island.Fleets[i]
-			if f.State == "Moving" || f.State == "Returning" {
+			if f.State == domain.FleetStateMoving || f.State == domain.FleetStateReturning {
 				db.Save(f)
 				for j := range f.Ships {
 					db.Save(&f.Ships[j])
@@ -269,7 +269,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 		}
 
 		// 2. Consumption (Only when Moving/Returning)
-		if f.State == "Moving" || f.State == "Returning" {
+		if f.State == domain.FleetStateMoving || f.State == domain.FleetStateReturning {
 			// Consumption (SSOT w/ Multiplier)
 			// Tick is 100ms (0.1s) BUT UpdateFleetStationing is called with deltaSeconds.
 			// deltaSeconds matches the actual wall-clock time passed.
@@ -324,7 +324,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 			}
 		}
 
-		if f.State == "Moving" && f.TargetX != nil && f.TargetY != nil {
+		if f.State == domain.FleetStateMoving && f.TargetX != nil && f.TargetY != nil {
 			// Move towards target
 			var refShip *domain.Ship
 			if len(f.Ships) > 0 {
@@ -338,7 +338,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 
 				if dist < 10.0 {
 					// Arrived
-					f.State = "Stationed"
+					f.State = domain.FleetStateStationed
 					now := time.Now()
 					f.StationedAt = &now
 					// Move all ships to exact target
@@ -379,7 +379,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 					}
 				}
 			}
-		} else if f.State == "Stationed" && f.StationedAt != nil {
+		} else if f.State == domain.FleetStateStationed && f.StationedAt != nil {
 			// Gathering Logic
 			// 1. Calculate Capacity (Total Hull)
 			capacity := 0.0
@@ -433,7 +433,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 					f.Cargo[resType] -= diff
 				}
 
-				f.State = "Returning"
+				f.State = domain.FleetStateReturning
 				f.StationedAt = nil
 				f.StationedNodeID = nil
 				homeX := island.X
@@ -442,7 +442,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 				f.TargetY = &homeY
 				fmt.Printf("[STATIONING] Fleet %s full (%.0f/%.0f). Returning home.\n", f.Name, totalLoad, capacity)
 			}
-		} else if f.State == "Returning" && f.TargetX != nil {
+		} else if f.State == domain.FleetStateReturning && f.TargetX != nil {
 			// Move Home
 			var refShip *domain.Ship
 			if len(f.Ships) > 0 {
@@ -456,7 +456,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 
 				if dist < 10.0 {
 					// Arrived Home
-					f.State = "Idle"
+					f.State = domain.FleetStateIdle
 					f.TargetX = nil
 					f.TargetY = nil
 
