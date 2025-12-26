@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TheXmyst/Sea-Dogs/server/internal/api/dto"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
@@ -18,7 +19,7 @@ import (
 
 // GetPveTargetsResponse is the response for GET /pve/targets
 type GetPveTargetsResponse struct {
-	Targets []economy.PveTarget `json:"targets"`
+	Targets []dto.PveTargetDTO `json:"targets"`
 }
 
 // GetPveTargets returns 3 PVE targets for the authenticated player's island
@@ -41,13 +42,21 @@ func GetPveTargets(c echo.Context) error {
 	// Get PVE targets (from cache or generate new)
 	targets := economy.GetPveTargets(playerID, island.X, island.Y)
 
+	// Convert to DTOs
+	targetDTOs := make([]dto.PveTargetDTO, len(targets))
+	for i, target := range targets {
+		if targetDTO := target.ToDTO(); targetDTO != nil {
+			targetDTOs[i] = *targetDTO
+		}
+	}
+
 	// Log Sample (SSOT Validation)
-	if len(targets) > 0 {
-		fmt.Printf("[PVE_TARGETS] count=%d sample_id=%s\n", len(targets), targets[0].ID.String())
+	if len(targetDTOs) > 0 {
+		fmt.Printf("[PVE_TARGETS] count=%d sample_id=%s\n", len(targetDTOs), targetDTOs[0].ID)
 	}
 
 	return c.JSON(http.StatusOK, GetPveTargetsResponse{
-		Targets: targets,
+		Targets: targetDTOs,
 	})
 }
 
