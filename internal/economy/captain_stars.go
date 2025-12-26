@@ -6,10 +6,10 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 )
 
-// Max stars per rarity
+// Max stars per rarity (0..MaxStars)
 const (
-	MaxStarsCommon    = 3
-	MaxStarsRare      = 4
+	MaxStarsCommon    = 5
+	MaxStarsRare      = 5
 	MaxStarsLegendary = 5
 )
 
@@ -49,53 +49,21 @@ func GetStarUpgradeCost(rarity domain.CaptainRarity, currentStars int) (int, err
 
 	// Target star level (1-based for cost calculation)
 	targetStar := currentStars + 1
-
+	// Base cost per rarity
+	var base int
 	switch rarity {
 	case domain.RarityCommon:
-		// Common: 20 / 40 / 60 shards for stars 1..3 (total 120)
-		switch targetStar {
-		case 1:
-			return 20, nil
-		case 2:
-			return 40, nil
-		case 3:
-			return 60, nil
-		default:
-			return 0, fmt.Errorf("invalid star level for common: %d", targetStar)
-		}
+		base = 10
 	case domain.RarityRare:
-		// Rare: 40 / 80 / 120 / 160 shards for stars 1..4 (total 400)
-		switch targetStar {
-		case 1:
-			return 40, nil
-		case 2:
-			return 80, nil
-		case 3:
-			return 120, nil
-		case 4:
-			return 160, nil
-		default:
-			return 0, fmt.Errorf("invalid star level for rare: %d", targetStar)
-		}
+		base = 20
 	case domain.RarityLegendary:
-		// Legendary: 80 / 160 / 240 / 320 / 400 shards for stars 1..5 (total 1200)
-		switch targetStar {
-		case 1:
-			return 80, nil
-		case 2:
-			return 160, nil
-		case 3:
-			return 240, nil
-		case 4:
-			return 320, nil
-		case 5:
-			return 400, nil
-		default:
-			return 0, fmt.Errorf("invalid star level for legendary: %d", targetStar)
-		}
+		base = 40
 	default:
 		return 0, fmt.Errorf("unknown rarity: %s", rarity)
 	}
+
+	// Cost scales linearly by target star (1-based)
+	return base * targetStar, nil
 }
 
 // NavalBonusDTO represents computed naval bonuses from stars

@@ -15,6 +15,7 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/api/dto"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/engine"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/google/uuid"
@@ -2166,7 +2167,7 @@ func GetCaptains(c echo.Context) error {
 
 	// Create response DTO with computed passive effects and naval bonuses
 	type CaptainResponse struct {
-		domain.Captain
+		dto.CaptainDTO
 		PassiveID                  string          `json:"passive_id,omitempty"`
 		PassiveValue               float64         `json:"passive_value,omitempty"`
 		PassiveIntValue            int             `json:"passive_int_value,omitempty"`
@@ -2221,7 +2222,7 @@ func GetCaptains(c echo.Context) error {
 		}
 
 		response := CaptainResponse{
-			Captain:                    captain,
+			CaptainDTO:             captain.ToDTO(),
 			PassiveID:                  effect.ID,
 			PassiveValue:               effect.Value,
 			PassiveIntValue:            effect.IntValue,
