@@ -520,7 +520,26 @@ func GetStatus(c echo.Context) error {
 		island.Player = domain.Player{}
 	}
 
-	return c.JSON(http.StatusOK, player)
+	// Convert to DTOs for consistent JSON serialization (string UUIDs)
+	islandDTOs := make([]dto.IslandDTO, len(player.Islands))
+	for i, island := range player.Islands {
+		if islandDTO := island.ToDTO(); islandDTO != nil {
+			islandDTOs[i] = *islandDTO
+		}
+	}
+
+	captainDTOs := make([]dto.CaptainDTO, len(player.Captains))
+	for i, captain := range player.Captains {
+		captainDTOs[i] = captain.ToDTO()
+	}
+
+	statusResponse := dto.StatusResponse{
+		Player:   *player.ToDTO(),
+		Islands:  islandDTOs,
+		Captains: captainDTOs,
+	}
+
+	return c.JSON(http.StatusOK, statusResponse)
 }
 
 // getAuthenticatedPlayerID extracts player ID from context (if authenticated via middleware)
