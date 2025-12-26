@@ -5,6 +5,11 @@
 #base de données (NE DOIT JAMAIS être commitée)
 *.db
 
+# SQLite runtime files
+*.db-wal
+*.db-shm
+
+
 #fichiers sensibles
 *.env
 *.env.*
@@ -20,4 +25,5 @@ f2p_results.txt
 
 #output GO
 buid/
-dist/
+dist/seadogs.db-shm
+seadogs.db-wal
