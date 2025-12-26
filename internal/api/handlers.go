@@ -1704,10 +1704,10 @@ func GetFleets(c echo.Context) error {
 	// Sort fleets by name to ensure consistent order (Flotte 1, 2, 3)
 	// Create a response DTO with unlocked field
 	type FleetResponse struct {
-		ID           uuid.UUID     `json:"id"`
-		IslandID     uuid.UUID     `json:"island_id"`
+		ID           string        `json:"id"`
+		IslandID     string        `json:"island_id"`
 		Name         string        `json:"name"`
-		Ships        []domain.Ship `json:"ships,omitempty"`
+		Ships        []dto.ShipDTO `json:"ships,omitempty"`
 		Unlocked     bool          `json:"unlocked"`
 		MoraleCruise int           `json:"morale_cruise,omitempty"` // Morale during cruise (0-100)
 	}
@@ -1723,11 +1723,19 @@ func GetFleets(c echo.Context) error {
 			moraleCruise = *fleet.MoraleCruise
 		}
 
+		// Convert ships to DTOs
+		shipDTOs := make([]dto.ShipDTO, len(fleet.Ships))
+		for i, ship := range fleet.Ships {
+			if shipDTO := ship.ToDTO(); shipDTO != nil {
+				shipDTOs[i] = *shipDTO
+			}
+		}
+
 		fleetResponses = append(fleetResponses, FleetResponse{
-			ID:           fleet.ID,
-			IslandID:     fleet.IslandID,
+			ID:           fleet.ID.String(),
+			IslandID:     fleet.IslandID.String(),
 			Name:         fleet.Name,
-			Ships:        fleet.Ships,
+			Ships:        shipDTOs,
 			Unlocked:     unlocked,
 			MoraleCruise: moraleCruise,
 		})
