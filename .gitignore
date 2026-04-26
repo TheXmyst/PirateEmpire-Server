@@ -49,3 +49,5 @@ Thumbs.db
 AUDIT_TODO.md
 INDEX_AUDIT.md
 PROJECT_EVOLUTION_COMPLETE.md
+server/SECURITY_IMPROVEMENTS.md
+client/tools/colorfix/*.md
