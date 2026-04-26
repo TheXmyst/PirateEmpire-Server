@@ -6,6 +6,8 @@
 *.dylib
 server/cmd/server
 client/cmd/client
+client/game_client
+server/server
 *.test
 *.out
 
@@ -41,3 +43,9 @@ Thumbs.db
 
 # Continue AI
 .continue/
+
+# Internal working documents
+00_LISEZMOI_AUDIT.md
+AUDIT_TODO.md
+INDEX_AUDIT.md
+PROJECT_EVOLUTION_COMPLETE.md
