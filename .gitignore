@@ -1,0 +1,43 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server/cmd/server
+client/cmd/client
+*.test
+*.out
+
+# Build artifacts
+/bin/
+/dist/
+
+# Go workspace
+go.work.sum
+
+# Environment variables / secrets
+.env
+*.env
+config.local.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp / backup folders
+backup/
+backup_extract/
+temp_restore/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Continue AI
+.continue/

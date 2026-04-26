@@ -1,0 +1,16 @@
+#binaires
+*.exe
+*.dll
+*.so
+
+#logs & temporaires
+*.log
+*.tmp
+
+#secrets / config locale
+credentials.json
+
+#OS / éditeur
+.DS_Store
+Thumbs.db
+.vscode/

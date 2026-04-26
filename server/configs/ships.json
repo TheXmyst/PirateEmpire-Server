@@ -1,0 +1,97 @@
+{
+    "ships": {
+        "sloop": {
+            "name": "Sloop",
+            "max_health": 100,
+            "cargo_capacity": 500,
+            "base_speed": 1.0,
+            "build_time": 3600,
+            "cost": {
+                "wood": 5000,
+                "gold": 1500
+            },
+            "repair_cost_factor": {
+                "wood": 1.0,
+                "gold": 0.5
+            },
+            "required_shipyard_level": 1,
+            "required_tech": "tech_naval_1"
+        },
+        "brigantine": {
+            "name": "Brigantin",
+            "max_health": 250,
+            "cargo_capacity": 1200,
+            "base_speed": 0.9,
+            "build_time": 7200,
+            "cost": {
+                "wood": 25000,
+                "gold": 10000,
+                "rum": 1000,
+                "stone": 500
+            },
+            "repair_cost_factor": {
+                "wood": 1.0,
+                "gold": 0.5
+            },
+            "required_shipyard_level": 5,
+            "required_tech": "tech_naval_2"
+        },
+        "frigate": {
+            "name": "Frégate",
+            "max_health": 500,
+            "cargo_capacity": 1500,
+            "base_speed": 1.1,
+            "build_time": 14400,
+            "cost": {
+                "wood": 50000,
+                "gold": 25000,
+                "rum": 5000,
+                "stone": 2000
+            },
+            "repair_cost_factor": {
+                "wood": 1.0,
+                "gold": 0.5
+            },
+            "required_shipyard_level": 10,
+            "required_tech": "tech_naval_3"
+        },
+        "galleon": {
+            "name": "Galion",
+            "max_health": 1200,
+            "cargo_capacity": 5000,
+            "base_speed": 0.7,
+            "build_time": 28800,
+            "cost": {
+                "wood": 100000,
+                "gold": 60000,
+                "rum": 10000,
+                "stone": 10000
+            },
+            "repair_cost_factor": {
+                "wood": 1.0,
+                "gold": 0.5
+            },
+            "required_shipyard_level": 18,
+            "required_tech": "tech_naval_4"
+        },
+        "manowar": {
+            "name": "Vaisseau de Guerre",
+            "max_health": 3000,
+            "cargo_capacity": 8000,
+            "base_speed": 0.6,
+            "build_time": 86400,
+            "cost": {
+                "wood": 300000,
+                "gold": 200000,
+                "rum": 50000,
+                "stone": 50000
+            },
+            "repair_cost_factor": {
+                "wood": 1.0,
+                "gold": 0.5
+            },
+            "required_shipyard_level": 25,
+            "required_tech": "tech_naval_5"
+        }
+    }
+}

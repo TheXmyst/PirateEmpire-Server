@@ -1,0 +1,134 @@
+// Kage Shader for animated water
+package main
+
+// Uniforms provided by Ebiten
+var Time float
+var Cursor float
+var CameraPos vec2     // Camera World X, Y
+var CameraZoom float   // Camera Zoom Level
+var ScreenCenter vec2  // Screen Width/2, Height/2
+
+// Random function
+func random(st vec2) float {
+	return fract(sin(dot(st, vec2(12.9898, 78.233))) * 43758.5453123)
+}
+
+// Value Noise
+// Quintic Interpolation (Smoother, removes grid artifacts)
+func noise(st vec2) float {
+	i := floor(st)
+	f := fract(st)
+
+	// Quintic Curve
+	u := f * f * f * (f * (f * 6.0 - 15.0) + 10.0)
+
+	return mix(mix(random(i+vec2(0.0, 0.0)),
+		random(i+vec2(1.0, 0.0)), u.x),
+		mix(random(i+vec2(0.0, 1.0)),
+			random(i+vec2(1.0, 1.0)), u.x), u.y)
+}
+
+// Ridged Noise (for water caustics)
+func ridged_noise(st vec2) float {
+	n := noise(st)
+	return pow(1.0 - abs(n), 2.2) // Sharpen ridges slightly
+}
+
+// Fractal Brownian Motion with Ridges
+func fbm_ridged(st vec2) float {
+	value := 0.0
+	amplitude := 0.5
+	
+	value += amplitude * ridged_noise(st)
+	st *= 2.0
+	amplitude *= 0.5
+	
+	value += amplitude * ridged_noise(st)
+	st *= 2.0
+	amplitude *= 0.5
+	
+	value += amplitude * ridged_noise(st)
+	
+	return value
+}
+
+// Height Map Function (based on FBM Ridged)
+func get_height(st vec2) float {
+	return fbm_ridged(st)
+}
+
+func Fragment(position vec4, texCoord vec2, color vec4) vec4 {
+	// Screen to World Space Transformation
+	// 1. Center relative to screen (Pivot)
+	// 2. Un-apply Zoom
+	// 3. Add Camera World Position
+	worldPos := (position.xy - ScreenCenter) / CameraZoom + CameraPos
+	
+	// Normalize scale for noise function (Texture Frequency)
+	pos := worldPos / 250.0 
+
+	
+	
+	// Complex Domain Warping for "Liquid" feel
+	// Move the warping field INDEPENDENTLY from the main pattern
+	// this prevents the "sliding sheet" (parallax) look.
+	q := vec2(0.0)
+	q.x = fbm_ridged(pos + vec2(Time*0.02, Time*0.06))
+	q.y = fbm_ridged(pos + vec2(Time*0.05, Time*0.03))
+	
+	// Final Height Sample
+	// Move the main pattern in a different direction
+	// distort it by 'q' (the warping field)
+	flow := vec2(Time * 0.04, -Time * 0.02)
+	h := get_height(pos + flow + q*0.6)
+	
+	// Normal Calculation with Micro-details
+	epsilon := 0.01
+	
+	// Calculate derivatives on the moving, warped field
+	p := pos + flow + q*0.6
+	
+	// Base slope
+	hx := get_height(p + vec2(epsilon, 0.0))
+	hy := get_height(p + vec2(0.0, epsilon))
+	
+	// Micro-Noise (Ripples) - Moves faster for surface wind effect
+	micro_scale := 12.0
+	micro_speed := Time * 0.15
+	mn_x := noise((p + vec2(micro_speed, 0.0)) * micro_scale) * 0.03
+	mn_y := noise((p + vec2(0.0, micro_speed*0.6)) * micro_scale) * 0.03
+	
+	dx := ((hx - h) / epsilon) + mn_x
+	dy := ((hy - h) / epsilon) + mn_y
+	
+	// Normal Vector
+	normal := normalize(vec3(-dx*0.5, -dy*0.5, 1.0))
+	
+	// Lighting
+	lightDir := normalize(vec3(-0.4, -0.4, 0.7))
+	diffuse := max(dot(normal, lightDir), 0.0)
+	
+	// Specular
+	viewDir := vec3(0.0, 0.0, 1.0)
+	reflectDir := reflect(-lightDir, normal)
+	specular := pow(max(dot(viewDir, reflectDir), 0.0), 32.0)
+	
+	// Colors
+	deep := vec4(0.02, 0.15, 0.45, 1.0)
+	shallow := vec4(0.0, 0.45, 0.75, 1.0)
+	foam := vec4(0.8, 0.95, 1.0, 1.0)
+	
+	// Mix based on Height
+	col := mix(deep, shallow, h*0.8 + diffuse*0.2)
+	
+	// Foam logic
+	if h > 0.85 {
+		col = mix(col, foam, (h-0.85)*4.0)
+	}
+	
+	// Specular
+	col += vec4(1.0) * specular * 0.5
+	
+	col.a = 1.0
+	return col
+}
