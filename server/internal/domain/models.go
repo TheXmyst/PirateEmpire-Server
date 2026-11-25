@@ -267,6 +267,9 @@ type Fleet struct {
 	StationedNodeID *string    `json:"stationed_node_id,omitempty"`
 	StoredAmount    float64    `json:"stored_amount" gorm:"default:0"`    // DEPRECATED
 	StoredResource  string     `json:"stored_resource" gorm:"default:''"` // DEPRECATED
+
+	// Richesse du nœud de ressources visé (multiplicateur de récolte, 0 = 1,0)
+	NodeRichness float64 `json:"node_richness" gorm:"default:0"`
 }
 
 // Fleet hooks for JSON serialization

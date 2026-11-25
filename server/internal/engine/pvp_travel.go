@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
@@ -445,6 +446,11 @@ func executePveCombat(db *gorm.DB, attackerFleet *domain.Fleet, target *economy.
 		if target.Tier >= 2 {
 			loot[domain.Rum] = baseLoot * 0.2
 		}
+
+		// Rééquilibrage : chance de gagner un ticket de gacha selon le palier
+		if rand.Float64() < economy.PveTicketDropChance[target.Tier] {
+			loot[domain.CaptainTicket] = 1
+		}
 	}
 
 	// Destroy Attacker Ships (if any)
@@ -507,24 +513,18 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 	// Calculate loot if attacker won
 	loot := make(map[domain.ResourceType]float64)
 	if combatRes.Winner == "fleet_a" {
-		defenderTH := economy.GetBuildingLevel(&targetIsland, "Hôtel de Ville")
-		safeAmount := float64(defenderTH * 1000)
+		defenderTH := economy.TownHallLevel(&targetIsland)
 
 		// Deserialize target island resources
 		if len(targetIsland.ResourcesJSON) > 0 {
 			json.Unmarshal(targetIsland.ResourcesJSON, &targetIsland.Resources)
 		}
 
-		// Steal 50% of vulnerable resources
-		for res, amount := range targetIsland.Resources {
-			available := amount - safeAmount
-			if available > 0 {
-				stolen := available * 0.50
-				loot[res] = stolen
-
-				// Deduct from target island
-				targetIsland.Resources[res] -= stolen
-			}
+		// Butin : 25 % au-dessus de la réserve, plafonné par la cale libre
+		_, _, freeCargo := economy.ComputeFleetPayload(attackerFleet)
+		loot = economy.ComputePvpLoot(targetIsland.Resources, defenderTH, freeCargo)
+		for res, stolen := range loot {
+			targetIsland.Resources[res] -= stolen
 		}
 
 		// Apply peace shield to defender
@@ -543,6 +543,20 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 	}
 
 	return &combatRes, loot, nil
+}
+
+// pvpArrivalBlockReason renvoie pourquoi la cible d'un raid ne peut plus être
+// attaquée à l'arrivée de la flotte, ou "" si le combat peut avoir lieu.
+func pvpArrivalBlockReason(db *gorm.DB, fleet *domain.Fleet) string {
+	var target domain.Island
+	if err := db.Preload("Player").Preload("Buildings").First(&target, "id = ?", *fleet.TargetIslandID).Error; err != nil {
+		return "" // Cible introuvable : executePvpCombat gère l'erreur
+	}
+	var home domain.Island
+	if err := db.Preload("Player").First(&home, "id = ?", fleet.IslandID).Error; err != nil {
+		return ""
+	}
+	return economy.PvpTargetBlockReason(&home.Player, &target, time.Now())
 }
 
 // handleTravelingToAttack checks if fleet arrived at target and triggers combat
@@ -591,6 +605,21 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 	// Check if arrived (distance < 5 units)
 	if distance < 5 {
 		logger.Info("[PVP] Fleet arrived at target, triggering combat", "fleet_id", fleet.ID)
+
+		// Protections revérifiées à l'arrivée (bouclier de paix posé entre-temps,
+		// etc.). Si la cible est protégée, la flotte rentre sans combattre.
+		if reason := pvpArrivalBlockReason(db, fleet); reason != "" {
+			logger.Info("[PVP_TRAVEL] Target protected on arrival, fleet returns home", "fleet_id", fleet.ID, "reason", reason)
+			fleet.TargetIslandID = nil
+			fleet.State = domain.FleetStateReturningFromAttack
+			var homeIsland domain.Island
+			if err := db.Where("id = ?", fleet.IslandID).First(&homeIsland).Error; err == nil {
+				fleet.TargetX = &homeIsland.X
+				fleet.TargetY = &homeIsland.Y
+			}
+			db.Save(fleet)
+			return
+		}
 
 		// Trigger combat
 		combatResult, loot, err := executePvpCombat(db, fleet, *fleet.TargetIslandID)

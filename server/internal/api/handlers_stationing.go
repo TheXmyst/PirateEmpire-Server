@@ -82,6 +82,7 @@ func StationFleet(c echo.Context) error {
 	fleet.StationedNodeID = &node.ID
 	fleet.StoredResource = string(node.Type)
 	fleet.StoredAmount = 0
+	fleet.NodeRichness = node.Richness
 
 	// Set Target Coordinates from Node
 	targetX := int(node.X)
