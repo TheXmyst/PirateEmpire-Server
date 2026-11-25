@@ -1,0 +1,28 @@
+# Service systemd : lance le serveur au démarrage du VPS et le relance s'il
+# plante. À copier dans /etc/systemd/system/seadogs.service
+[Unit]
+Description=SeaDogs game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=seadogs
+Group=seadogs
+WorkingDirectory=/opt/seadogs
+EnvironmentFile=/etc/seadogs/seadogs.env
+ExecStart=/opt/seadogs/seadogs-server
+Restart=on-failure
+RestartSec=5
+# Arrêt propre : le serveur sauvegarde le monde en mémoire avant de quitter.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Durcissement : le serveur ne peut écrire que dans son propre dossier.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/seadogs
+
+[Install]
+WantedBy=multi-user.target

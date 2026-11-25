@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
@@ -50,6 +51,9 @@ func TransferToFleet(c echo.Context) error {
 	}
 
 	db := repository.GetDB()
+	if !ownsIsland(c, db, islandID) {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+	}
 	var fleet domain.Fleet
 	var island domain.Island
 
@@ -158,6 +162,9 @@ func TransferToIsland(c echo.Context) error {
 	}
 
 	db := repository.GetDB()
+	if !ownsIsland(c, db, islandID) {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+	}
 	var fleet domain.Fleet
 	var island domain.Island
 
@@ -231,4 +238,19 @@ func TransferToIsland(c echo.Context) error {
 		Message:         fmt.Sprintf("Transferred %.0f %s to island", req.Amount, req.Resource),
 	}
 	return c.JSON(http.StatusOK, resp)
+}
+
+// ownsIsland vérifie que l'île appartient au joueur connecté. Sans ça, on
+// pouvait déplacer les ressources de l'île de n'importe qui en connaissant
+// simplement son id.
+func ownsIsland(c echo.Context, db *gorm.DB, islandID uuid.UUID) bool {
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return false
+	}
+	var count int64
+	if err := db.Model(&domain.Island{}).Where("id = ? AND player_id = ?", islandID, player.ID).Count(&count).Error; err != nil {
+		return false
+	}
+	return count > 0
 }

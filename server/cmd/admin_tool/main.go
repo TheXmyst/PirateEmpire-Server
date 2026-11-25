@@ -117,6 +117,7 @@ func main() {
 			log.Fatalf("Player not found: %s", *grantUser)
 		}
 		player.IsAdmin = true
+		player.Role = "DEV"
 		db.Save(&player)
 		fmt.Printf("Successfully granted ADMIN access to %s\n", player.Username)
 

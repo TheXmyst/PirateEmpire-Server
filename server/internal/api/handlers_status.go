@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/api/dto"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/engine"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
@@ -28,14 +29,11 @@ func SetWorld(w *engine.World) { gameWorld = w }
 // le tick a déjà calculé les ressources et la position des flottes, il n'y a
 // plus qu'à les copier dans la réponse. Zéro requête SQL dans le cas normal.
 func GetStatus(c echo.Context) error {
-	playerIDStr := c.QueryParam("player_id")
-	if playerIDStr == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "player_id required"})
-	}
-
-	playerID, err := uuid.Parse(playerIDStr)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid player_id"})
+	// Le joueur vient du jeton (middleware auth.RequireToken), jamais d'un
+	// paramètre envoyé par le client : on ne peut lire que son propre état.
+	playerID := auth.GetTokenPlayerID(c)
+	if playerID == uuid.Nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
 	}
 
 	var response dto.StatusResponse

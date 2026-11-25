@@ -13,34 +13,57 @@ import (
 	"github.com/google/uuid"
 )
 
+// MinSecretLength est la longueur minimale de AUTH_SECRET.
+const MinSecretLength = 32
+
 var (
-	// tokenSecret is loaded from environment or generated on first use
+	// tokenSecret est la clé qui signe les jetons. Elle est chargée par
+	// InitSecret au démarrage du serveur.
 	tokenSecret []byte
 )
 
-// getTokenSecret returns the secret key for token signing
-// Reads from AUTH_SECRET env var, or generates a random one (not recommended for production)
+// InitSecret charge la clé de signature des jetons depuis AUTH_SECRET.
+//
+// Sans clé fixe, n'importe quel redémarrage invaliderait tous les jetons, et
+// une clé trop courte serait devinable : le serveur refuse donc de démarrer,
+// sauf si devMode est vrai (développement local), auquel cas une clé
+// aléatoire temporaire est générée.
+func InitSecret(devMode bool) error {
+	secret := os.Getenv("AUTH_SECRET")
+	if secret == "" {
+		if !devMode {
+			return fmt.Errorf("AUTH_SECRET manquant : définis une clé d'au moins %d caractères (ou DEV_MODE=1 en local)", MinSecretLength)
+		}
+		tokenSecret = randomSecret()
+		return nil
+	}
+	if len(secret) < MinSecretLength {
+		return fmt.Errorf("AUTH_SECRET trop court : %d caractères, %d minimum", len(secret), MinSecretLength)
+	}
+	tokenSecret = []byte(secret)
+	return nil
+}
+
+func randomSecret() []byte {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		// Pas de clé de secours écrite en dur : sans aléa, on s'arrête.
+		panic("crypto/rand indisponible: " + err.Error())
+	}
+	return b
+}
+
+// getTokenSecret renvoie la clé de signature. Si InitSecret n'a pas été
+// appelé (tests unitaires), elle lit AUTH_SECRET ou génère une clé aléatoire.
 func getTokenSecret() []byte {
 	if tokenSecret != nil {
 		return tokenSecret
 	}
-
-	secret := os.Getenv("AUTH_SECRET")
-	if secret != "" {
+	if secret := os.Getenv("AUTH_SECRET"); secret != "" {
 		tokenSecret = []byte(secret)
-		return tokenSecret
-	}
-
-	// Fallback: generate a random secret (not persistent across restarts)
-	// In production, AUTH_SECRET should be set via environment variable
-	randomSecret := make([]byte, 32)
-	if _, err := rand.Read(randomSecret); err != nil {
-		// Fallback to a hardcoded secret if random generation fails (not secure, but prevents crash)
-		tokenSecret = []byte("change-me-in-production-secret-key-min-32-chars")
 	} else {
-		tokenSecret = randomSecret
+		tokenSecret = randomSecret()
 	}
-
 	return tokenSecret
 }
 
@@ -135,4 +158,3 @@ func ValidateToken(token string) (*TokenClaims, error) {
 
 	return claims, nil
 }
-

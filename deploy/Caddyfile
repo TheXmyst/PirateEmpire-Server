@@ -1,0 +1,7 @@
+# Caddy reçoit les joueurs en HTTPS (port 443), obtient et renouvelle tout
+# seul le certificat Let's Encrypt, puis transmet au serveur Go qui n'écoute
+# qu'en local. Remplace le nom par ton adresse DuckDNS.
+seadogs.duckdns.org {
+	encode gzip
+	reverse_proxy 127.0.0.1:8080
+}
