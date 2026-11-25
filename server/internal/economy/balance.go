@@ -1,6 +1,7 @@
 package economy
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -38,7 +39,54 @@ const (
 	// TicketsPerTownHallLevel : tickets donnés pour chaque niveau d'Hôtel de
 	// Ville atteint à partir du niveau 2.
 	TicketsPerTownHallLevel = 2
+
+	// --- Nœuds de ressources (récolte par une flotte stationnée) ---
+
+	// NodeRateWoodStone, NodeRateRum, NodeRateGold : débit de base (par seconde).
+	NodeRateWoodStone = 0.3
+	NodeRateRum       = 0.2
+	NodeRateGold      = 0.1
+	// NodeDurationBonusPerMinute : bonus de débit par minute passée sur le nœud,
+	// plafonné à NodeMaxDurationBonus (x2 après 100 min).
+	NodeDurationBonusPerMinute = 0.01
+	NodeMaxDurationBonus       = 2.0
 )
+
+// PveTicketDropChance : chance de gagner 1 ticket de gacha en battant une
+// cible PvE, selon son palier.
+var PveTicketDropChance = map[int]float64{1: 0.10, 2: 0.20, 3: 0.35}
+
+// NodeHarvestRatePerSec renvoie le débit de récolte d'un nœud de ressources :
+// débit de base de la ressource x richesse du nœud x bonus de durée.
+func NodeHarvestRatePerSec(res domain.ResourceType, richness, minutesStationed float64) float64 {
+	base := NodeRateWoodStone
+	switch res {
+	case domain.Rum:
+		base = NodeRateRum
+	case domain.Gold:
+		base = NodeRateGold
+	}
+	if richness <= 0 {
+		richness = 1.0
+	}
+	bonus := 1.0 + minutesStationed*NodeDurationBonusPerMinute
+	if bonus > NodeMaxDurationBonus {
+		bonus = NodeMaxDurationBonus
+	}
+	if bonus < 1.0 {
+		bonus = 1.0
+	}
+	return base * richness * bonus
+}
+
+// FleetCargoCapacity renvoie la capacité totale de cale d'une flotte.
+func FleetCargoCapacity(f *domain.Fleet) float64 {
+	capacity := 0.0
+	for _, s := range f.Ships {
+		capacity += ShipCargoCapacity(s.Type)
+	}
+	return capacity
+}
 
 // lootableResources : ressources qu'un pillage peut voler (jamais les tickets).
 var lootableResources = []domain.ResourceType{domain.Wood, domain.Stone, domain.Gold, domain.Rum}
@@ -69,6 +117,23 @@ func IsBeginnerProtected(player *domain.Player, townHallLevel int, now time.Time
 		return false
 	}
 	return now.Sub(player.CreatedAt) < BeginnerProtectionDuration
+}
+
+// PvpTargetBlockReason renvoie pourquoi une île ne peut pas être attaquée
+// (bouclier de paix ou protection débutant), ou "" si l'attaque est permise.
+// targetIsland doit avoir Player et Buildings préchargés. Les admins passent.
+func PvpTargetBlockReason(attacker *domain.Player, targetIsland *domain.Island, now time.Time) string {
+	if attacker != nil && attacker.IsAdmin {
+		return ""
+	}
+	if targetIsland.ProtectedUntil != nil && now.Before(*targetIsland.ProtectedUntil) {
+		return "Ce joueur est sous protection de paix"
+	}
+	if IsBeginnerProtected(&targetIsland.Player, TownHallLevel(targetIsland), now) {
+		return fmt.Sprintf("Ce joueur bénéficie de la protection débutant (jusqu'au %s ou Hôtel de Ville niveau %d)",
+			BeginnerProtectionEndsAt(&targetIsland.Player).Format("02/01 15:04"), BeginnerProtectionMaxTownHall)
+	}
+	return ""
 }
 
 // BeginnerProtectionEndsAt renvoie la fin théorique de la protection (72 h

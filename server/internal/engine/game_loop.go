@@ -403,42 +403,21 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 			}
 		} else if f.State == domain.FleetStateStationed && f.StationedAt != nil {
 			// Gathering Logic
-			// 1. Calculate Capacity (Total Hull)
-			capacity := 0.0
-			for _, s := range f.Ships {
-				cap := 500.0
-				switch s.Type {
-				case "sloop":
-					cap = 500
-				case "brigantine":
-					cap = 1500
-				case "frigate":
-					cap = 3000
-				case "galleon":
-					cap = 8000
-				case "manowar":
-					cap = 12000
-				}
-				capacity += cap
-			}
+			// 1. Capacité de cale (configs/ships.json)
+			capacity := economy.FleetCargoCapacity(f)
 
-			// 2. Calculate Rate
+			// 2. Débit de récolte (ressource, richesse du nœud, durée)
+			resType := domain.ResourceType(f.StoredResource)
+			if resType == "" {
+				resType = domain.Wood // Fallback
+			}
 			minutesStationed := time.Since(*f.StationedAt).Minutes()
-			bonusMultiplier := 1.0 + (minutesStationed * 0.01)
-			if bonusMultiplier > 2.0 {
-				bonusMultiplier = 2.0
-			}
-
-			ratePerSec := 2.0 * bonusMultiplier
+			ratePerSec := economy.NodeHarvestRatePerSec(resType, f.NodeRichness, minutesStationed)
 			amountToAdd := ratePerSec * deltaSeconds
 
 			// 3. Add to Cargo (Initialize if nil)
 			if f.Cargo == nil {
 				f.Cargo = make(map[domain.ResourceType]float64)
-			}
-			resType := domain.ResourceType(f.StoredResource)
-			if resType == "" {
-				resType = domain.Wood // Fallback
 			}
 			f.Cargo[resType] += amountToAdd
 

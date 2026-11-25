@@ -135,3 +135,51 @@ func TestShippedConfigsRebalance(t *testing.T) {
 		t.Errorf("la cale doit venir de ships.json")
 	}
 }
+
+func TestNodeHarvestRate(t *testing.T) {
+	cases := []struct {
+		res      domain.ResourceType
+		richness float64
+		minutes  float64
+		want     float64
+	}{
+		{domain.Wood, 1.0, 0, 0.3},
+		{domain.Gold, 1.0, 0, 0.1},
+		{domain.Rum, 1.0, 0, 0.2},
+		{domain.Gold, 1.5, 200, 0.3}, // richesse max x bonus max (x2)
+		{domain.Stone, 0, 50, 0.45},  // richesse inconnue = 1,0 ; bonus x1,5
+	}
+	for _, c := range cases {
+		if got := NodeHarvestRatePerSec(c.res, c.richness, c.minutes); math.Abs(got-c.want) > 1e-9 {
+			t.Errorf("%s richesse=%.1f min=%.0f : attendu %.3f, obtenu %.3f", c.res, c.richness, c.minutes, c.want, got)
+		}
+	}
+	// Un nœud d'or rapporte entre 360 et 1 080 or/h
+	if h := NodeHarvestRatePerSec(domain.Gold, 1.0, 0) * 3600; math.Abs(h-360) > 1e-6 {
+		t.Errorf("or/h minimum attendu 360, obtenu %.0f", h)
+	}
+}
+
+func TestPvpTargetBlockReason(t *testing.T) {
+	now := time.Now()
+	target := &domain.Island{
+		Player:    domain.Player{CreatedAt: now.Add(-time.Hour)},
+		Buildings: []domain.Building{{Type: "Hôtel de Ville", Level: 3}},
+	}
+	attacker := &domain.Player{}
+	if PvpTargetBlockReason(attacker, target, now) == "" {
+		t.Errorf("un débutant doit être protégé")
+	}
+	if PvpTargetBlockReason(&domain.Player{IsAdmin: true}, target, now) != "" {
+		t.Errorf("un admin doit pouvoir tester")
+	}
+	target.Player.CreatedAt = now.Add(-100 * time.Hour)
+	if PvpTargetBlockReason(attacker, target, now) != "" {
+		t.Errorf("après 72 h, la cible doit être attaquable")
+	}
+	shield := now.Add(time.Hour)
+	target.ProtectedUntil = &shield
+	if PvpTargetBlockReason(attacker, target, now) == "" {
+		t.Errorf("le bouclier de paix doit bloquer")
+	}
+}

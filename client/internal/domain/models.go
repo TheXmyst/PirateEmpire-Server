@@ -190,6 +190,7 @@ type Fleet struct {
 	StationedNodeID *string                  `json:"stationed_node_id,omitempty"`
 	StoredAmount    float64                  `json:"stored_amount"`
 	StoredResource  string                   `json:"stored_resource"`
+	NodeRichness    float64                  `json:"node_richness"`
 
 	// Capacity Fields (Received from Server)
 	CargoCapacity float64 `json:"cargo_capacity"`
