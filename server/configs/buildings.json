@@ -2,22 +2,22 @@
     "build_time_curves": {
         "production": {
             "pivot": 10,
-            "early_base": 4,
-            "early_factor": 2.29984,
+            "early_base": 30,
+            "early_factor": 1.83852,
             "late_base": 7200,
             "late_factor": 1.17222
         },
         "utility": {
             "pivot": 10,
-            "early_base": 6,
-            "early_factor": 2.29984,
+            "early_base": 45,
+            "early_factor": 1.83852,
             "late_base": 10800,
             "late_factor": 1.16159
         },
         "townhall": {
             "pivot": 10,
-            "early_base": 12,
-            "early_factor": 2.25372,
+            "early_base": 60,
+            "early_factor": 1.88467,
             "late_base": 18000,
             "late_factor": 1.14266
         }
@@ -30,7 +30,7 @@
                 "stone": 200,
                 "gold": 700
             },
-            "cost_growth": 1.41,
+            "cost_growth": 1.33,
             "base_build_time": 10,
             "time_growth": 1.16,
             "base_production": 0,
@@ -175,6 +175,34 @@
                 {
                     "level": 1,
                     "req_townhall": 3
+                },
+                {
+                    "level": 4,
+                    "req_townhall": 5
+                },
+                {
+                    "level": 8,
+                    "req_townhall": 8
+                },
+                {
+                    "level": 12,
+                    "req_tech": "eco_gold_1"
+                },
+                {
+                    "level": 16,
+                    "req_townhall": 11
+                },
+                {
+                    "level": 20,
+                    "req_tech": "eco_goldprod_1"
+                },
+                {
+                    "level": 25,
+                    "req_townhall": 21
+                },
+                {
+                    "level": 30,
+                    "req_tech": "eco_goldprod_2"
                 }
             ]
         },
@@ -187,8 +215,8 @@
             "cost_growth": 1.39,
             "base_build_time": 3,
             "time_growth": 1.15,
-            "base_production": 5,
-            "production_growth": 1.22,
+            "base_production": 15,
+            "production_growth": 1.25,
             "base_storage": {},
             "storage_growth": {},
             "prerequisites": [

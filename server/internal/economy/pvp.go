@@ -12,9 +12,8 @@ import (
 
 // PvP Constants
 const (
-	MinTownHallForPvP = 4             // Beginner protection until TH 3 completed (TH4 unlocks PvP)
-	PvpSearchRadius   = 500           // Search radius in map units
-	PvpPeaceDuration  = 4 * time.Hour // Shield duration after defeat
+	PvpSearchRadius  = 500           // Search radius in map units
+	PvpPeaceDuration = 4 * time.Hour // Shield duration after defeat
 )
 
 // PvpTarget represents an attackable player
@@ -63,9 +62,9 @@ func GetPvpTargets(playerID uuid.UUID, x, y int, all bool) ([]PvpTarget, error) 
 
 	for _, island := range islands {
 		// 1. Beginner Protection Check (Skip if Admin/All)
-		townHallLevel := GetBuildingLevel(&island, "Hôtel de Ville")
-		if !all && townHallLevel < MinTownHallForPvP {
-			fmt.Printf("[PVP_DEBUG] SKIP %s (TH: %d < %d)\n", island.Player.Username, townHallLevel, MinTownHallForPvP)
+		townHallLevel := TownHallLevel(&island)
+		if !all && IsBeginnerProtected(&island.Player, townHallLevel, time.Now()) {
+			fmt.Printf("[PVP_DEBUG] SKIP %s (protection débutant)\n", island.Player.Username)
 			continue
 		}
 
@@ -138,11 +137,11 @@ func GetPvpTargets(playerID uuid.UUID, x, y int, all bool) ([]PvpTarget, error) 
 
 				// Get original island for context (Beginner protection check)
 				var island domain.Island
-				if err := db.Preload("Buildings").First(&island, "id = ?", fleet.IslandID).Error; err != nil {
+				if err := db.Preload("Player").Preload("Buildings").First(&island, "id = ?", fleet.IslandID).Error; err != nil {
 					continue
 				}
-				thLevel := GetBuildingLevel(&island, "Hôtel de Ville")
-				if !all && thLevel < MinTownHallForPvP {
+				thLevel := TownHallLevel(&island)
+				if !all && IsBeginnerProtected(&island.Player, thLevel, time.Now()) {
 					continue
 				}
 

@@ -165,42 +165,17 @@ func AttackPvp(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Vous ne pouvez pas vous attaquer vous-même"})
 	}
 
-	// Protection Check (Peace Shield after defeat)
-	// Skip if attacker is admin (for testing)
-	if !player.IsAdmin {
-		if targetIsland.ProtectedUntil != nil && time.Now().Before(*targetIsland.ProtectedUntil) {
-			tx.Rollback()
-			return c.JSON(http.StatusConflict, map[string]string{"error": "Ce joueur est sous protection de paix"})
-		}
+	// Protections (bouclier de paix + protection débutant)
+	if status, msg, ok := checkPvpTargetable(player, &targetIsland); !ok {
+		tx.Rollback()
+		return c.JSON(status, map[string]string{"error": msg})
 	}
 
-	// Beginner Protection (TH must be level 4+ and completed)
-	// Get defender TH level (needed for loot calculation later)
-	defenderTH := economy.GetBuildingLevel(&targetIsland, "Hôtel de Ville")
+	// Niveau d'HdV du défenseur (réserve protégée du pillage)
+	defenderTH := economy.TownHallLevel(&targetIsland)
 
-	// Skip protection check if attacker is admin (for testing)
-	if !player.IsAdmin {
-		if defenderTH < economy.MinTownHallForPvP {
-			// Get TH construction status for detailed error message
-			thConstructing := false
-			thActualLevel := 0
-			for _, b := range targetIsland.Buildings {
-				if b.Type == "Hôtel de Ville" {
-					thActualLevel = b.Level
-					thConstructing = b.Constructing
-					break
-				}
-			}
-
-			tx.Rollback()
-			errorMsg := fmt.Sprintf("Ce joueur bénéficie de la protection débutant (TH niveau %d", thActualLevel)
-			if thConstructing {
-				errorMsg += " en construction"
-			}
-			errorMsg += fmt.Sprintf(", complété: %d, requis: %d)", defenderTH, economy.MinTownHallForPvP)
-			return c.JSON(http.StatusConflict, map[string]string{"error": errorMsg})
-		}
-	}
+	// Attaquer un joueur fait perdre sa propre protection débutant
+	forfeitBeginnerProtection(tx, player)
 
 	// 4. Determine Defender Logic
 	// Check for Active Fleet docked at home
@@ -274,21 +249,12 @@ func AttackPvp(c echo.Context) error {
 	// 7. Loot Logic (Winner = Fleet A)
 	loot := make(map[string]float64)
 	if combatRes.Winner == "fleet_a" {
-		// Calculate Safe Amount
-		safeAmount := float64(defenderTH * 1000)
-
-		// Steal 50% of vulnerable
-		for res, amount := range targetIsland.Resources {
-			available := amount - safeAmount
-			if available > 0 {
-				stolen := available * 0.50
-				// TODO: Check fleet capacity (ignored for V1 simplicity)
-				loot[string(res)] = stolen
-
-				// Transfer
-				targetIsland.Resources[res] -= stolen
-				fromIsland.Resources[res] += stolen
-			}
+		// Butin : 25 % au-dessus de la réserve, plafonné par la cale libre
+		_, _, freeCargo := economy.ComputeFleetPayload(&attackerFleet)
+		for res, stolen := range economy.ComputePvpLoot(targetIsland.Resources, defenderTH, freeCargo) {
+			loot[string(res)] = stolen
+			targetIsland.Resources[res] -= stolen
+			fromIsland.Resources[res] += stolen
 		}
 
 		// Apply Peace Shield to Defender (4 hours)

@@ -48,6 +48,8 @@ type LoginResponse struct {
 	Role     string    `json:"role"`
 	IsAdmin  bool      `json:"is_admin"`
 	Token    string    `json:"token,omitempty"` // Optional: auth token for Bearer authentication
+	// Tickets de gacha gagnés à cette connexion (quotidien + niveaux d'HdV)
+	TicketsGranted int `json:"tickets_granted,omitempty"`
 }
 
 var (
@@ -220,6 +222,8 @@ func Register(c echo.Context) error {
 			domain.Gold:  3000.0,
 			domain.Stone: 2500.0,
 			domain.Rum:   1000.0,
+			// Rééquilibrage : quelques tickets pour découvrir la Taverne
+			domain.CaptainTicket: float64(economy.StartingCaptainTickets),
 		},
 	}
 
@@ -348,6 +352,12 @@ func Login(c echo.Context) error {
 		// Continue anyway - fleets can be created later
 	}
 
+	// Tickets de gacha : connexion quotidienne + niveaux d'HdV atteints
+	ticketRewards, err := claimTicketRewards(db, player.ID)
+	if err != nil {
+		fmt.Printf("[TICKETS] Login: échec de la réclamation pour %s: %v\n", player.ID, err)
+	}
+
 	// Generate auth token
 	token, err := auth.GenerateToken(player.ID, player.Username, player.IsAdmin)
 	if err != nil {
@@ -361,6 +371,8 @@ func Login(c echo.Context) error {
 		Role:     player.Role,
 		IsAdmin:  player.IsAdmin,
 		Token:    token, // Optional token for Bearer auth
+
+		TicketsGranted: ticketRewards.Total(),
 	})
 }
 
@@ -2707,6 +2719,11 @@ func SummonCaptain(c echo.Context) error {
 	playerID := player.ID
 
 	db := repository.GetDB()
+
+	// Donner d'abord les tickets en attente (quotidien, niveaux d'HdV)
+	if _, err := claimTicketRewards(db, playerID); err != nil {
+		fmt.Printf("[TICKETS] SummonCaptain: échec de la réclamation pour %s: %v\n", playerID, err)
+	}
 
 	// Start transaction
 	tx := db.Begin()

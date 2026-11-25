@@ -94,6 +94,11 @@ type Player struct {
 	DailyShardExchangeCount int    `json:"daily_shard_exchange_count" gorm:"default:0"` // Count of exchanges today
 	DailyShardExchangeDay   string `json:"daily_shard_exchange_day" gorm:"default:''"`  // Format: YYYY-MM-DD
 
+	// Rééquilibrage : protection débutant et tickets de gacha
+	BeginnerProtectionForfeited bool   `json:"beginner_protection_forfeited" gorm:"default:false"` // Perdue si le joueur attaque un autre joueur
+	LastDailyTicketDay          string `json:"last_daily_ticket_day" gorm:"default:''"`           // Dernier jour (AAAA-MM-JJ) où le ticket quotidien a été donné
+	TownHallTicketsLevel        int    `json:"town_hall_tickets_level" gorm:"default:0"`          // Dernier niveau d'HdV récompensé en tickets
+
 	// Social
 	GuildTicket int        `json:"guild_ticket" gorm:"default:1"` // Guild creation tickets (1 per account)
 	GuildID     *uuid.UUID `json:"guild_id,omitempty" gorm:"type:uuid;index"`
