@@ -134,10 +134,10 @@ func RecordPvEVictory(playerID uuid.UUID, tier int) (reputationGain int, err err
 
 	// Create victory record
 	victory := domain.PvEVictory{
-		ID:             uuid.New(),
-		PlayerID:       playerID,
-		Tier:           tier,
-		ReputationGain: reputationGain,
+		ID:               uuid.New(),
+		PlayerID:         playerID,
+		Tier:             tier,
+		ReputationGain:   reputationGain,
 	}
 
 	if err := db.Create(&victory).Error; err != nil {
