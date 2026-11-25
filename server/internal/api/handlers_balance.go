@@ -64,17 +64,8 @@ func claimTicketRewards(db *gorm.DB, playerID uuid.UUID) (economy.TicketRewards,
 // paix, ni protection débutant. targetIsland doit avoir Player et Buildings
 // préchargés. Renvoie un code HTTP et un message si l'attaque est refusée.
 func checkPvpTargetable(attacker *domain.Player, targetIsland *domain.Island) (int, string, bool) {
-	if attacker != nil && attacker.IsAdmin {
-		return 0, "", true // Les admins peuvent tester librement
-	}
-	now := time.Now()
-	if targetIsland.ProtectedUntil != nil && now.Before(*targetIsland.ProtectedUntil) {
-		return http.StatusConflict, "Ce joueur est sous protection de paix", false
-	}
-	if economy.IsBeginnerProtected(&targetIsland.Player, economy.TownHallLevel(targetIsland), now) {
-		ends := economy.BeginnerProtectionEndsAt(&targetIsland.Player)
-		return http.StatusConflict, fmt.Sprintf("Ce joueur bénéficie de la protection débutant (jusqu'au %s ou Hôtel de Ville niveau %d)",
-			ends.Format("02/01 15:04"), economy.BeginnerProtectionMaxTownHall), false
+	if reason := economy.PvpTargetBlockReason(attacker, targetIsland, time.Now()); reason != "" {
+		return http.StatusConflict, reason, false
 	}
 	return 0, "", true
 }
