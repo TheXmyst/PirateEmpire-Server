@@ -4,7 +4,7 @@
             "name": "Sloop",
             "max_health": 100,
             "cargo_capacity": 500,
-            "base_speed": 1.0,
+            "base_speed": 1.2,
             "build_time": 3600,
             "cost": {
                 "wood": 5000,
@@ -21,7 +21,7 @@
             "name": "Brigantin",
             "max_health": 250,
             "cargo_capacity": 1200,
-            "base_speed": 0.9,
+            "base_speed": 1.0,
             "build_time": 7200,
             "cost": {
                 "wood": 25000,
@@ -40,12 +40,12 @@
             "name": "Frégate",
             "max_health": 500,
             "cargo_capacity": 1500,
-            "base_speed": 1.1,
+            "base_speed": 0.9,
             "build_time": 14400,
             "cost": {
                 "wood": 50000,
                 "gold": 25000,
-                "rum": 5000,
+                "rum": 2000,
                 "stone": 2000
             },
             "repair_cost_factor": {
@@ -64,7 +64,7 @@
             "cost": {
                 "wood": 100000,
                 "gold": 60000,
-                "rum": 10000,
+                "rum": 6000,
                 "stone": 10000
             },
             "repair_cost_factor": {
@@ -83,7 +83,7 @@
             "cost": {
                 "wood": 300000,
                 "gold": 200000,
-                "rum": 50000,
+                "rum": 20000,
                 "stone": 50000
             },
             "repair_cost_factor": {

@@ -80,9 +80,21 @@ func SendPvpAttack(c echo.Context) error {
 
 	// Load target island
 	var targetIsland domain.Island
-	if err := db.Where("id = ?", targetIslandID).First(&targetIsland).Error; err != nil {
+	if err := db.Preload("Player").Preload("Buildings").Where("id = ?", targetIslandID).First(&targetIsland).Error; err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île cible introuvable"})
 	}
+
+	if targetIsland.PlayerID == player.ID {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Vous ne pouvez pas vous attaquer vous-même"})
+	}
+
+	// Protections (bouclier de paix + protection débutant) vérifiées à l'envoi
+	if status, msg, ok := checkPvpTargetable(player, &targetIsland); !ok {
+		return c.JSON(status, map[string]string{"error": msg})
+	}
+
+	// Attaquer un joueur fait perdre sa propre protection débutant
+	forfeitBeginnerProtection(db, player)
 
 	// Calculate distance
 	distance := economy.CalculateDistance(island.X, island.Y, targetIsland.X, targetIsland.Y)

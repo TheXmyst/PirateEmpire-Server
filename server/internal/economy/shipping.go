@@ -10,21 +10,7 @@ func ComputeFleetPayload(f *domain.Fleet) (capacity, used, free float64) {
 	// 1. Calculate Capacity (Sum of Ship Holds)
 	capacity = 0.0
 	for _, s := range f.Ships {
-		cap := 0.0
-		switch s.Type {
-		case "sloop":
-			cap = 500
-		case "brigantine":
-			cap = 1500
-		case "frigate":
-			cap = 3000
-		case "galleon":
-			cap = 8000
-		case "manowar":
-			cap = 12000
-		default:
-			cap = 500 // Fallback
-		}
+		cap := ShipCargoCapacity(s.Type)
 		capacity += cap
 	}
 

@@ -106,6 +106,11 @@ type Player struct {
 	DailyShardExchangeCount int    `json:"daily_shard_exchange_count"`
 	DailyShardExchangeDay   string `json:"daily_shard_exchange_day"`
 
+	// Rééquilibrage : protection débutant et tickets de gacha
+	BeginnerProtectionForfeited bool   `json:"beginner_protection_forfeited"`
+	LastDailyTicketDay          string `json:"last_daily_ticket_day"`
+	TownHallTicketsLevel        int    `json:"town_hall_tickets_level"`
+
 	Islands  []Island  `json:"islands,omitempty"`
 	Captains []Captain `json:"captains,omitempty"`
 }
