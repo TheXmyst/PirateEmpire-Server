@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -81,6 +82,13 @@ func containsBannedWord(text string) bool {
 	return false
 }
 
+// usernamePattern : 3 à 20 caractères, lettres, chiffres, "_" ou "-".
+// Ça évite les pseudos invisibles, trompeurs (espaces, caractères Unicode
+// qui ressemblent à d'autres) ou qui casseraient le format du jeton ("|").
+var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,20}$`)
+
+func validUsername(name string) bool { return usernamePattern.MatchString(name) }
+
 func Register(c echo.Context) error {
 	req := new(RegisterRequest)
 	if err := c.Bind(req); err != nil {
@@ -94,6 +102,9 @@ func Register(c echo.Context) error {
 
 	if req.Username == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Username is required"})
+	}
+	if !validUsername(req.Username) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le pseudo doit faire 3 à 20 caractères : lettres, chiffres, _ ou -"})
 	}
 	if req.Password == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Password is required"})
@@ -117,15 +128,10 @@ func Register(c echo.Context) error {
 	}
 
 	// 1. Create Player
-	role := "USER"
-	// Admin logic: check environment variable or keep hardcoded for dev
-	adminUsername := os.Getenv("ADMIN_USERNAME")
-	if adminUsername == "" {
-		adminUsername = "TheXmyst" // Fallback to hardcoded for backward compatibility
-	}
-	if req.Username == adminUsername {
-		role = "DEV"
-	}
+	// Un nouveau compte n'est JAMAIS admin, quel que soit son pseudo : sinon
+	// le premier venu qui s'inscrit avec le bon nom devient admin. Les droits
+	// admin se donnent uniquement avec l'outil serveur :
+	//   go run ./cmd/admin_tool grant -user <pseudo>
 
 	player := domain.Player{
 		ID:        uuid.New(),
@@ -134,8 +140,8 @@ func Register(c echo.Context) error {
 		Password:  hashedPassword, // Store hashed password, not plaintext
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Role:      role,
-		IsAdmin:   role == "DEV" || req.Username == adminUsername,
+		Role:      "USER",
+		IsAdmin:   false,
 	}
 
 	// 2. Find or Create Sea (Matchmaking)
@@ -284,27 +290,16 @@ func Login(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 	}
 
-	// Determine if this is the admin user
-	adminUsername := os.Getenv("ADMIN_USERNAME")
-	if adminUsername == "" {
-		adminUsername = "TheXmyst" // Fallback for backward compatibility
-	}
-	isAdminUser := player.Username == adminUsername
-
+	// Le statut admin vient uniquement de la base (posé par admin_tool grant),
+	// jamais du pseudo.
 	// STRICT ADMIN LOGIN: Admin user MUST use bcrypt, NO plaintext migration allowed
-	if isAdminUser {
+	if player.IsAdmin {
 		// For admin: ONLY bcrypt check, NO legacy migration
 		err := auth.CheckPasswordHash(req.Password, player.Password)
 		if err != nil {
 			// Admin login failed - log it (without leaking sensitive data)
 			fmt.Printf("Admin login failed: invalid password for user %s\n", player.Username)
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
-		}
-		// Admin password is valid (bcrypt match)
-		// Ensure admin status is set
-		if !player.IsAdmin {
-			player.IsAdmin = true
-			db.Save(&player)
 		}
 	} else {
 		// NON-ADMIN: Support bcrypt and safe legacy plaintext migration
@@ -505,32 +500,6 @@ func GetChat(c echo.Context) error {
 		"messages":    msgs,
 		"next_cursor": nextCursor,
 	})
-}
-
-// getAuthenticatedPlayerID extracts player ID from context (if authenticated via middleware)
-// or from request (for backward compatibility)
-// Returns the player ID and an error if not found
-// DEPRECATED: For protected routes, use auth.GetAuthenticatedPlayer(c) directly instead.
-// This function is kept for backward compatibility with non-protected endpoints.
-func getAuthenticatedPlayerID(c echo.Context) (uuid.UUID, error) {
-	// Try to get from auth context first (if middleware was applied)
-	if player := auth.GetAuthenticatedPlayer(c); player != nil {
-		return player.ID, nil
-	}
-
-	// Fallback: try to get from query param (for GET requests)
-	playerIDStr := c.QueryParam("player_id")
-	if playerIDStr != "" {
-		playerID, err := uuid.Parse(playerIDStr)
-		if err == nil {
-			return playerID, nil
-		}
-	}
-
-	// For POST requests, player_id should be in the request body
-	// But we don't read it here to avoid consuming the body
-	// The handlers should extract it from their bound request structs
-	return uuid.Nil, fmt.Errorf("player_id required")
 }
 
 type BuildRequest struct {

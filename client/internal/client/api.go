@@ -123,7 +123,8 @@ func (c *APIClient) Login(username, password string) (*LoginResponse, error) {
 }
 
 func (c *APIClient) GetStatus() (*domain.Player, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/status?player_id=%s", c.BaseURL, c.PlayerID))
+	// Le serveur reconnaît le joueur grâce au jeton de connexion (plus de player_id dans l'URL).
+	resp, err := c.doAuthorizedRequest("GET", "/status", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1503,7 +1504,7 @@ func (c *APIClient) AddFriend(friendID uuid.UUID) error {
 			Error string `json:"error"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf(errRes.Error)
+			return fmt.Errorf("%s", errRes.Error)
 		}
 		return fmt.Errorf("add friend failed: %s", resp.Status)
 	}
@@ -1563,7 +1564,7 @@ func (c *APIClient) CreateGuild(name string) (*GuildInfo, error) {
 			Error string `json:"error"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf(errRes.Error)
+			return nil, fmt.Errorf("%s", errRes.Error)
 		}
 		return nil, fmt.Errorf("create guild failed: %s", resp.Status)
 	}
@@ -1589,7 +1590,7 @@ func (c *APIClient) GetGuild() (*GuildInfo, error) {
 			Error string `json:"error"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf(errRes.Error)
+			return nil, fmt.Errorf("%s", errRes.Error)
 		}
 		return nil, fmt.Errorf("get guild failed: %s", resp.Status)
 	}
@@ -1615,7 +1616,7 @@ func (c *APIClient) LeaveGuild() error {
 			Error string `json:"error"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf(errRes.Error)
+			return fmt.Errorf("%s", errRes.Error)
 		}
 		return fmt.Errorf("leave guild failed: %s", resp.Status)
 	}

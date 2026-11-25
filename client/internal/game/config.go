@@ -2,7 +2,10 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+
+	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 )
 
 const ClientVersion = "1.0.0" // Manually increment this for each release
@@ -32,6 +35,10 @@ func LoadConfig() Config {
 	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
 		// Failed to decode, return default (or partially loaded)
 		return cfg
+	}
+
+	if err := client.CheckSecureURL(cfg.APIURL); err != nil {
+		fmt.Printf("[SECURITE] Attention : %v\n", err)
 	}
 
 	return cfg

@@ -1,8 +1,7 @@
 package auth
 
 import (
-	"os"
-	"strconv"
+	"net/http"
 	"strings"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
@@ -14,62 +13,69 @@ import (
 // AuthContextKey is the key used to store authenticated player in Echo context
 const AuthContextKey = "authenticated_player"
 
-// RequireAuth is a middleware that validates authentication
-// It checks for a Bearer token in the Authorization header first
-// If no token is found and ALLOW_LEGACY_PLAYER_ID_AUTH is true, it falls back to checking player_id in query params (LEGACY - for development only)
-// This middleware is STRICT: it returns 401 if no authenticated player can be resolved
+// TokenPlayerIDKey stocke l'id du joueur lu dans le jeton (utilisé par RequireToken).
+const TokenPlayerIDKey = "token_player_id"
+
+// loadPlayer charge un joueur depuis la base. C'est une variable pour que les
+// tests puissent la remplacer sans base de données.
+var loadPlayer = func(id uuid.UUID) (*domain.Player, error) {
+	var p domain.Player
+	if err := repository.GetDB().First(&p, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// bearerClaims lit l'en-tête "Authorization: Bearer <jeton>" et vérifie le jeton.
+// Renvoie nil si l'en-tête est absent ou si le jeton est invalide/expiré.
+func bearerClaims(c echo.Context) *TokenClaims {
+	authHeader := c.Request().Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return nil
+	}
+	claims, err := ValidateToken(strings.TrimPrefix(authHeader, "Bearer "))
+	if err != nil {
+		return nil
+	}
+	return claims
+}
+
+func unauthorized(c echo.Context) error {
+	return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+}
+
+// RequireAuth exige un jeton valide ("Authorization: Bearer ...") et charge le
+// joueur correspondant depuis la base.
+//
+// Il n'existe plus aucun autre moyen de s'authentifier : l'ancien mode
+// "?player_id=..." (qui permettait de piloter n'importe quel compte en
+// connaissant seulement son identifiant) a été supprimé.
 func RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		var player *domain.Player
-
-		// Try to get token from Authorization header (primary auth method)
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			claims, err := ValidateToken(token)
-			if err == nil {
-				// Token is valid, load player from DB
-				db := repository.GetDB()
-				var p domain.Player
-				if err := db.First(&p, "id = ?", claims.PlayerID).Error; err == nil {
-					player = &p
-				}
-			}
+		claims := bearerClaims(c)
+		if claims == nil {
+			return unauthorized(c)
 		}
-
-		// LEGACY: Fallback to player_id in query params (for development/testing only)
-		// Controlled by ALLOW_LEGACY_PLAYER_ID_AUTH environment variable (default: true for backward compatibility)
-		if player == nil {
-			allowLegacy := true // Default to true for backward compatibility
-			if legacyEnv := os.Getenv("ALLOW_LEGACY_PLAYER_ID_AUTH"); legacyEnv != "" {
-				if parsed, err := strconv.ParseBool(legacyEnv); err == nil {
-					allowLegacy = parsed
-				}
-			}
-
-			if allowLegacy {
-				playerIDStr := c.QueryParam("player_id")
-				if playerIDStr != "" {
-					playerID, err := uuid.Parse(playerIDStr)
-					if err == nil {
-						db := repository.GetDB()
-						var p domain.Player
-						if err := db.First(&p, "id = ?", playerID).Error; err == nil {
-							player = &p
-						}
-					}
-				}
-			}
+		player, err := loadPlayer(claims.PlayerID)
+		if err != nil || player == nil {
+			return unauthorized(c)
 		}
-
-		// STRICT: If no authenticated player found, return 401
-		if player == nil {
-			return c.JSON(401, map[string]string{"error": "Authentication required"})
-		}
-
-		// Store authenticated player in context
 		c.Set(AuthContextKey, player)
+		c.Set(TokenPlayerIDKey, player.ID)
+		return next(c)
+	}
+}
 
+// RequireToken vérifie seulement le jeton, sans lire la base. Il sert aux
+// routes très fréquentes (comme /status, appelée toutes les 1-2 s) qui lisent
+// l'état en mémoire et n'ont besoin que de l'id du joueur.
+func RequireToken(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		claims := bearerClaims(c)
+		if claims == nil {
+			return unauthorized(c)
+		}
+		c.Set(TokenPlayerIDKey, claims.PlayerID)
 		return next(c)
 	}
 }
@@ -84,3 +90,12 @@ func GetAuthenticatedPlayer(c echo.Context) *domain.Player {
 	return player
 }
 
+// GetTokenPlayerID renvoie l'id du joueur authentifié (posé par RequireAuth ou
+// RequireToken), ou uuid.Nil si la requête n'est pas authentifiée.
+func GetTokenPlayerID(c echo.Context) uuid.UUID {
+	id, ok := c.Get(TokenPlayerIDKey).(uuid.UUID)
+	if !ok {
+		return uuid.Nil
+	}
+	return id
+}

@@ -249,20 +249,18 @@ Sea-Dogs/
 ## Running Locally
 
 ```bash
-# Prerequisites: Go 1.25+, PostgreSQL
+# Prerequisites: Go 1.25+, a C compiler (SQLite driver uses cgo)
 
 # 1. Clone
 git clone https://github.com/TheXmyst/Sea-Dogs.git
 cd Sea-Dogs
 
-# 2. Configure database
-cp server/.env.example server/.env
-# Edit DATABASE_URL in .env
+# 2. Run server locally (DEV_MODE=1 = temporary random token secret;
+#    in production set AUTH_SECRET instead, see docs/deploiement_vps.md)
+cd server && DEV_MODE=1 go run ./cmd
+#    Windows PowerShell: cd server; $env:DEV_MODE="1"; go run ./cmd
 
-# 3. Run server
-cd server && go run ./cmd
-
-# 4. Run client (separate terminal)
+# 3. Run client (separate terminal)
 cd client && go run ./cmd
 ```
 

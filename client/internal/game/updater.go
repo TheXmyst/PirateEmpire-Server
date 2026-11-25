@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 )
 
 // CheckForUpdates checks if a new version is available
@@ -22,6 +24,9 @@ func CheckForUpdates(apiURL string) (bool, string, error) {
 	// Quick hack: remove "/api" suffix if present? Or assuming Config.APIURL is base.
 	// Let's assume Config.APIURL is "http://localhost:8080"
 	versionURL := fmt.Sprintf("%s/version", apiURL)
+	if err := client.CheckSecureURL(versionURL); err != nil {
+		return false, "", fmt.Errorf("mise à jour refusée: %w", err)
+	}
 
 	resp, err := http.Get(versionURL)
 	if err != nil {
@@ -58,12 +63,22 @@ func CheckForUpdates(apiURL string) (bool, string, error) {
 func PerformUpdate(downloadURL string) error {
 	fmt.Println("Downloading update from:", downloadURL)
 
+	// On télécharge un programme qui sera ensuite lancé : en HTTP, quelqu'un
+	// sur le même réseau pourrait le remplacer par n'importe quoi. HTTPS
+	// obligatoire (sauf serveur local).
+	if err := client.CheckSecureURL(downloadURL); err != nil {
+		return fmt.Errorf("mise à jour refusée: %w", err)
+	}
+
 	// 1. Download File
 	resp, err := http.Get(downloadURL)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("téléchargement échoué: %s", resp.Status)
+	}
 
 	newExe := "client_new.exe"
 	out, err := os.Create(newExe)

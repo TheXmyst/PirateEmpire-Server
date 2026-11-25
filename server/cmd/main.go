@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -21,11 +20,18 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"golang.org/x/time/rate"
 )
 
 func main() {
 	// Initialize Logger
 	logger.Init()
+
+	// Clé de signature des jetons : obligatoire, sauf en développement local.
+	if err := auth.InitSecret(envBool("DEV_MODE")); err != nil {
+		logger.Error("[BOOT] auth secret", "error", err)
+		os.Exit(1)
+	}
 
 	// Initialize Database
 	repository.InitDB()
@@ -72,6 +78,12 @@ func main() {
 	// Echo instance
 	e := echo.New()
 
+	// Derrière Caddy (reverse proxy), l'adresse IP réelle du joueur arrive dans
+	// l'en-tête X-Forwarded-For. Echo ne lui fait confiance que si la requête
+	// vient d'une adresse locale/privée (le proxy), donc un joueur ne peut pas
+	// tricher sur son IP en envoyant lui-même cet en-tête.
+	e.IPExtractor = echo.ExtractIPFromXFFHeader()
+
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -86,7 +98,9 @@ func main() {
 	})
 
 	// /status lit directement le monde en mémoire (il gère son verrou lui-même).
-	e.GET("/status", api.GetStatus) // Status endpoint accepts player_id as query param for backward compatibility
+	// Le jeton est vérifié sans requête SQL (RequireToken) : la route reste
+	// aussi légère qu'avant, mais on ne peut lire que son propre état.
+	e.GET("/status", api.GetStatus, auth.RequireToken)
 
 	// Toutes les autres routes de jeu travaillent encore directement sur la
 	// base : elles passent par world.Middleware, qui sauvegarde la mémoire
@@ -94,8 +108,20 @@ func main() {
 	game := e.Group("", world.Middleware)
 
 	// Public routes (no authentication required)
-	game.POST("/register", api.Register)
-	game.POST("/login", api.Login)
+	// Limite de tentatives par adresse IP, contre les essais de mots de passe
+	// en rafale : 5 essais d'affilée, puis 1 nouvel essai toutes les 6 s.
+	authLimiter := middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+		Store: middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{
+			Rate:      rate.Limit(10.0 / 60.0),
+			Burst:     5,
+			ExpiresIn: 10 * time.Minute,
+		}),
+		DenyHandler: func(c echo.Context, _ string, _ error) error {
+			return c.JSON(http.StatusTooManyRequests, map[string]string{"error": "Trop de tentatives, réessaie dans quelques secondes"})
+		},
+	})
+	game.POST("/register", api.Register, authLimiter)
+	game.POST("/login", api.Login, authLimiter)
 
 	// Protected routes (require authentication)
 	protected := game.Group("")
@@ -110,8 +136,6 @@ func main() {
 		protected.POST("/research/start", api.StartResearch)
 		protected.POST("/reset", api.ResetProgress)
 
-		protected.POST("/dev/set-ship-militia", api.DevSetShipMilitia)
-		protected.POST("/dev/set-ship-crew", api.DevSetShipMilitia) // Deprecated alias
 		protected.POST("/build-ship", api.StartShipConstruction)
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
@@ -163,11 +187,7 @@ func main() {
 
 	// Dev Routes (require authentication + admin check is done in handlers)
 	// Only enabled if DEV_ROUTES_ENABLED env var is set to "1", "true", or "TRUE"
-	devRoutesEnabled := false
-	devRoutesEnv := os.Getenv("DEV_ROUTES_ENABLED")
-	if devRoutesEnv == "1" || strings.ToLower(devRoutesEnv) == "true" {
-		devRoutesEnabled = true
-	}
+	devRoutesEnabled := envBool("DEV_ROUTES_ENABLED")
 	logger.Info("[BOOT] dev routes enabled", "enabled", devRoutesEnabled)
 
 	if devRoutesEnabled {
@@ -194,7 +214,7 @@ func main() {
 	// Start server (dans une goroutine, pour pouvoir attendre Ctrl+C ici)
 	serverErr := make(chan error, 1)
 	go func() {
-		if err := e.Start(":8080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := e.Start(listenAddr()); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 		}
 	}()
@@ -229,4 +249,20 @@ func saveIntervalFromEnv() time.Duration {
 		}
 	}
 	return engine.DefaultSaveInterval
+}
+
+// envBool lit une variable d'environnement booléenne ("1", "true", "TRUE"...).
+func envBool(name string) bool {
+	v, err := strconv.ParseBool(os.Getenv(name))
+	return err == nil && v
+}
+
+// listenAddr lit LISTEN_ADDR (défaut ":8080", toutes les interfaces).
+// En production derrière Caddy, mets LISTEN_ADDR=127.0.0.1:8080 pour que le
+// serveur ne soit joignable qu'en passant par Caddy (donc en HTTPS).
+func listenAddr() string {
+	if v := os.Getenv("LISTEN_ADDR"); v != "" {
+		return v
+	}
+	return ":8080"
 }
