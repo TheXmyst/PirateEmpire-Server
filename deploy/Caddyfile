@@ -1,7 +1,15 @@
-# Caddy reçoit les joueurs en HTTPS (port 443), obtient et renouvelle tout
-# seul le certificat Let's Encrypt, puis transmet au serveur Go qui n'écoute
-# qu'en local. Remplace le nom par ton adresse DuckDNS.
+# Bloc Caddy pour SeaDogs. Caddy reçoit les joueurs en HTTPS (port 443),
+# obtient et renouvelle tout seul le certificat Let's Encrypt, puis transmet
+# au serveur Go qui n'écoute qu'en local.
+#
+# - Si Caddy n'est pas encore installé : ce fichier peut devenir
+#   /etc/caddy/Caddyfile tel quel.
+# - Si Caddy sert déjà un autre site : AJOUTE ce bloc à la fin du
+#   /etc/caddy/Caddyfile existant, sans rien effacer.
+#
+# Remplace le nom par ton adresse DuckDNS, et le port s'il est déjà pris
+# (il doit être le même que LISTEN_ADDR dans seadogs.env).
 seadogs.duckdns.org {
 	encode gzip
-	reverse_proxy 127.0.0.1:8080
+	reverse_proxy 127.0.0.1:8090
 }
