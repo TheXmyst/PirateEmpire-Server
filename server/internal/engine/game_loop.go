@@ -4,65 +4,79 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
-	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/google/uuid"
 )
 
-// Engine handles the game loop and logic
+// Engine fait tourner la boucle de jeu (le "tick") sur le monde en mémoire.
 type Engine struct {
-	stopCh chan struct{}
-	// Checkpoint tracking: map island ID -> last checkpoint time
-	islandCheckpoints map[uuid.UUID]time.Time
-	islandLastTicks   map[uuid.UUID]time.Time
+	world        *World
+	saveInterval time.Duration
+	stopCh       chan struct{}
+	wg           sync.WaitGroup
+	stopOnce     sync.Once
 }
 
-// IslandCheckpointInterval defines how often islands are persisted to DB
-// This reduces DB writes by ~80% while maintaining correctness:
-// - Timers use absolute timestamps (FinishTime) → no dependency on save frequency
-// - Resources are recalculated from LastUpdated on read → max loss = checkpoint interval
-const IslandCheckpointInterval = 5 * time.Second
-
-func NewEngine() *Engine {
+// NewEngine crée le moteur autour d'un monde déjà chargé (voir LoadWorld).
+func NewEngine(world *World, saveInterval time.Duration) *Engine {
+	if saveInterval <= 0 {
+		saveInterval = DefaultSaveInterval
+	}
 	return &Engine{
-		stopCh:            make(chan struct{}),
-		islandCheckpoints: make(map[uuid.UUID]time.Time),
-		islandLastTicks:   make(map[uuid.UUID]time.Time),
+		world:        world,
+		saveInterval: saveInterval,
+		stopCh:       make(chan struct{}),
 	}
 }
 
+// Start lance deux goroutines :
+//   - le tick (10 fois par seconde) qui fait avancer le jeu EN MÉMOIRE ;
+//   - la sauvegarde périodique qui écrit ce qui a changé en base.
 func (e *Engine) Start() {
 	economy.InitWeather()                            // Initialize Weather System
 	ticker := time.NewTicker(100 * time.Millisecond) // 10Hz tick for fluid movement/collision
+	e.wg.Add(2)
 	go func() {
+		defer e.wg.Done()
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
 				e.Tick()
 			case <-e.stopCh:
-				ticker.Stop()
 				return
 			}
 		}
 	}()
+	go func() {
+		defer e.wg.Done()
+		e.world.RunAutosave(e.saveInterval, e.stopCh)
+	}()
 }
 
+// Stop arrête le tick, attend qu'il soit vraiment fini, puis fait la
+// sauvegarde finale. Après Stop, plus rien ne modifie la mémoire.
 func (e *Engine) Stop() {
-	close(e.stopCh)
+	e.stopOnce.Do(func() {
+		close(e.stopCh)
+		e.wg.Wait()
+		if err := e.world.Close(); err != nil {
+			logger.Error("[ENGINE] final save failed", "error", err)
+		}
+	})
 }
 
-// Tick processes one game cycle
+// Tick fait avancer le jeu de 100 ms.
+//
+// Différence clé avec l'ancienne version : on ne relit PAS la base. On prend
+// le verrou du monde, on modifie les îles en mémoire, on note ce qui a changé
+// (markDirty), et c'est la sauvegarde périodique qui écrira.
 func (e *Engine) Tick() {
-	db := repository.GetDB()
-	if db == nil {
-		logger.Error("Tick: DB is nil")
-		return
-	}
-
 	// Update Weather System
 	if economy.GlobalWeather != nil {
 		economy.GlobalWeather.Update()
@@ -77,169 +91,136 @@ func (e *Engine) Tick() {
 		logger.Error("Error loading ship config", "error", err)
 	}
 
-	// Update PvE Target Simulation (Random Walk)
-	// Assume 1.0s delta since ticker is 1s
-	var islands []domain.Island
-	// Preload everything needed
-	if err := db.Preload("Buildings").Preload("Player").Preload("Player.Captains").Preload("Ships").Preload("Fleets.Ships").Find(&islands).Error; err != nil {
-		fmt.Println("Tick: Error listing islands:", err)
-		return
-	}
+	w := e.world
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	now := time.Now()
 	// Use 0.1s target delta, but could calculate real global delta if needed.
 	// For now, 0.1s is safe with the 10Hz ticker.
-	economy.UpdatePveTargetSimulation(0.1, islands)
+	economy.UpdatePveTargetSimulation(0.1, w.islands)
 
-	// Process PvP fleet travel (attacks and returns)
-	ProcessPvpTravelFleets(db)
+	// Process PvP fleet travel (attacks and returns).
+	// Le déplacement se fait en mémoire ; les événements rares (arrivée,
+	// combat, pillage, dépôt du butin) passent par la base en transaction.
+	w.processTravelFleets()
 
-	for i := range islands {
-		island := &islands[i]
-
-		if island.LastUpdated.IsZero() {
-			island.LastUpdated = now
-			e.islandCheckpoints[island.ID] = now // Initialize checkpoint tracking
-			db.Save(island)
-			continue
-		}
-
-		lastTick, hasLast := e.islandLastTicks[island.ID]
-		if !hasLast {
-			lastTick = island.LastUpdated
-		}
-		delta := now.Sub(lastTick)
-		deltaSeconds := delta.Seconds()
-		e.islandLastTicks[island.ID] = now
-
-		// Check Research Completion
-		if island.Player.ResearchingTechID != "" && !island.Player.ResearchFinishTime.IsZero() {
-			if now.After(island.Player.ResearchFinishTime) {
-				// 1. Refetch Player from DB to ensure we have the absolute latest state
-				var freshPlayer domain.Player
-				if err := db.First(&freshPlayer, "id = ?", island.Player.ID).Error; err == nil {
-
-					// 2. Modify the FRESH player record
-					techID := freshPlayer.ResearchingTechID
-					if techID != "" {
-						var unlocked []string
-						if len(freshPlayer.UnlockedTechsJSON) > 0 {
-							_ = json.Unmarshal(freshPlayer.UnlockedTechsJSON, &unlocked)
-						}
-
-						exists := false
-						for _, id := range unlocked {
-							if id == techID {
-								exists = true
-								break
-							}
-						}
-						if !exists {
-							unlocked = append(unlocked, techID)
-						}
-
-						freshPlayer.UnlockedTechs = unlocked
-						newJSON, _ := json.Marshal(unlocked)
-						freshPlayer.UnlockedTechsJSON = newJSON
-						freshPlayer.ResearchingTechID = ""
-						freshPlayer.ResearchFinishTime = time.Time{}
-						freshPlayer.ResearchTotalDurationSeconds = 0
-
-						// 3. Save the FRESH player
-						if err := db.Save(&freshPlayer).Error; err != nil {
-							fmt.Println("Error saving fresh player research:", err)
-						} else {
-							fmt.Printf("[GAME LOOP] Research Complete: %s for Player %s\n", techID, freshPlayer.Username)
-							// Update local island.Player so future logic in this tick isn't stale
-							island.Player = freshPlayer
-						}
-					}
-				}
-			}
-		}
-
-		// Check Ship Construction Completion
-		for j := range island.Ships {
-			s := &island.Ships[j]
-			if s.State == "UnderConstruction" && !s.FinishTime.IsZero() {
-				if now.After(s.FinishTime) {
-					s.State = "Ready"
-					s.FinishTime = time.Time{} // Clear
-					if err := db.Save(s).Error; err != nil {
-						fmt.Printf("Error saving ship %s: %v\n", s.ID, err)
-					}
-					fmt.Printf("[GAME LOOP] Ship %s Construction Complete!\n", s.Name)
-				}
-			}
-		}
-
-		CalculateResources(island, delta)
-
-		// Sync ship coordinates (Fleet -> Island) to avoid stale data in JSON or flat list
-		SyncIslandShipCoordinates(island)
-
-		// Update Fleet Stationing Logic
-		UpdateFleetStationing(island, deltaSeconds)
-
-		// Sync again after movement to ensure the list we might save is fresh
-		SyncIslandShipCoordinates(island)
-
-		// Checkpoint-based persistence
-		lastCheckpoint, exists := e.islandCheckpoints[island.ID]
-		shouldCheckpoint := !exists || now.Sub(lastCheckpoint) >= IslandCheckpointInterval
-
-		if shouldCheckpoint {
-			island.LastUpdated = now
-			e.islandCheckpoints[island.ID] = now
-
-			// 4. Persistence (Granular Update to avoid overwriting interleaved API transfers)
-			island.BeforeSave(nil) // Sync JSON
-			if err := db.Model(island).Update("resources", island.ResourcesJSON).Error; err != nil {
-				fmt.Printf("Error updating island resources %s: %v\n", island.Name, err)
-			} else {
-				// Save fleets and THEIR ships (the ones moving)
-				shipsProcessed := make(map[uuid.UUID]bool)
-				for i := range island.Fleets {
-					f := &island.Fleets[i]
-					db.Save(f)
-					for j := range f.Ships {
-						s := &f.Ships[j]
-						db.Save(s)
-						shipsProcessed[s.ID] = true
-					}
-				}
-				// Save unassigned island ships (construction timers, etc)
-				// SKIP ships already saved via Fleets to avoid overwriting movement
-				for i := range island.Ships {
-					s := &island.Ships[i]
-					if !shipsProcessed[s.ID] {
-						db.Save(s)
-					}
-				}
-			}
-		} else {
-			island.LastUpdated = now
-		}
-
-		// EXTRA: High-frequency save for moving fleets
-		// This ensures clients polling every 1s see movement, even if the island checkpoint is 5s.
-		for i := range island.Fleets {
-			f := &island.Fleets[i]
-			if f.State == domain.FleetStateMoving || f.State == domain.FleetStateReturning ||
-				f.State == domain.FleetStateChasingPvP || f.State == domain.FleetStateChasingPvE {
-				db.Save(f)
-				for j := range f.Ships {
-					db.Save(&f.Ships[j])
-				}
-			}
-		}
+	for i := range w.islands {
+		tickIsland(w, &w.islands[i], now)
 	}
 }
 
-// UpdateFleetStationing handles movement and gathering for stationed fleets
-func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
+// tickIsland fait avancer une île (production, timers, flottes).
+func tickIsland(w *World, island *domain.Island, now time.Time) {
+	if island.LastUpdated.IsZero() {
+		island.LastUpdated = now
+		w.markDirty(island.ID, DirtyIsland)
+		return
+	}
+
+	// LastUpdated est "l'heure jusqu'à laquelle la production a été comptée".
+	// Comme la mémoire garde la valeur d'un tick à l'autre, chaque tick ajoute
+	// exactement le temps écoulé depuis le précédent. Au démarrage, la valeur
+	// vient de la base : le joueur récupère la production du temps d'arrêt.
+	delta := now.Sub(island.LastUpdated)
+	if delta < 0 {
+		delta = 0
+	}
+	deltaSeconds := delta.Seconds()
+	island.LastUpdated = now
+	w.markDirty(island.ID, DirtyIsland)
+
+	// Check Research Completion
+	if completeResearchIfDue(island, now) {
+		w.markDirty(island.ID, DirtyPlayer)
+	}
+
+	// Check Ship Construction Completion
+	for j := range island.Ships {
+		s := &island.Ships[j]
+		if s.State == "UnderConstruction" && !s.FinishTime.IsZero() {
+			if now.After(s.FinishTime) {
+				s.State = "Ready"
+				s.FinishTime = time.Time{} // Clear
+				w.markDirty(island.ID, DirtyFleets)
+				fmt.Printf("[GAME LOOP] Ship %s Construction Complete!\n", s.Name)
+			}
+		}
+	}
+
+	if calculateResources(island, delta) {
+		w.markDirty(island.ID, DirtyBuildings)
+	}
+
+	// Sync ship coordinates (Fleet -> Island) to avoid stale data in JSON or flat list
+	SyncIslandShipCoordinates(island)
+
+	// Update Fleet Stationing Logic
+	if UpdateFleetStationing(island, deltaSeconds) {
+		w.markDirty(island.ID, DirtyFleets)
+	}
+
+	// Sync again after movement to ensure the list we might save is fresh
+	SyncIslandShipCoordinates(island)
+}
+
+// completeResearchIfDue débloque la techno en cours si son timer est fini.
+// Renvoie true si le joueur a changé.
+//
+// Pas besoin de l'écrire en base immédiatement : si le serveur plante avant
+// la sauvegarde, au redémarrage le timer sera toujours écoulé et la recherche
+// se terminera à nouveau. Un événement qui dépend seulement d'une heure de
+// fin est "rejouable", donc il peut attendre la sauvegarde périodique.
+func completeResearchIfDue(island *domain.Island, now time.Time) bool {
+	p := &island.Player
+	if p.ResearchingTechID == "" || p.ResearchFinishTime.IsZero() || !now.After(p.ResearchFinishTime) {
+		return false
+	}
+	techID := p.ResearchingTechID
+
+	var unlocked []string
+	if len(p.UnlockedTechsJSON) > 0 {
+		_ = json.Unmarshal(p.UnlockedTechsJSON, &unlocked)
+	}
+	exists := false
+	for _, id := range unlocked {
+		if id == techID {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		unlocked = append(unlocked, techID)
+	}
+
+	p.UnlockedTechs = unlocked
+	newJSON, _ := json.Marshal(unlocked)
+	p.UnlockedTechsJSON = newJSON
+	p.ResearchingTechID = ""
+	p.ResearchFinishTime = time.Time{}
+	p.ResearchTotalDurationSeconds = 0
+	fmt.Printf("[GAME LOOP] Research Complete: %s for Player %s\n", techID, p.Username)
+	return true
+}
+
+// UpdateFleetStationing handles movement and gathering for stationed fleets.
+// Renvoie true si au moins une flotte a changé (pour la marquer "sale").
+func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
+	changed := false
 	for i := range island.Fleets {
 		f := &island.Fleets[i]
+
+		// Les flottes en attaque/poursuite sont gérées par processTravelFleets
+		// (pvp_travel.go), qui compte déjà leur rhum et leur déplacement.
+		// Avant, les deux comptaient le rhum, mais la copie périmée de la base
+		// écrasait l'une des deux consommations : en mémoire on ne garde que
+		// la bonne, pour ne pas leur faire boire le double.
+		if isTravelState(f.State) {
+			continue
+		}
+		if f.ConsumesRum() || f.State == domain.FleetStateStationed {
+			changed = true
+		}
 
 		// Fleet Speed: Calculate based on ship composition (weighted average)
 		baseSpeed := economy.CalculateFleetSpeed(f)
@@ -556,10 +537,13 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) {
 			}
 		}
 	}
+	return changed
 }
 
-// CalculateResources updates island resources based on buildings and techs
-func CalculateResources(island *domain.Island, delta time.Duration) {
+// calculateResources updates island resources based on buildings and techs.
+// Renvoie true si un bâtiment a fini sa construction (bâtiments à sauvegarder).
+func calculateResources(island *domain.Island, delta time.Duration) bool {
+	buildingsChanged := false
 	if island.Resources == nil {
 		island.Resources = make(map[domain.ResourceType]float64)
 	}
@@ -601,9 +585,7 @@ func CalculateResources(island *domain.Island, delta time.Duration) {
 				b.Constructing = false
 				b.Level++
 				fmt.Printf("[GAME LOOP] Building %s Finished Construction! New Level: %d\n", b.ID, b.Level)
-				if db := repository.GetDB(); db != nil {
-					db.Save(b)
-				}
+				buildingsChanged = true
 			} else {
 				continue
 			}
@@ -674,6 +656,7 @@ func CalculateResources(island *domain.Island, delta time.Duration) {
 		}
 	}
 	island.StorageLimits = limits
+	return buildingsChanged
 }
 
 // SyncIslandShipCoordinates ensures s.X/Y in island.Ships matches those in island.Fleets.Ships

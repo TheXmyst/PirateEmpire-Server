@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/api"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
@@ -56,6 +62,13 @@ func main() {
 		panic(err)
 	}
 
+	// Charger le monde en mémoire (une seule grosse lecture, au démarrage).
+	world, err := engine.LoadWorld(db)
+	if err != nil {
+		panic(err)
+	}
+	api.SetWorld(world)
+
 	// Echo instance
 	e := echo.New()
 
@@ -72,13 +85,20 @@ func main() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	// Public routes (no authentication required)
-	e.POST("/register", api.Register)
-	e.POST("/login", api.Login)
+	// /status lit directement le monde en mémoire (il gère son verrou lui-même).
 	e.GET("/status", api.GetStatus) // Status endpoint accepts player_id as query param for backward compatibility
 
+	// Toutes les autres routes de jeu travaillent encore directement sur la
+	// base : elles passent par world.Middleware, qui sauvegarde la mémoire
+	// avant la requête et la recharge après si la requête a écrit en base.
+	game := e.Group("", world.Middleware)
+
+	// Public routes (no authentication required)
+	game.POST("/register", api.Register)
+	game.POST("/login", api.Login)
+
 	// Protected routes (require authentication)
-	protected := e.Group("")
+	protected := game.Group("")
 	protected.Use(auth.RequireAuth)
 	{
 		// Chat
@@ -151,7 +171,7 @@ func main() {
 	logger.Info("[BOOT] dev routes enabled", "enabled", devRoutesEnabled)
 
 	if devRoutesEnabled {
-		devRoutes := e.Group("/dev")
+		devRoutes := game.Group("/dev")
 		devRoutes.Use(auth.RequireAuth)
 		{
 			devRoutes.POST("/add-resources", api.DevAddResources)
@@ -167,11 +187,46 @@ func main() {
 		}
 	}
 
-	// Start Game Loop
-	gameEngine := engine.NewEngine()
+	// Start Game Loop (tick en mémoire + sauvegarde périodique)
+	gameEngine := engine.NewEngine(world, saveIntervalFromEnv())
 	gameEngine.Start()
-	defer gameEngine.Stop()
 
-	// Start server
-	e.Logger.Fatal(e.Start(":8080"))
+	// Start server (dans une goroutine, pour pouvoir attendre Ctrl+C ici)
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := e.Start(":8080"); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+	}()
+
+	// Arrêt propre : sur Ctrl+C (SIGINT) ou SIGTERM (docker stop, systemd...)
+	//  1. on arrête d'accepter des requêtes et on laisse finir celles en cours
+	//  2. on arrête le tick
+	//  3. on sauvegarde une dernière fois tout ce qui est en mémoire
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	select {
+	case sig := <-quit:
+		logger.Info("[BOOT] shutdown requested", "signal", sig.String())
+	case err := <-serverErr:
+		logger.Error("[BOOT] http server stopped", "error", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := e.Shutdown(ctx); err != nil {
+		logger.Error("[BOOT] http shutdown", "error", err)
+	}
+	gameEngine.Stop() // inclut la sauvegarde finale
+	logger.Info("[BOOT] bye, world saved")
+}
+
+// saveIntervalFromEnv lit WORLD_SAVE_INTERVAL_SECONDS (défaut : 5 s).
+func saveIntervalFromEnv() time.Duration {
+	if v := os.Getenv("WORLD_SAVE_INTERVAL_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return time.Duration(n) * time.Second
+		}
+	}
+	return engine.DefaultSaveInterval
 }
