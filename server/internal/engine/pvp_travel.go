@@ -17,11 +17,115 @@ const (
 	CONTACT_RADIUS = 5.0
 )
 
-// ProcessPvpTravelFleets handles fleets traveling to/from PvP attacks
+// isTravelState : états gérés par ce fichier (attaque, retour d'attaque,
+// poursuites PvE/PvP).
+func isTravelState(state domain.FleetState) bool {
+	return state == domain.FleetStateTravelingToAttack ||
+		state == domain.FleetStateReturningFromAttack ||
+		state == domain.FleetStateChasingPvE ||
+		state == domain.FleetStateChasingPvP
+}
+
+// processTravelFleets fait avancer les flottes en attaque/poursuite.
+//
+// On sépare deux choses très différentes :
+//
+//   - le DÉPLACEMENT (99,9 % des ticks) : quelques additions sur X/Y et un
+//     peu de rhum en moins. Ça se fait en mémoire, et la flotte est juste
+//     marquée "sale". Avant, chaque navire était écrit en base 10 fois par
+//     seconde !
+//
+//   - les ÉVÉNEMENTS (arrivée, combat, pillage, dépôt du butin, poursuite
+//     ratée) : rares mais critiques, car ils déplacent des ressources entre
+//     joueurs. Ceux-là sont traités tout de suite, en base, avec le code de
+//     combat existant (inchangé), via runWithDBLocked : sauvegarde de la
+//     mémoire -> combat en base -> rechargement de la mémoire.
+//
+// Le verrou du monde doit être pris.
+func (w *World) processTravelFleets() {
+	type fleetRef struct{ island, fleet int }
+	index := make(map[uuid.UUID]fleetRef)
+	for i := range w.islands {
+		for j := range w.islands[i].Fleets {
+			index[w.islands[i].Fleets[j].ID] = fleetRef{i, j}
+		}
+	}
+	findFleet := func(id uuid.UUID) *domain.Fleet {
+		if ref, ok := index[id]; ok {
+			return &w.islands[ref.island].Fleets[ref.fleet]
+		}
+		return nil
+	}
+
+	var events []uuid.UUID
+	for i := range w.islands {
+		island := &w.islands[i]
+		for j := range island.Fleets {
+			f := &island.Fleets[j]
+			var needsEvent bool
+			switch f.State {
+			case domain.FleetStateTravelingToAttack:
+				needsEvent = stepTowardFixedTarget(f, f.TargetIslandID == nil)
+			case domain.FleetStateReturningFromAttack:
+				needsEvent = stepTowardFixedTarget(f, false)
+			case domain.FleetStateChasingPvE:
+				needsEvent = stepChasingPvE(f, island.PlayerID)
+			case domain.FleetStateChasingPvP:
+				needsEvent = stepChasingPvP(f, findFleet)
+			default:
+				continue
+			}
+			if needsEvent {
+				events = append(events, f.ID)
+			} else {
+				w.markDirty(island.ID, DirtyFleets)
+			}
+		}
+	}
+
+	if len(events) == 0 {
+		return
+	}
+
+	// Événements : une seule passe "base de données" pour tous ceux du tick.
+	err := w.runWithDBLocked(func() error {
+		for _, id := range events {
+			var fleet domain.Fleet
+			if err := w.db.Preload("Ships").Preload("Island.Player.Captains").First(&fleet, "id = ?", id).Error; err != nil {
+				logger.Warn("[PVP_TRAVEL] Error loading fleet for event", "fleet_id", id, "error", err)
+				continue
+			}
+			if !isTravelState(fleet.State) {
+				continue // déjà traité par un événement précédent (ex : poursuite)
+			}
+			handleTravelFleetDB(w.db, &fleet)
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("[PVP_TRAVEL] events postponed", "error", err)
+	}
+}
+
+// handleTravelFleetDB : l'ancien traitement, basé sur la base de données.
+// N'est plus appelé que pour les événements.
+func handleTravelFleetDB(db *gorm.DB, fleet *domain.Fleet) {
+	switch fleet.State {
+	case domain.FleetStateTravelingToAttack:
+		handleTravelingToAttack(db, fleet)
+	case domain.FleetStateReturningFromAttack:
+		handleReturningFromAttack(db, fleet)
+	case domain.FleetStateChasingPvE:
+		handleChasingPvE(db, fleet)
+	case domain.FleetStateChasingPvP:
+		handleChasingPvP(db, fleet)
+	}
+}
+
+// ProcessPvpTravelFleets : ancienne entrée 100 % base de données, gardée pour
+// les outils/tests. Le moteur utilise processTravelFleets.
 func ProcessPvpTravelFleets(db *gorm.DB) {
 	var fleets []domain.Fleet
-
-	// Get all fleets in PvP travel states
 	states := []string{
 		string(domain.FleetStateTravelingToAttack),
 		string(domain.FleetStateReturningFromAttack),
@@ -32,16 +136,149 @@ func ProcessPvpTravelFleets(db *gorm.DB) {
 		logger.Warn("[PVP_TRAVEL] Error loading fleets", "error", err)
 		return
 	}
+	for i := range fleets {
+		handleTravelFleetDB(db, &fleets[i])
+	}
+}
 
-	for _, fleet := range fleets {
-		if fleet.State == domain.FleetStateTravelingToAttack {
-			handleTravelingToAttack(db, &fleet)
-		} else if fleet.State == domain.FleetStateReturningFromAttack {
-			handleReturningFromAttack(db, &fleet)
-		} else if fleet.State == domain.FleetStateChasingPvE {
-			handleChasingPvE(db, &fleet)
-		} else if fleet.State == domain.FleetStateChasingPvP {
-			handleChasingPvP(db, &fleet)
+// ---------------------------------------------------------------------------
+// Déplacement en mémoire. Chaque fonction step* reproduit exactement les
+// conditions de son équivalent handle* : si handle* ferait autre chose que
+// "avancer", step* renvoie true (= événement à traiter en base).
+// ---------------------------------------------------------------------------
+
+// consumeTravelRum applique la pénalité de vitesse sans rhum et consomme le
+// rhum d'un tick (0,1 s). Renvoie la vitesse par tick.
+func consumeTravelRum(fleet *domain.Fleet) float64 {
+	speed := economy.ComputeTravelSpeed(fleet, false) * 0.1 // isNPC=false, per tick (0.1s)
+
+	hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
+	if !hasRum {
+		speed *= 0.8
+	}
+
+	consPerTick := economy.ComputeRumConsumption(len(fleet.Ships), false) * 0.1
+	if fleet.Cargo == nil {
+		fleet.Cargo = make(map[domain.ResourceType]float64)
+	}
+	if fleet.Cargo[domain.Rum] > 0 {
+		fleet.Cargo[domain.Rum] -= consPerTick
+		if fleet.Cargo[domain.Rum] < 0 {
+			fleet.Cargo[domain.Rum] = 0
+		}
+	}
+	return speed
+}
+
+// moveEachShipToward : chaque navire avance vers la cible (attaque / retour).
+func moveEachShipToward(fleet *domain.Fleet, speed float64) {
+	for i := range fleet.Ships {
+		s := &fleet.Ships[i]
+		dx := float64(*fleet.TargetX) - s.X
+		dy := float64(*fleet.TargetY) - s.Y
+		dist := math.Sqrt(dx*dx + dy*dy)
+		if dist > 0 {
+			s.X += (dx / dist) * speed
+			s.Y += (dy / dist) * speed
+		}
+	}
+}
+
+// stepTowardFixedTarget : attaque d'île ou retour au port.
+func stepTowardFixedTarget(fleet *domain.Fleet, invalidTarget bool) bool {
+	if fleet.TargetX == nil || fleet.TargetY == nil || invalidTarget || len(fleet.Ships) == 0 {
+		return true
+	}
+	ship := fleet.Ships[0]
+	dx := float64(*fleet.TargetX) - ship.X
+	dy := float64(*fleet.TargetY) - ship.Y
+	if math.Sqrt(dx*dx+dy*dy) <= 5 {
+		return true // arrivé : combat ou dépôt du butin
+	}
+	speed := consumeTravelRum(fleet)
+	moveEachShipToward(fleet, speed)
+	return false
+}
+
+// stepChasingPvE : poursuite d'une cible PvE qui bouge.
+func stepChasingPvE(fleet *domain.Fleet, playerID uuid.UUID) bool {
+	if fleet.TargetPveID == nil {
+		return true
+	}
+	target := economy.GetPveTargetByUUID(playerID, *fleet.TargetPveID)
+	if target == nil {
+		return true
+	}
+	tx := int(target.RealX)
+	ty := int(target.RealY)
+	fleet.TargetX = &tx
+	fleet.TargetY = &ty
+	if len(fleet.Ships) == 0 {
+		return true
+	}
+	ship := fleet.Ships[0]
+	dx := target.RealX - ship.X
+	dy := target.RealY - ship.Y
+	distance := math.Sqrt(dx*dx + dy*dy)
+	if distance < 5.0 {
+		return true // contact : combat
+	}
+	speed := consumeTravelRum(fleet)
+	if distance > 0 {
+		for i := range fleet.Ships {
+			fleet.Ships[i].X += (dx / distance) * speed
+			fleet.Ships[i].Y += (dy / distance) * speed
+		}
+	}
+	return false
+}
+
+// stepChasingPvP : interception de la flotte d'un autre joueur.
+func stepChasingPvP(fleet *domain.Fleet, findFleet func(uuid.UUID) *domain.Fleet) bool {
+	if fleet.ChasingFleetID == nil {
+		return true
+	}
+	target := findFleet(*fleet.ChasingFleetID)
+	if target == nil {
+		return true
+	}
+	if target.State == domain.FleetStateIdle || target.State == domain.FleetStateStationed {
+		return true // safe harbor
+	}
+	if fleet.InterceptStartedAt != nil && time.Since(*fleet.InterceptStartedAt) > 2*time.Minute {
+		return true // timeout
+	}
+	if len(target.Ships) == 0 || len(fleet.Ships) == 0 {
+		return true
+	}
+	targetShip := target.Ships[0]
+	tx := int(targetShip.X)
+	ty := int(targetShip.Y)
+	fleet.TargetX = &tx
+	fleet.TargetY = &ty
+
+	ship := fleet.Ships[0]
+	dx := targetShip.X - ship.X
+	dy := targetShip.Y - ship.Y
+	distance := math.Sqrt(dx*dx + dy*dy)
+	if distance <= CONTACT_RADIUS {
+		return true // contact : combat
+	}
+	applyPvpMovement(fleet, dx, dy, distance)
+	return false
+}
+
+// applyPvpMovement : déplacement d'une poursuite PvP (sans écrire en base).
+func applyPvpMovement(fleet *domain.Fleet, dx, dy, distance float64) {
+	speed := consumeTravelRum(fleet)
+	if distance > 0 {
+		ratio := speed / distance
+		if ratio > 1 {
+			ratio = 1
+		}
+		for i := range fleet.Ships {
+			fleet.Ships[i].X += dx * ratio
+			fleet.Ships[i].Y += dy * ratio
 		}
 	}
 }
@@ -135,36 +372,8 @@ func handleChasingPvE(db *gorm.DB, fleet *domain.Fleet) {
 		return
 	}
 
-	// Move Fleet
-	// Log (Throttled)
-	if time.Now().UnixNano()/int64(time.Millisecond)%5000 < 100 { // ~5s interval
-		fmt.Printf("[PVE_TRACK] chasing fleet=%s target=%s dist=%.2f\n", fleet.Name, target.Name, distance)
-	}
-
-	// SSOT Speed
-	speedSec := economy.ComputeTravelSpeed(fleet, false) // isNPC=false
-	speed := speedSec * 0.1
-
-	// Rum Consumption & Penalty
-	hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
-	if !hasRum {
-		speed *= 0.8
-	}
-
-	consPerSec := economy.ComputeRumConsumption(len(fleet.Ships), false)
-	consPerTick := consPerSec * 0.1
-
-	if fleet.Cargo == nil {
-		fleet.Cargo = make(map[domain.ResourceType]float64)
-	}
-	if fleet.Cargo[domain.Rum] > 0 {
-		fleet.Cargo[domain.Rum] -= consPerTick
-		if fleet.Cargo[domain.Rum] < 0 {
-			fleet.Cargo[domain.Rum] = 0
-		}
-	}
-
-	// Move Ships
+	// Move Fleet (normalement fait en mémoire par stepChasingPvE)
+	speed := consumeTravelRum(fleet)
 	if distance > 0 {
 		for i := range fleet.Ships {
 			s := &fleet.Ships[i]
@@ -368,58 +577,14 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 
 	// Move ships toward target if not arrived
 	if distance > 5 {
-		// Use Centralized Speed Calculation (SSOT)
-		// Tick is 0.1s
-		speedSec := economy.ComputeTravelSpeed(fleet, false) // isNPC=false (Player Fleet)
-		speed := speedSec * 0.1                              // Speed per Tick
-
-		// RUM MECHANIC
-		hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
-		if !hasRum {
-			speed *= 0.8
-		}
-
-		// Consumption (SSOT w/ Multiplier)
-		// Tick is 0.1s
-		consPerSec := economy.ComputeRumConsumption(len(fleet.Ships), false)
-		consPerTick := consPerSec * 0.1
-
-		if fleet.Cargo == nil {
-			fleet.Cargo = make(map[domain.ResourceType]float64)
-		}
-		if fleet.Cargo[domain.Rum] > 0 {
-			fleet.Cargo[domain.Rum] -= consPerTick
-			if fleet.Cargo[domain.Rum] < 0 {
-				fleet.Cargo[domain.Rum] = 0
-			}
-		}
-
-		// Log (Throttled ~1%) - Only log if moving
-		if time.Now().UnixNano()/int64(time.Millisecond)%10000 < 100 {
-			fmt.Printf("[NAV] fleet=%s speed=%.4f/sec (%.4f/tick)\n", fleet.Name, speedSec, speed)
-			fmt.Printf("[RUM] fleet=%s cons=%.4f/sec (%.4f/tick) remaining=%.1f\n", fleet.Name, consPerSec, consPerTick, fleet.Cargo[domain.Rum])
-		}
-
+		// (Le moteur fait normalement ce déplacement en mémoire, voir
+		// stepTowardFixedTarget. Ce chemin ne sert plus qu'à l'entrée base.)
+		speed := consumeTravelRum(fleet)
+		moveEachShipToward(fleet, speed)
 		for i := range fleet.Ships {
-			s := &fleet.Ships[i]
-
-			// Calculate direction vector (Using Float)
-			dx := float64(*fleet.TargetX) - s.X
-			dy := float64(*fleet.TargetY) - s.Y
-			dist := math.Sqrt(dx*dx + dy*dy)
-
-			if dist > 0 {
-				// Normalize and apply speed
-				s.X += (dx / dist) * speed
-				s.Y += (dy / dist) * speed
-				db.Save(s)
-			}
+			db.Save(&fleet.Ships[i])
 		}
-
-		// Persist consumption
 		db.Save(fleet)
-
-		// Continue moving (no log spam)
 		return
 	}
 
@@ -508,51 +673,14 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 
 	// Move ships toward home if not arrived
 	if distance > 5 {
-		// Use Centralized Speed Calculation (SSOT)
-		speedSec := economy.ComputeTravelSpeed(fleet, false) // isNPC=false
-		speed := speedSec * 0.1                              // Speed per tick
-
-		// RUM MECHANIC
-		hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
-		if !hasRum {
-			speed *= 0.8
-		}
-
-		// Consumption (SSOT w/ Multiplier)
-		// Tick is 0.1s
-		consPerSec := economy.ComputeRumConsumption(len(fleet.Ships), false)
-		consPerTick := consPerSec * 0.1
-
-		if fleet.Cargo == nil {
-			fleet.Cargo = make(map[domain.ResourceType]float64)
-		}
-		if fleet.Cargo[domain.Rum] > 0 {
-			fleet.Cargo[domain.Rum] -= consPerTick
-			if fleet.Cargo[domain.Rum] < 0 {
-				fleet.Cargo[domain.Rum] = 0
-			}
-		}
-
+		// (Le moteur fait normalement ce déplacement en mémoire, voir
+		// stepTowardFixedTarget. Ce chemin ne sert plus qu'à l'entrée base.)
+		speed := consumeTravelRum(fleet)
+		moveEachShipToward(fleet, speed)
 		for i := range fleet.Ships {
-			s := &fleet.Ships[i]
-
-			// Calculate direction vector (Using Float)
-			dx := float64(*fleet.TargetX) - s.X
-			dy := float64(*fleet.TargetY) - s.Y
-			dist := math.Sqrt(dx*dx + dy*dy)
-
-			if dist > 0 {
-				// Normalize and apply speed
-				s.X += (dx / dist) * speed
-				s.Y += (dy / dist) * speed
-				db.Save(s)
-			}
+			db.Save(&fleet.Ships[i])
 		}
-
-		// Persist consumption
 		db.Save(fleet)
-
-		// Continue moving (no log spam)
 		return
 	}
 
@@ -723,42 +851,12 @@ func handleChasingPvP(db *gorm.DB, fleet *domain.Fleet) {
 	handlePvpMovement(db, fleet, dx, dy, distance)
 }
 
-// handlePvpMovement handles the actual position update and rhum consumption for a fleet in a PvP state
+// handlePvpMovement : déplacement + sauvegarde (entrée base uniquement).
 func handlePvpMovement(db *gorm.DB, fleet *domain.Fleet, dx, dy, distance float64) {
-	speedSec := economy.ComputeTravelSpeed(fleet, false)
-	speed := speedSec * 0.1 // per tick (0.1s)
-
-	// Rum Penalty
-	hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
-	if !hasRum {
-		speed *= 0.8
+	applyPvpMovement(fleet, dx, dy, distance)
+	for i := range fleet.Ships {
+		db.Save(&fleet.Ships[i])
 	}
-
-	// Consumption
-	consPerTick := economy.ComputeRumConsumption(len(fleet.Ships), false) * 0.1
-	if fleet.Cargo == nil {
-		fleet.Cargo = make(map[domain.ResourceType]float64)
-	}
-	if fleet.Cargo[domain.Rum] > 0 {
-		fleet.Cargo[domain.Rum] -= consPerTick
-		if fleet.Cargo[domain.Rum] < 0 {
-			fleet.Cargo[domain.Rum] = 0
-		}
-	}
-
-	// Update Ship Positions
-	if distance > 0 {
-		ratio := speed / distance
-		if ratio > 1 {
-			ratio = 1
-		}
-		for i := range fleet.Ships {
-			fleet.Ships[i].X += dx * ratio
-			fleet.Ships[i].Y += dy * ratio
-			db.Save(&fleet.Ships[i])
-		}
-	}
-
 	db.Save(fleet)
 }
 
