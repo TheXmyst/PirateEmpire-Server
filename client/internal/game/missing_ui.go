@@ -19,6 +19,29 @@ func (g *Game) UpdateShipyardMenu() {
 		g.UpdateAddShipModalShipyard()
 		return
 	}
+	if isKeyJustPressed(ebiten.KeyEscape) {
+		g.ui.ShowShipyard = false
+	}
+}
+
+// anyWindowOpen : une fenêtre de jeu couvre l'île.
+func (g *Game) anyWindowOpen() bool {
+	u := &g.ui
+	return u.ShowConstruction || u.ShowShipyard || u.ShowTechUI || u.ShowFleetUI ||
+		u.ShowCaptainUI || u.ShowSocialUI || u.ShowTavernUI || u.ShowMilitiaUI ||
+		u.ShowInfirmaryUI || u.ShowPrereqModal || u.ShowCrewModal || u.ShowCaptainModal ||
+		g.selectedBuilding != nil || (g.techUI != nil && g.techUI.Visible)
+}
+
+// buildingDisplayName : nom français d'un type de bâtiment.
+func buildingDisplayName(t string) string {
+	switch t {
+	case "Tavern":
+		return "Taverne"
+	case "Infirmary":
+		return "Infirmerie"
+	}
+	return t
 }
 
 // DrawDashboard : le panneau « En cours » (constructions, recherche,
@@ -65,7 +88,13 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 		if g.player.ResearchTotalDurationSeconds > 0 {
 			p = progressOf(g.player.ResearchFinishTime, g.player.ResearchTotalDurationSeconds, rem)
 		}
-		jobs = append(jobs, job{"Recherche : " + g.player.ResearchingTechID, rem, p})
+		name := g.player.ResearchingTechID
+		if g.techUI != nil {
+			if t := g.techUI.GetTech(name); t != nil {
+				name = t.Name
+			}
+		}
+		jobs = append(jobs, job{"Recherche : " + name, rem, p})
 	}
 	for _, s := range island.Ships {
 		if s.State == "UnderConstruction" && !s.FinishTime.IsZero() && s.FinishTime.After(now) {
@@ -127,7 +156,7 @@ func (g *Game) DrawDevMenu(screen *ebiten.Image) {
 
 // DrawBuildingTooltips renders tooltips when hovering over buildings.
 func (g *Game) DrawBuildingTooltips(screen *ebiten.Image) {
-	if g.player == nil || len(g.player.Islands) == 0 {
+	if g.player == nil || len(g.player.Islands) == 0 || g.anyWindowOpen() {
 		return
 	}
 
@@ -145,7 +174,7 @@ func (g *Game) DrawBuildingTooltips(screen *ebiten.Image) {
 		if math.Abs(float64(mx)-sx) <= hoverRadius && math.Abs(float64(my)-sy) <= hoverRadius {
 			// Draw tooltip
 			tooltipLines := []string{
-				b.Type,
+				buildingDisplayName(b.Type),
 				fmt.Sprintf("Niveau %d", b.Level),
 			}
 

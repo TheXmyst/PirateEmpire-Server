@@ -1,8 +1,6 @@
 package game
 
 import (
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -18,13 +16,23 @@ func (g *Game) DrawError(screen *ebiten.Image) {
 		}
 	}
 
-	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
-	w, h := 400.0, 100.0
-	x := (sw - w) / 2
-	y := (sh - h) / 2
+	drawErrorToast(screen, float64(g.screenWidth), float64(g.screenHeight), g.errorMessage)
+}
 
-	// Draw Background (Semi-transparent dark red)
-	drawButton(screen, float64(x), float64(y), float64(w), float64(h), g.errorMessage, kindFromColor(color.RGBA{150, 0, 0, 200}))
-
-	// Draw Message (Centered)
+// drawErrorToast : bandeau d'erreur centré, bois sombre avec un liseré rouge.
+func drawErrorToast(screen *ebiten.Image, sw, sh float64, msg string) {
+	face := bodyFace(15, true)
+	w := 440.0
+	lines := wrapText(stripUnsupported(msg), face, w-60)
+	if len(lines) > 4 {
+		lines = lines[:4]
+	}
+	h := 36 + float64(len(lines))*20
+	x, y := (sw-w)/2, (sh-h)/2
+	drawThemePanel(screen, x, y, w, h, 14)
+	strokeRoundRect(screen, x, y, w, h, 14, 2, themeRed)
+	fillRoundRect(screen, x+20, y+h/2-5, 10, 10, 5, themeRed)
+	for i, l := range lines {
+		drawText(screen, l, face, x+42, y+18+float64(i)*20-2, themeText, alignLeft)
+	}
 }

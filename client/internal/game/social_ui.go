@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -9,8 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 )
-
-
 
 func (g *Game) ensureSocialDefaults() {
 	if g.ui.SocialActiveTab == "" {
@@ -162,7 +161,7 @@ func (g *Game) UpdateSocialUI() bool {
 			if !g.ui.SocialGuildHasTicket {
 				g.ui.SocialGuildInfo = "Ticket manquant"
 			}
-			nameX, nameY := panelX+20, panelY+80
+			nameX, nameY := panelX+20, panelY+86
 			nameW, nameH := panelW-200, 32.0
 			if !g.ui.SocialGuildNameFocus && pointInRect(cx, cy, nameX, nameY, nameW, nameH) {
 				g.ui.SocialGuildNameFocus = true
@@ -186,7 +185,7 @@ func (g *Game) UpdateSocialUI() bool {
 			}
 		case "leaderboard":
 			subTabX := panelX + 20
-			subTabY := panelY + 70
+			subTabY := panelY + 62
 			if pointInRect(cx, cy, subTabX, subTabY, 140, 30) {
 				g.ui.SocialLeaderboardTab = "players"
 			} else if pointInRect(cx, cy, subTabX+150, subTabY, 140, 30) {
@@ -342,7 +341,7 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 	tabY := panelY + 14
 	g.drawSocialTab(screen, tabX, tabY, tabW, tabH, "Amis", g.ui.SocialActiveTab == "friends")
 	g.drawSocialTab(screen, tabX+tabW+10, tabY, tabW, tabH, "Guilde", g.ui.SocialActiveTab == "guild")
-	g.drawSocialTab(screen, tabX+2*(tabW+10), tabY, tabW, tabH, "Leaderboard", g.ui.SocialActiveTab == "leaderboard")
+	g.drawSocialTab(screen, tabX+2*(tabW+10), tabY, tabW, tabH, "Classement", g.ui.SocialActiveTab == "leaderboard")
 
 	// Close button
 	closeX, closeY := panelX+panelW-40, panelY+10
@@ -359,29 +358,20 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 }
 
 func (g *Game) drawSocialTab(screen *ebiten.Image, x, y, w, h float64, label string, active bool) {
-	bg := alpha(20, 40, 60, 200)
-	if active {
-		bg = alpha(30, 90, 140, 230)
-	}
-	drawButton(screen, float64(x), float64(y), float64(w), float64(h), label, kindFromColor(bg))
+	drawTab(screen, x, y, w, h, label, active)
 }
 
 func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float64) {
-	titleY := panelY + 56
-	uiSubtitle(screen, "Amis", int(panelX)+20, int(titleY))
 
 	searchX, searchY := panelX+20, panelY+70
 	searchW, searchH := panelW-200, 32.0
 	registerTextField(textField{id: "social-search", x: searchX, y: searchY, w: searchW, h: searchH,
 		value: &g.ui.SocialSearchQuery, focused: g.ui.SocialSearchFocus, label: "Chercher un joueur"})
-	drawButton(screen, float64(searchX), float64(searchY), float64(searchW), float64(searchH), g.ui.SocialSearchQuery, kindFromColor(alpha(15, 15, 20, 210)))
-	if g.ui.SocialSearchFocus {
-		uiPrint(screen, "|", int(searchX)+8+len(g.ui.SocialSearchQuery)*7, int(searchY)+8)
-	}
+	drawInputField(screen, searchX, searchY, searchW, searchH, g.ui.SocialSearchQuery, "Pseudo d'un joueur", g.ui.SocialSearchFocus)
 
 	btnX := searchX + searchW + 10
 	btnY := searchY
-	drawButton(screen, float64(btnX), float64(btnY), 120, float64(searchH), "Recherche", kindFromColor(alpha(40, 120, 60, 230)))
+	drawButton(screen, btnX, btnY, 120, searchH, "Rechercher", btnPrimary)
 
 	statusY := searchY + searchH + 6
 	if g.ui.SocialStatus != "" {
@@ -396,7 +386,9 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	rowY := searchY + 50
 	rowW := panelW - 40
 	rowH := 30.0
-	uiPrint(screen, "Résultats (cliquer pour ajouter)", int(rowX), int(rowY)-18)
+	if len(g.ui.SocialSearchResult) > 0 {
+		drawText(screen, "Clique sur un joueur pour l'ajouter en ami", bodyFace(12, true), rowX, rowY-20, themeMuted, alignLeft)
+	}
 	for i, entry := range g.ui.SocialSearchResult {
 		y := rowY + float64(i)*(rowH+6)
 		line := fmt.Sprintf("%s  ·  Réputation %d  ·  Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
@@ -407,9 +399,9 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	// Friend list
 	listX := rowX
 	listY := rowY + 170
-	uiPrint(screen, "Mes amis", int(listX), int(listY)-18)
+	uiSubtitle(screen, "Mes amis", int(listX), int(listY)-30)
 	if len(g.ui.SocialFriends) == 0 {
-		uiPrint(screen, "(vide)", int(listX), int(listY))
+		drawText(screen, "Pas encore d'amis. Cherche un pseudo ci-dessus !", bodyFace(14, false), listX, listY+4, themeMuted, alignLeft)
 		return
 	}
 	for i, entry := range g.ui.SocialFriends {
@@ -423,43 +415,26 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 		removeX := listX + entryW + 4
 		removeY := y
 		removeW := 80.0
-		drawButton(screen, float64(removeX), float64(removeY), float64(removeW), float64(rowH), "Retirer", kindFromColor(alpha(180, 60, 60, 220)))
+		drawButton(screen, removeX, removeY, removeW, rowH, "Retirer", btnDanger)
 	}
 }
 
 func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64) {
-	titleY := panelY + 56
-	uiSubtitle(screen, "Guilde", int(panelX)+20, int(titleY))
-
 	if g.ui.SocialGuildName == "" {
-		uiPrint(screen, "Pas de guilde actuelle", int(panelX)+20, int(titleY)+20)
-		nameX, nameY := panelX+20, panelY+80
+		drawText(screen, "Tu n'as pas encore de guilde. Fondes-en une :", bodyFace(14, false), panelX+20, panelY+62, themeText, alignLeft)
+		nameX, nameY := panelX+20, panelY+86
 		nameW, nameH := panelW-200, 32.0
 		registerTextField(textField{id: "guild-name", x: nameX, y: nameY, w: nameW, h: nameH,
 			value: &g.ui.SocialGuildNameInput, focused: g.ui.SocialGuildNameFocus, label: "Nom de guilde"})
-		uiFillRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), alpha(15, 15, 20, 210), vecAA)
-		uiStrokeRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), 2, alpha(180, 160, 100, 200), vecAA)
-		placeholder := "Nom de guilde"
-		text := g.ui.SocialGuildNameInput
-		if text == "" {
-			text = placeholder
-		}
-		uiPrint(screen, text, int(nameX)+8, int(nameY)+8)
-		if g.ui.SocialGuildNameFocus {
-			uiPrint(screen, "|", int(nameX)+8+len(text)*7, int(nameY)+8)
-		}
+		drawInputField(screen, nameX, nameY, nameW, nameH, g.ui.SocialGuildNameInput, "Nom de la guilde", g.ui.SocialGuildNameFocus)
 
 		btnX := nameX + nameW + 10
 		btnY := nameY
-		bg := alpha(60, 120, 80, 230)
+		kind, label := btnPrimary, "Fonder"
 		if !g.ui.SocialGuildHasTicket {
-			bg = alpha(80, 80, 80, 200)
+			kind, label = btnDisabled, "Ticket requis"
 		}
-		label := "Créer (-ticket)"
-		if !g.ui.SocialGuildHasTicket {
-			label = "Ticket requis"
-		}
-		drawButton(screen, float64(btnX), float64(btnY), 120, float64(nameH), label, kindFromColor(bg))
+		drawButton(screen, btnX, btnY, 120, nameH, label, kind)
 
 		infoY := nameY + nameH + 10
 		if g.ui.SocialGuildError != "" {
@@ -467,41 +442,36 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 		} else if g.ui.SocialGuildInfo != "" {
 			uiPrint(screen, g.ui.SocialGuildInfo, int(nameX), int(infoY))
 		} else if g.ui.SocialGuildHasTicket {
-			uiPrint(screen, "Ticket disponible pour les tests", int(nameX), int(infoY))
+			drawText(screen, "Tu as un ticket de guilde : fonder une guilde le consomme.", bodyFace(13, false), nameX, infoY, themeMuted, alignLeft)
 		}
 		return
 	}
 
 	// Guild summary
 	infoY := panelY + 90
-	uiPrint(screen, fmt.Sprintf("Nom: %s", g.ui.SocialGuildName), int(panelX)+20, int(infoY))
-	uiPrint(screen, fmt.Sprintf("Membres: %d / 15", len(g.ui.SocialGuildMembers)), int(panelX)+20, int(infoY)+20)
-	uiPrint(screen, fmt.Sprintf("Réputation: %d", g.ui.SocialGuildReputation), int(panelX)+20, int(infoY)+40)
-	uiPrint(screen, fmt.Sprintf("Rang: #%d", g.ui.SocialGuildRank), int(panelX)+20, int(infoY)+60)
+	drawText(screen, g.ui.SocialGuildName, titleFace(28), panelX+20, infoY-30, themeGold, alignLeft)
+	drawText(screen, fmt.Sprintf("Membres %d / 15 · Réputation %d · Rang #%d", len(g.ui.SocialGuildMembers), g.ui.SocialGuildReputation, g.ui.SocialGuildRank), bodyFace(14, false), panelX+20, infoY+10, themeText, alignLeft)
 
 	// Leave Guild button
 	leaveX := panelX + 20
 	leaveY := infoY + 80
-	drawButton(screen, float64(leaveX), float64(leaveY), 120, 32, "Quitter", kindFromColor(alpha(180, 100, 40, 220)))
+	drawButton(screen, leaveX, leaveY, 120, 32, "Quitter", btnDanger)
 
 	listY := leaveY + 40
-	uiPrint(screen, "Membres", int(panelX)+20, int(listY)-18)
+	uiSubtitle(screen, "Membres", int(panelX)+20, int(listY)-22)
 	rowH := 28.0
 	rowW := panelW - 40
 	for i, m := range g.ui.SocialGuildMembers {
 		y := listY + float64(i)*(rowH+4)
-		uiFillRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
-			line := fmt.Sprintf("%s | Réputation %d", m.Name, m.Reputation)
-		uiPrint(screen, line, int(panelX)+28, int(y)+8)
+		drawCard(screen, panelX+20, y, rowW, rowH, false)
+		drawText(screen, m.Name, bodyFace(14, true), panelX+32, y+5, themeText, alignLeft)
+		drawText(screen, fmt.Sprintf("Réputation %d", m.Reputation), bodyFace(13, false), panelX+20+rowW-12, y+6, themeMuted, alignRight)
 	}
 }
 
 func (g *Game) drawLeaderboardTab(screen *ebiten.Image, panelX, panelY, panelW float64) {
-	titleY := panelY + 56
-	uiSubtitle(screen, "Classement", int(panelX)+20, int(titleY))
-
 	subTabX := panelX + 20
-	subTabY := panelY + 70
+	subTabY := panelY + 62
 	g.drawSocialTab(screen, subTabX, subTabY, 140, 30, "Joueurs", g.ui.SocialLeaderboardTab == "players")
 	g.drawSocialTab(screen, subTabX+150, subTabY, 140, 30, "Guildes", g.ui.SocialLeaderboardTab == "guilds")
 
@@ -511,20 +481,18 @@ func (g *Game) drawLeaderboardTab(screen *ebiten.Image, panelX, panelY, panelW f
 
 	switch g.ui.SocialLeaderboardTab {
 	case "guilds":
-		uiPrint(screen, "Classement Guildes", int(panelX)+20, int(listY)-18)
 		for i, gentry := range g.ui.SocialLeaderboardGuilds {
 			y := listY + float64(i)*(rowH+4)
-			uiFillRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
-			line := fmt.Sprintf("#%d | %s | Membres %d | Réputation %d", gentry.Rank, gentry.Name, gentry.MemberCount, gentry.Reputation)
-			uiPrint(screen, line, int(panelX)+28, int(y)+8)
+			drawLeaderRow(screen, panelX+20, y, rowW, rowH, gentry.Rank, gentry.Name, fmt.Sprintf("%d membres · Réputation %d", gentry.MemberCount, gentry.Reputation))
 		}
 	default:
-		uiPrint(screen, "Classement Joueurs", int(panelX)+20, int(listY)-18)
 		for i, p := range g.ui.SocialLeaderboardPlayers {
 			y := listY + float64(i)*(rowH+4)
-			uiFillRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
-			line := fmt.Sprintf("#%d | %s | Réputation %d | Guilde %s", i+1, p.Name, p.Reputation, p.GuildName)
-			uiPrint(screen, line, int(panelX)+28, int(y)+8)
+			detail := fmt.Sprintf("Réputation %d", p.Reputation)
+			if p.GuildName != "" {
+				detail = p.GuildName + " · " + detail
+			}
+			drawLeaderRow(screen, panelX+20, y, rowW, rowH, i+1, p.Name, detail)
 		}
 	}
 }
@@ -577,4 +545,16 @@ func (g *Game) leaveGuild() {
 
 func pointInRect(px, py, x, y, w, h float64) bool {
 	return px >= x && px <= x+w && py >= y && py <= y+h
+}
+
+// drawLeaderRow : une ligne de classement (rang, nom, détail à droite).
+func drawLeaderRow(screen *ebiten.Image, x, y, w, h float64, rank int, name, detail string) {
+	drawCard(screen, x, y, w, h, false)
+	clr := color.Color(themeMuted)
+	if rank <= 3 {
+		clr = themeGold
+	}
+	drawText(screen, fmt.Sprintf("#%d", rank), bodyFace(14, true), x+12, y+6, clr, alignLeft)
+	drawText(screen, name, bodyFace(14, true), x+56, y+6, themeText, alignLeft)
+	drawText(screen, detail, bodyFace(13, false), x+w-12, y+7, themeMuted, alignRight)
 }

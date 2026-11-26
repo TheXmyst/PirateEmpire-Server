@@ -21,8 +21,7 @@ func GetActiveFleetShips(fleet *domain.Fleet) []domain.Ship {
 
 // DrawFleetList renders list of 3 fleets on the left
 func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
-	// Background
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
+	drawInset(screen, x, y, w, h)
 
 	// Calculate limits
 	shipyardLevel := g.getShipyardLevel()
@@ -45,9 +44,10 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 		}
 	}
 
-	slotH := 120.0
+	slotH := 86.0
 	padding := 10.0
 	startY := y + 10
+	x, w = x+10, w-20
 
 	mx, my := cursorPosition()
 
@@ -63,23 +63,16 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 
 		if locked {
 			// Locked state
-			uiFillRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, vecAA)
-			uiPrint(screen, fmt.Sprintf("Flotte %d (Verrouillée)", i), int(x)+10, int(slotY)+10)
+			fillRoundRect(screen, x, slotY, w, slotH, 10, color.NRGBA{0, 0, 0, 60})
 			req := 10
 			if i == 3 {
 				req = 20
 			}
-			uiPrint(screen, fmt.Sprintf("Req: Niv. %d", req), int(x)+10, int(slotY)+30)
+			drawText(screen, fmt.Sprintf("Flotte %d", i), titleFace(22), x+16, slotY+10, themeMuted, alignLeft)
+			drawText(screen, fmt.Sprintf("Verrouillée · chantier niveau %d requis", req), bodyFace(13, false), x+16, slotY+46, themeMuted, alignLeft)
 		} else {
 			// Unlocked state
-			col := color.RGBA{30, 40, 50, 255}
-			if shipyardUI.SelectedFleetIndex == i {
-				col = color.RGBA{0, 100, 200, 255} // Blue for selected
-			} else if hover {
-				col = color.RGBA{50, 60, 70, 255}
-			}
-
-			uiFillRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), col, vecAA)
+			drawCard(screen, x, slotY, w, slotH, shipyardUI.SelectedFleetIndex == i)
 
 			// Get ship count - find fleet by name to get accurate count (filter destroyed ships)
 			shipCount := 0
@@ -94,8 +87,9 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 				}
 			}
 
-			uiPrint(screen, fmt.Sprintf("Flotte %d", i), int(x)+10, int(slotY)+10)
-			uiPrint(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(x)+10, int(slotY)+30)
+			drawText(screen, fmt.Sprintf("Flotte %d", i), titleFace(22), x+16, slotY+10, themeGold, alignLeft)
+			drawText(screen, fmt.Sprintf("%d / %d navires", shipCount, maxShips), bodyFace(13, false), x+16, slotY+46, themeText, alignLeft)
+			drawProgressBar(screen, x+w-136, slotY+52, 120, 8, float64(shipCount)/float64(maxShips), themeGold)
 
 			// Click to select
 			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -107,10 +101,10 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 
 // DrawFleetDetails renders details of selected fleet on the right
 func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
-	// Background
-	drawButton(screen, float64(x), float64(y), float64(w), float64(h), "Sélectionnez une flotte.", kindFromColor(color.RGBA{20, 30, 40, 200}))
+	drawInset(screen, x, y, w, h)
 
 	if shipyardUI.SelectedFleetIndex == 0 {
+		drawText(screen, "Choisis une flotte à gauche.", bodyFace(14, false), x+w/2, y+h/2-8, themeMuted, alignCenter)
 		return
 	}
 
@@ -125,12 +119,11 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 
 	selIdx := shipyardUI.SelectedFleetIndex
 	if selIdx > maxFleets {
-		uiPrint(screen, "Flotte Verrouillée.", int(x)+10, int(y)+10)
+		drawText(screen, "Flotte verrouillée.", bodyFace(14, false), x+16, y+16, themeMuted, alignLeft)
 		return
 	}
 
-	// Title
-	uiPrint(screen, fmt.Sprintf("FLOTTE %d", selIdx), int(x)+10, int(y)+10)
+	uiSubtitle(screen, fmt.Sprintf("Flotte %d", selIdx), int(x)+16, int(y)+14)
 
 	// Get max ships
 	maxShips := 3
@@ -145,7 +138,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 		}
 	}
 
-	listY := y + 40
+	listY := y + 52
 	var currentFleet *domain.Fleet
 	currentShips := 0
 
@@ -175,36 +168,37 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	}
 
 	if currentFleet == nil {
-		uiPrint(screen, "Flotte non initialisée.", int(x)+10, int(listY))
+		drawText(screen, "Flotte non initialisée.", bodyFace(14, false), x+16, listY, themeMuted, alignLeft)
 	} else {
 		if currentShips == 0 {
-			uiPrint(screen, "Aucun navire", int(x)+10, int(listY))
+			drawText(screen, "Aucun navire dans cette flotte.", bodyFace(14, false), x+16, listY, themeMuted, alignLeft)
 		} else {
-			// Display only active ships (already filtered)
 			for k, s := range activeShips {
-				uiPrint(screen, fmt.Sprintf("- %s (%s)", s.Name, s.Type), int(x)+10, int(listY+float64(k)*25))
+				ry := listY + float64(k)*58
+				drawCard(screen, x+12, ry, w-24, 50, false)
+				drawText(screen, s.Name, titleFace(19), x+26, ry+5, themeGold, alignLeft)
+				drawText(screen, shipTypeLabel(s.Type), bodyFace(12, false), x+26, ry+29, themeMuted, alignLeft)
+				if s.MaxHealth > 0 {
+					drawProgressBar(screen, x+w-136, ry+21, 110, 8, s.Health/s.MaxHealth, themeGreen)
+				}
 			}
 		}
 	}
 
 	// Capacity display
-	capacityY := y + h - 80
-	uiPrint(screen, fmt.Sprintf("Capacité : %d / %d", currentShips, maxShips), int(x)+10, int(capacityY))
+	drawText(screen, fmt.Sprintf("%d / %d navires", currentShips, maxShips), bodyFace(13, false), x+w-16, y+h-42, themeMuted, alignRight)
 
 	// Add ship button
 	btnW, btnH := 200.0, 40.0
-	btnX, btnY := x+10, y+h-50
+	btnX, btnY := x+12, y+h-52
 
-	btnCol := color.RGBA{0, 150, 0, 255}
+	kind := btnPrimary
 	btnText := "Ajouter un navire"
 	disabled := currentShips >= maxShips
-
 	if disabled {
-		btnCol = color.RGBA{80, 80, 80, 255}
-		btnText = "Flotte Complète"
+		kind, btnText = btnDisabled, "Flotte complète"
 	}
-
-	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), btnText, kindFromColor(btnCol))
+	drawButton(screen, btnX, btnY, btnW, btnH, btnText, kind)
 
 	// Handle click (shielded by modal)
 	if !disabled && !shipyardUI.ShowAddShipModal && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -433,7 +427,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 
 	draw9Slice(screen, g, mxStart, myStart, modalW, modalH, 12)
 
-	uiPrint(screen, fmt.Sprintf("Ajouter un navire a la Flotte %d", shipyardUI.TargetFleetIndex), int(mxStart)+20, int(myStart)+20)
+	uiTitle(screen, fmt.Sprintf("Ajouter un navire à la flotte %d", shipyardUI.TargetFleetIndex), int(mxStart)+22, int(myStart)+22)
 
 	// Recalculate fleet capacity from current g.player (no cache) - single source of truth
 	var targetFleet *domain.Fleet
@@ -492,17 +486,15 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 
 	// Feedback message
 	if shipyardUI.ModalMessage != "" {
-		uiPrint(screen, shipyardUI.ModalMessage, int(mxStart)+20, int(myStart)+40)
+		drawText(screen, stripUnsupported(shipyardUI.ModalMessage), bodyFace(13, true), mxStart+22, myStart+82, themeOrange, alignLeft)
 	}
 
 	// Display capacity info block
 	infoY := myStart + 60
 	if targetFleet != nil {
-		uiPrint(screen, "Capacite:", int(mxStart)+20, int(infoY))
-		uiPrint(screen, fmt.Sprintf("  %d / %d", totalShipsCount, fleetCapacity), int(mxStart)+30, int(infoY)+15)
+		drawText(screen, fmt.Sprintf("Capacité %d / %d navires", totalShipsCount, fleetCapacity), bodyFace(13, false), mxStart+22, infoY, themeMuted, alignLeft)
 	} else {
-		uiPrint(screen, "Flotte introuvable (status non synchronise)", int(mxStart)+20, int(infoY))
-		uiPrint(screen, "Rafraichir...", int(mxStart)+20, int(infoY)+15)
+		drawText(screen, "Flotte introuvable, actualisation…", bodyFace(13, false), mxStart+22, infoY, themeMuted, alignLeft)
 	}
 
 	// List available ships (below capacity info)
@@ -531,15 +523,9 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 
 			hover := float64(curMx) >= rowX && float64(curMx) <= rowX+rowW && float64(curMy) >= rowY && float64(curMy) <= rowY+rowH
 
-			col := color.RGBA{50, 50, 50, 255}
-			if shipyardUI.SelectedShipID != nil && *shipyardUI.SelectedShipID == s.ID {
-				col = color.RGBA{0, 100, 200, 255} // Selected
-			} else if hover {
-				col = color.RGBA{80, 80, 80, 255}
-			}
-
-			uiFillRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
-			uiPrint(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
+			_ = hover
+			drawCard(screen, rowX, rowY, rowW, rowH, shipyardUI.SelectedShipID != nil && *shipyardUI.SelectedShipID == s.ID)
+			drawText(screen, s.Name+" · "+shipTypeLabel(s.Type), bodyFace(14, true), rowX+12, rowY+6, themeText, alignLeft)
 
 			// Ship selection is now handled in UpdateAddShipModalShipyard()
 			// Visual feedback only here
@@ -552,27 +538,20 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	// Cancel
 	btnCancelX, btnCancelY := mxStart+modalW-btnW-20, myStart+modalH-50
 	hoverCancel := float64(curMx) >= btnCancelX && float64(curMx) <= btnCancelX+btnW && float64(curMy) >= btnCancelY && float64(curMy) <= btnCancelY+btnH
-	colCancel := color.RGBA{150, 0, 0, 255}
-	if hoverCancel {
-		colCancel = color.RGBA{200, 50, 50, 255}
-	}
-
-	drawButton(screen, float64(btnCancelX), float64(btnCancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(colCancel))
+	_ = hoverCancel
+	drawButton(screen, btnCancelX, btnCancelY, btnW, btnH, "Annuler", btnSecondary)
 
 	// Cancel button click is now handled in UpdateAddShipModalShipyard()
 
 	// Assign
 	btnOkX, btnOkY := mxStart+20, myStart+modalH-50
 	hoverOk := float64(curMx) >= btnOkX && float64(curMx) <= btnOkX+btnW && float64(curMy) >= btnOkY && float64(curMy) <= btnOkY+btnH
-	colOk := color.RGBA{0, 150, 0, 255}
-	disabled := shipyardUI.SelectedShipID == nil
-	if disabled {
-		colOk = color.RGBA{100, 100, 100, 255}
-	} else if hoverOk {
-		colOk = color.RGBA{0, 200, 0, 255}
+	_ = hoverOk
+	okKind := btnPrimary
+	if shipyardUI.SelectedShipID == nil {
+		okKind = btnDisabled
 	}
-
-	drawButton(screen, float64(btnOkX), float64(btnOkY), float64(btnW), float64(btnH), "Assigner", kindFromColor(colOk))
+	drawButton(screen, btnOkX, btnOkY, btnW, btnH, "Assigner", okKind)
 
 	// Input handling is now in UpdateAddShipModalShipyard()
 }
@@ -599,7 +578,7 @@ func (g *Game) getAvailableShipTypes() []struct {
 		{
 			ID:           "sloop",
 			Name:         "Sloop",
-			Stats:        "Coque legere et rapide.\nPV: 100 | Cargo: 500",
+			Stats:        "Coque légère et rapide.\nPV: 100 | Cargo: 500",
 			ReqLevel:     1,
 			RequiredTech: "tech_naval_1", // Voiles légères
 			Cost:         map[domain.ResourceType]float64{domain.Wood: 12000, domain.Gold: 4000},

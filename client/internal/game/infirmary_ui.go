@@ -1,12 +1,10 @@
 package game
 
 import (
-	"fmt"
-	"image/color"
+	"image"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawInfirmaryUI draws the modal for the Infirmary building.
@@ -18,24 +16,19 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 
-	// Semi-transparent overlay
-	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, false)
+	drawDimBackground(screen, 150)
 
 	// Modal Window
-	winW, winH := 500.0, 600.0
+	winW, winH := 520.0, 520.0
 	winX, winY := (w-winW)/2, (h-winH)/2
 
-	// Draw Background (Pinkish/Red theme for Infirmary)
-	drawButton(screen, float64(winX), float64(winY), float64(winW), float64(winH), "Infirmerie", kindFromColor(color.RGBA{40, 20, 25, 255}))
-
-	// Title
-	uiPrint(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
-
-	vector.StrokeLine(screen, float32(winX)+20, float32(winY)+50, float32(winX+winW)-20, float32(winY)+50, 1, color.RGBA{150, 100, 100, 255}, false)
+	drawWindowFrame(screen, winX, winY, winW, winH, "Infirmerie")
+	drawCloseButton(screen, winX+winW-30, winY+27, 15)
+	drawText(screen, "Les capitaines blessés au combat se reposent ici.", bodyFace(13, false), winX+22, winY+60, themeMuted, alignLeft)
 
 	// List area
-	listY := winY + 60
-	listH := winH - 80
+	listY := winY + 90
+	listH := winH - 110
 	currentY := listY - g.ui.InfirmaryScrollY
 
 	// Filter injured captains
@@ -74,56 +67,32 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 		}
 	}
 
-	// Calculate content height for scrolling
-	itemH := 80.0
+	itemH := 66.0
 	gap := 10.0
-	// No items message
 	if len(injuredList) == 0 {
-		uiPrint(screen, "Aucun capitaine blessé.", int(winX)+20, int(currentY))
+		drawInset(screen, winX+20, listY, winW-40, 90)
+		drawText(screen, "Aucun capitaine blessé.", bodyFace(15, true), winX+winW/2, listY+26, themeText, alignCenter)
+		drawText(screen, "Tout l'équipage est d'attaque !", bodyFace(13, false), winX+winW/2, listY+50, themeMuted, alignCenter)
 		return
 	}
 
-	// Draw Items
+	view := screen.SubImage(image.Rect(int(winX), int(listY), int(winX+winW), int(listY+listH))).(*ebiten.Image)
 	for _, cap := range injuredList {
-		if currentY+itemH < listY { // Above view
+		if currentY+itemH < listY {
 			currentY += itemH + gap
 			continue
 		}
-		if currentY > listY+listH { // Below view
+		if currentY > listY+listH {
 			break
 		}
-
-		// Item Box
-		uiFillRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), color.RGBA{60, 30, 35, 255}, false)
-		uiStrokeRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), 1, color.RGBA{150, 100, 100, 255}, false)
-
-		// Content
-		// Name & Rarity
-		uiPrint(screen, fmt.Sprintf("%s (%s)", cap.Name, cap.Rarity), int(winX)+30, int(currentY)+10)
-
-		// Stars
-		starStr := ""
-		for i := 0; i < cap.Stars; i++ {
-			starStr += "★"
-		}
-		for i := cap.Stars; i < cap.MaxStars; i++ {
-			starStr += "☆"
-		}
-		uiPrint(screen, starStr, int(winX)+30, int(currentY)+30)
-
-		// Timer (Large & Red)
-		mins := int(cap.Remaining.Minutes())
-		secs := int(cap.Remaining.Seconds()) % 60
-		timeStr := fmt.Sprintf("Soins: %02dm %02ds", mins, secs)
-		uiPrint(screen, timeStr, int(winX)+300, int(currentY)+30)
-
-		// Progress Bar (Visual fluff)
-		// Assuming max injury times: Common=30m, Rare=2h, Leg=5h
-		// We can't know the exact max time here easily without logic duplication,
-		// so we just show an indeterminate "Healing" text or specific time.
-		// Let's add a small progress bar visual representing time logic if we wanted,
-		// but simple text is enough for MVP.
-
+		ix, iw := winX+20, winW-40
+		drawCard(view, ix, currentY, iw, itemH, false)
+		fillRoundRect(view, ix+14, currentY+itemH/2-5, 10, 10, 5, rarityColor(cap.Rarity))
+		drawText(view, cap.Name, titleFace(20), ix+32, currentY+8, themeGold, alignLeft)
+		drawText(view, rarityLabel(cap.Rarity), bodyFace(12, false), ix+32, currentY+38, themeMuted, alignLeft)
+		drawStars(view, ix+32+textWidth(rarityLabel(cap.Rarity), bodyFace(12, false))+10, currentY+46, cap.Stars, cap.MaxStars, 5, false)
+		drawText(view, "Soigné dans", bodyFace(12, false), ix+iw-16, currentY+12, themeMuted, alignRight)
+		drawText(view, formatDuration(int(cap.Remaining.Seconds())), bodyFace(17, true), ix+iw-16, currentY+30, themeOrange, alignRight)
 		currentY += itemH + gap
 	}
 }
@@ -143,7 +112,7 @@ func (g *Game) UpdateInfirmaryUI() bool {
 
 	// Dimensions (Must match Draw)
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	winW, winH := 500.0, 600.0
+	winW, winH := 520.0, 520.0
 	winX, winY := (w-winW)/2, (h-winH)/2
 
 	// Mouse Input

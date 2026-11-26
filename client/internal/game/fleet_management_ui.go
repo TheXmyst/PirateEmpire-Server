@@ -265,7 +265,7 @@ func (g *Game) UpdateFleetUI() {
 				// Col 2: Crew - subCol2X = col1X + subCol1W + colGap
 				// Col 4: Actions - subCol4X = subCol3X + subCol3W + colGap
 				colGap := 10.0
-				colW := detailsW - 20
+				colW := detailsW - 20 - 3*colGap
 				// Proportions from DrawManagementFleetDetails
 				// subCol1W := colW * 0.25
 				subCol2W := colW * 0.30
@@ -285,7 +285,7 @@ func (g *Game) UpdateFleetUI() {
 						// Pos: subCol2X, currentY + 50, W=subCol2W-10, H=20
 						btnCrewY := currentY + 50
 						btnCrewW := subCol2W - 10
-						btnCrewH := 20.0
+						btnCrewH := 24.0
 
 						if fmx >= subCol2X && fmx <= subCol2X+btnCrewW && fmy >= btnCrewY && fmy <= btnCrewY+btnCrewH {
 							g.ui.SelectedShipForCrew = ship.ID.String()
@@ -300,7 +300,7 @@ func (g *Game) UpdateFleetUI() {
 						captain := g.GetCaptainForShip(ship.ID.String())
 						btnCaptY := currentY + 5
 						btnCaptW := subCol4W - 5
-						btnCaptH := 20.0
+						btnCaptH := 22.0
 
 						if captain != nil {
 							// UPGRADE
@@ -449,7 +449,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	// Header
 	headerH := 60.0
 	uiFillRect(screen, float32(startX), float32(startY), float32(w), float32(headerH), color.RGBA{30, 40, 50, 255}, vecAA)
-	uiPrint(screen, fmt.Sprintf("DÉTAILS: %s", fleet.Name), int(startX)+20, int(startY)+20)
+	uiSubtitle(screen, fleet.Name, int(startX)+20, int(startY)+20)
 
 	// Status / Activate button area
 	// FIND CORRECT ISLAND for this fleet
@@ -555,7 +555,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	// We can reuse the column layout logic
 	colGap := 10.0
 	col1X := startX + 10
-	colW := w - 20
+	colW := w - 20 - 3*colGap
 	// Sub-columns
 	subCol1W := colW * 0.25 // Name
 	subCol2W := colW * 0.30 // Crew
@@ -567,24 +567,33 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	subCol4X := subCol3X + subCol3W + colGap
 
 	// Headers
-	uiPrint(screen, "NAVIRE", int(col1X), int(shipsStartY))
-	uiPrint(screen, "ÉQUIPAGE", int(subCol2X), int(shipsStartY))
-	uiPrint(screen, "CAPITAINE", int(subCol3X), int(shipsStartY))
-	uiPrint(screen, "ACTIONS", int(subCol4X), int(shipsStartY))
+	hdr := bodyFace(12, true)
+	drawText(screen, "Navire", hdr, col1X+10, shipsStartY, themeMuted, alignLeft)
+	drawText(screen, "Équipage", hdr, subCol2X, shipsStartY, themeMuted, alignLeft)
+	drawText(screen, "Capitaine", hdr, subCol3X, shipsStartY, themeMuted, alignLeft)
+	drawText(screen, "Actions", hdr, subCol4X, shipsStartY, themeMuted, alignLeft)
 
 	currentY := shipsStartY + 25
 	lineH := 100.0 // Taller cards for better detail
 
 	for _, ship := range activeShips {
 		// Card BG
-		uiStrokeRect(screen, float32(col1X), float32(currentY), float32(colW), float32(lineH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
+		drawCard(screen, col1X, currentY, colW+3*colGap, lineH, false)
 
 		// 1. Ship Info
-		uiPrint(screen, ship.Name, int(col1X)+5, int(currentY)+5)
-		uiPrint(screen, fmt.Sprintf("(%s)", ship.Type), int(col1X)+5, int(currentY)+25)
+		drawText(screen, ellipsize(ship.Name, titleFace(20), subCol1W-10), titleFace(20), col1X+10, currentY+6, themeGold, alignLeft)
+		uiPrint(screen, shipTypeLabel(ship.Type), int(col1X)+10, int(currentY)+34)
 		if ship.MaxHealth > 0 {
-			hpPct := (ship.Health / ship.MaxHealth) * 100
-			uiPrint(screen, fmt.Sprintf("HP: %.0f/%.0f (%.0f%%)", ship.Health, ship.MaxHealth, hpPct), int(col1X)+5, int(currentY)+45)
+			hpPct := ship.Health / ship.MaxHealth
+			hpCol := color.Color(themeGreen)
+			if hpPct < 0.5 {
+				hpCol = themeOrange
+			}
+			if hpPct < 0.25 {
+				hpCol = themeRed
+			}
+			drawProgressBar(screen, col1X+10, currentY+60, subCol1W-20, 8, hpPct, hpCol)
+			uiPrint(screen, fmt.Sprintf("Coque %.0f / %.0f", ship.Health, ship.MaxHealth), int(col1X)+10, int(currentY)+74)
 		}
 
 		// 2. Militia Info
@@ -602,13 +611,12 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		case "manowar":
 			maxMilitia = 250
 		}
-		uiPrint(screen, fmt.Sprintf("Milice: %d/%d", totalMilitia, maxMilitia), int(subCol2X), int(currentY)+5)
-		uiPrint(screen, fmt.Sprintf("G:%d A:%d Ar:%d", ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(subCol2X), int(currentY)+25)
+		uiPrint(screen, fmt.Sprintf("Milice : %d / %d", totalMilitia, maxMilitia), int(subCol2X), int(currentY)+8)
+		uiPrint(screen, fmt.Sprintf("G %d · A %d · C %d", ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(subCol2X), int(currentY)+28)
 
 		// Crew Button placeholder (Visual only, inputs handled in Update)
 		btnCrewY := currentY + 50
-		uiFillRect(screen, float32(subCol2X), float32(btnCrewY), float32(subCol2W-10), 20, color.RGBA{0, 120, 200, 255}, vecAA)
-		uiPrint(screen, "GÉRER", int(subCol2X)+10, int(btnCrewY)+3)
+		drawButton(screen, subCol2X, btnCrewY, subCol2W-10, 24, "Gérer l'équipage", btnSecondary)
 
 		// 3. Captain Info
 		captain := g.GetCaptainForShip(ship.ID.String())
@@ -621,26 +629,31 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				stars = formatStars(captain.Stars, 4)
 			}
 
-			uiPrint(screen, captain.Name, int(subCol3X), int(currentY)+5)
-			uiPrint(screen, fmt.Sprintf("Lvl %d %s", captain.Level, stars), int(subCol3X), int(currentY)+25)
+			_ = stars
+			maxStars := 5
+			if captain.Rarity == "common" {
+				maxStars = 3
+			} else if captain.Rarity == "rare" {
+				maxStars = 4
+			}
+			drawLabel(screen, ellipsize(captain.Name, bodyFace(14, true), subCol3W-10), subCol3X, currentY+8, 14, true, rarityColor(captain.Rarity))
+			uiPrint(screen, fmt.Sprintf("Niveau %d", captain.Level), int(subCol3X), int(currentY)+30)
+			drawStars(screen, subCol3X, currentY+60, captain.Stars, maxStars, 6, false)
 		} else {
-			uiPrint(screen, "Aucun", int(subCol3X), int(currentY)+5)
+			uiPrint(screen, "Aucun capitaine", int(subCol3X), int(currentY)+8)
 		}
 
 		// 4. Actions (Captain buttons)
 		btnCaptY := currentY + 5
 		if captain != nil {
 			// Upgrade
-			uiFillRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{200, 150, 0, 255}, vecAA)
-			uiPrint(screen, "UPGRADE", int(subCol4X)+5, int(btnCaptY)+3)
+			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 22, "Améliorer", btnPrimary)
 
 			// Unassign
-			uiFillRect(screen, float32(subCol4X), float32(btnCaptY+25), float32(subCol4W-5), 20, color.RGBA{150, 50, 50, 255}, vecAA)
-			uiPrint(screen, "RETIRER", int(subCol4X)+5, int(btnCaptY+28))
+			drawButton(screen, subCol4X, btnCaptY+25, subCol4W-5, 22, "Retirer", btnDanger)
 		} else {
 			// Assign
-			uiFillRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{0, 150, 0, 255}, vecAA)
-			uiPrint(screen, "ASSIGNER", int(subCol4X)+5, int(btnCaptY)+3)
+			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 22, "Assigner", btnPrimary)
 		}
 
 		currentY += lineH + 10
@@ -667,7 +680,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	uiSubtitle(screen, "Cargaison", int(startX)+20, int(currentY))
 	// Summary Line
-	uiPrint(screen, fmt.Sprintf("Capacité: %.0f/%.0f   Libre: %.0f", curLoad, capacity, remainingCap), int(startX)+150, int(currentY))
+	uiPrint(screen, fmt.Sprintf("Chargée %s / %s · Libre %s", formatThousands(curLoad), formatThousands(capacity), formatThousands(remainingCap)), int(startX)+150, int(currentY))
 	currentY += 25
 
 	// 2. Cargo List
@@ -722,7 +735,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	// TRANSFER SECTION COMPACT
 	currentY += 15
-	uiSubtitle(screen, "Transfert île ↔ flotte", int(startX)+20, int(currentY))
+	uiSubtitle(screen, "Transférer des ressources", int(startX)+20, int(currentY))
 	currentY += 20
 
 	// Check eligibility
@@ -746,7 +759,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		}
 
 		resourceLabels := map[domain.ResourceType]string{
-			domain.Wood: "BOIS", domain.Stone: "PIERRE", domain.Gold: "OR", domain.Rum: "RHUM",
+			domain.Wood: "Bois", domain.Stone: "Pierre", domain.Gold: "Or", domain.Rum: "Rhum",
 		}
 
 		for i, r := range resOrder {
@@ -769,17 +782,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				}
 			}
 
-			uiFillRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), col, vecAA)
-			uiStrokeRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
-
-			// Center Text
-			label := resourceLabels[r]
-			// Simple centering approximation: 6px per char
-			textX := int(rx) + int(resW/2) - (len(label) * 3) // approx
-			if textX < int(rx)+5 {
-				textX = int(rx) + 5
-			}
-			uiPrint(screen, label, textX, int(currentY)+5)
+			_ = col
+			drawTab(screen, rx, currentY, resW-4, resH, resourceLabels[r], isSelected)
 		}
 		currentY += resH + 10
 
@@ -958,7 +962,12 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if !canLoad {
 			colLoad = color.RGBA{40, 40, 40, 255}
 		}
-		drawButton(screen, float64(loadX), float64(currentY), float64(actW), float64(actH), "Charger ->", kindFromColor(colLoad))
+		loadKind := btnSecondary
+		if !canLoad {
+			loadKind = btnDisabled
+		}
+		_ = colLoad
+		drawButton(screen, loadX, currentY, actW, actH, "Charger →", loadKind)
 
 		cmx, cmy = cursorPosition()
 		if canLoad && float64(cmx) >= loadX && float64(cmx) <= loadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
@@ -1000,8 +1009,12 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if !canUnload {
 			colUnload = color.RGBA{40, 40, 40, 255}
 		}
-		uiFillRect(screen, float32(unloadX), float32(currentY), float32(actW), float32(actH), colUnload, vecAA)
-		uiPrint(screen, "<- DÉCHARGER", int(unloadX)+30, int(currentY)+8) // text centered approx
+		unloadKind := btnSecondary
+		if !canUnload {
+			unloadKind = btnDisabled
+		}
+		_ = colUnload
+		drawButton(screen, unloadX, currentY, actW, actH, "← Décharger", unloadKind)
 
 		if canUnload && float64(cmx) >= unloadX && float64(cmx) <= unloadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
 			if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1298,4 +1311,21 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			g.ui.CaptainModalScroll = 0 // Reset scroll when closing
 		}
 	}
+}
+
+// shipTypeLabel : nom français d'un type de navire.
+func shipTypeLabel(t string) string {
+	switch t {
+	case "sloop":
+		return "Sloop"
+	case "brigantine":
+		return "Brigantin"
+	case "frigate":
+		return "Frégate"
+	case "galleon":
+		return "Galion"
+	case "manowar":
+		return "Vaisseau de guerre"
+	}
+	return t
 }

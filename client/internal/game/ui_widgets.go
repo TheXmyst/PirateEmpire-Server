@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -103,7 +104,7 @@ func drawButton(screen *ebiten.Image, x, y, w, h float64, label string, kind but
 // drawTab : onglet (actif = doré).
 func drawTab(screen *ebiten.Image, x, y, w, h float64, label string, active bool) {
 	hover := isHovered(x, y, w, h)
-	bg := color.Color(color.NRGBA{255, 255, 255, 12})
+	bg := color.Color(color.NRGBA{255, 255, 255, 22})
 	fg := color.Color(themeMuted)
 	if active {
 		bg, fg = color.NRGBA{224, 176, 74, 50}, themeGold
@@ -120,17 +121,17 @@ func drawTab(screen *ebiten.Image, x, y, w, h float64, label string, active bool
 
 // drawCard : bloc intérieur d'une fenêtre (une ligne de liste, un détail).
 func drawCard(screen *ebiten.Image, x, y, w, h float64, selected bool) {
-	bg := color.Color(color.NRGBA{255, 255, 255, 12})
+	bg := color.Color(color.NRGBA{255, 255, 255, 22})
 	if selected {
 		bg = color.NRGBA{224, 176, 74, 34}
 	} else if isHovered(x, y, w, h) {
-		bg = color.NRGBA{255, 255, 255, 20}
+		bg = color.NRGBA{255, 255, 255, 34}
 	}
 	fillRoundRect(screen, x, y, w, h, 10, bg)
 	if selected {
 		strokeRoundRect(screen, x, y, w, h, 10, 1.5, themeGold)
 	} else {
-		strokeRoundRect(screen, x, y, w, h, 10, 1, color.NRGBA{224, 176, 74, 45})
+		strokeRoundRect(screen, x, y, w, h, 10, 1, color.NRGBA{224, 176, 74, 75})
 	}
 }
 
@@ -428,4 +429,25 @@ func uiTitleCentered(screen *ebiten.Image, s string, cx, y int) {
 // uiSubtitle draws a section heading inside a window.
 func uiSubtitle(screen *ebiten.Image, s string, x, y int) {
 	drawText(screen, s, titleFace(20), float64(x), float64(y)-5, themeGold, alignLeft)
+}
+
+// drawInputField : champ de saisie (fond creusé, filet doré quand actif).
+func drawInputField(screen *ebiten.Image, x, y, w, h float64, value, placeholder string, focused bool) {
+	fillRoundRect(screen, x, y, w, h, 8, color.NRGBA{0, 0, 0, 120})
+	border := color.Color(color.NRGBA{224, 176, 74, 70})
+	if focused {
+		border = themeGold
+	}
+	strokeRoundRect(screen, x, y, w, h, 8, 1.5, border)
+	f := bodyFace(14, false)
+	ty := y + (h-18)/2
+	if value == "" && !focused {
+		drawText(screen, placeholder, f, x+12, ty, themeMuted, alignLeft)
+		return
+	}
+	drawText(screen, value, f, x+12, ty, themeText, alignLeft)
+	if focused && (time.Now().UnixMilli()/500)%2 == 0 {
+		cx := x + 13 + textWidth(value, f)
+		vector.StrokeLine(screen, float32(cx), float32(ty+1), float32(cx), float32(ty+17), 1.5, themeGold, false)
+	}
 }

@@ -66,7 +66,7 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	x, y := cx-w/2, cy-h/2
 
 	drawDimBackground(screen, 110)
-	drawWindowFrame(screen, x, y, w, h, sb.Type)
+	drawWindowFrame(screen, x, y, w, h, buildingDisplayName(sb.Type))
 	drawText(screen, fmt.Sprintf("Niveau %d", sb.Level), bodyFace(14, true), x+w-24, y+20, themeText, alignRight)
 
 	status, statusClr := "Actif", color.Color(themeGreen)

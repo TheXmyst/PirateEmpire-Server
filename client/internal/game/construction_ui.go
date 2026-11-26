@@ -74,7 +74,7 @@ func (g *Game) getConstructionItems() []ConstructionItem {
 			ReqThLevel: 4, ReqBuilding: "Scierie", ReqBuildingLvl: 2, ReqTech: "tech_naval_1",
 		},
 		{
-			Type: "Tavern", Name: "Tavern", Desc: "Recrute des capitaines.",
+			Type: "Tavern", Name: "Taverne", Desc: "Recrute des capitaines.",
 			Cost:       map[domain.ResourceType]float64{domain.Wood: 300, domain.Stone: 200, domain.Gold: 500},
 			Icon:       g.iconTavern,
 			ReqThLevel: 3,
