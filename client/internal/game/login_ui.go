@@ -8,7 +8,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -18,7 +17,7 @@ import (
 
 func (g *Game) UpdateLogin() error {
 	w, h := g.screenWidth, g.screenHeight
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	cmx, cmy := float64(mx), float64(my)
 
 	cx, cy := float64(w)/2, float64(h)/2
@@ -33,7 +32,7 @@ func (g *Game) UpdateLogin() error {
 		// Hover Check
 		if cmx >= btnX && cmx <= btnX+btnW && cmy >= btnY && cmy <= btnY+btnH {
 			g.ui.HoverUpdateBtn = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !g.ui.UpdateInProgress {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.UpdateInProgress {
 				g.ui.UpdateInProgress = true
 				// Run update in goroutine to allow UI to render "Updating..."
 				go func() {
@@ -53,7 +52,7 @@ func (g *Game) UpdateLogin() error {
 
 	// Helper for checking if click is inside a rect
 	checkClick := func(x, y, w, h float64) bool {
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			if cmx >= x && cmx <= x+w && cmy >= y && cmy <= y+h {
 				return true
 			}
@@ -65,7 +64,7 @@ func (g *Game) UpdateLogin() error {
 	btnX, btnY := cx-100, loginY+100
 	if cmx >= btnX && cmx <= btnX+200 && cmy >= btnY && cmy <= btnY+50 {
 		g.ui.HoverButton = true
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			g.attemptLogin()
 		}
 	} else {
@@ -89,7 +88,7 @@ func (g *Game) UpdateLogin() error {
 	}
 
 	// Login Inputs Focus
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// User Field: cx-150, loginY-60, 300x50
 		if cmx >= cx-150 && cmx <= cx+150 && cmy >= loginY-60 && cmy <= loginY-10 {
 			g.ui.IsTypingUser = true
@@ -114,10 +113,10 @@ func (g *Game) UpdateLogin() error {
 		g.ui.RememberMe = !g.ui.RememberMe
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyKPEnter) {
+	if isKeyJustPressed(ebiten.KeyEnter) || isKeyJustPressed(ebiten.KeyKPEnter) {
 		g.attemptLogin()
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
+	if isKeyJustPressed(ebiten.KeyTab) {
 		if g.ui.IsTypingUser {
 			g.ui.IsTypingUser = false
 			g.ui.IsTypingPass = true
@@ -235,7 +234,7 @@ func (g *Game) handleTextInput() {
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+	if isKeyJustPressed(ebiten.KeyBackspace) {
 		if g.ui.IsTypingUser && len(g.ui.Username) > 0 {
 			g.ui.Username = g.ui.Username[:len(g.ui.Username)-1]
 		} else if g.ui.IsTypingPass && len(g.ui.Password) > 0 {
@@ -289,6 +288,11 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 		// Fallback dark box if assets somehow still fail
 		vector.DrawFilledRect(screen, float32(cx-150), float32(loginY-60), 300, 50, color.RGBA{20, 30, 40, 200}, true)
 	}
+
+	registerTextField(textField{id: "login-user", x: cx - 150, y: loginY - 60, w: 300, h: 50,
+		value: &g.ui.Username, focused: g.ui.IsTypingUser, label: "Nom du capitaine", next: "login-pass"})
+	registerTextField(textField{id: "login-pass", x: cx - 150, y: loginY + 20, w: 300, h: 50,
+		value: &g.ui.Password, focused: g.ui.IsTypingPass, label: "Mot de passe", password: true})
 
 	utxt := g.ui.Username
 	if g.ui.IsTypingUser && (g.ui.CaretTimer/30)%2 == 0 {

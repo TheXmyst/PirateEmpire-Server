@@ -6,7 +6,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -61,8 +60,8 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX+30), int(cancelY+12))
 
 	// Interaction
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 
 		if fmx >= cancelX && fmx <= cancelX+btnW && fmy >= cancelY && fmy <= cancelY+btnH {

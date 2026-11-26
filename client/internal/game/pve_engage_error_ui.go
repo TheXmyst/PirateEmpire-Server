@@ -6,7 +6,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -100,7 +99,7 @@ func (g *Game) UpdatePveEngageErrorModal() bool {
 	btnX := x + w/2 - btnW/2
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowPveEngageError = false
 		g.ui.PveEngageError = ""
 		g.ui.PveEngageErrorCode = ""
@@ -108,8 +107,8 @@ func (g *Game) UpdatePveEngageErrorModal() bool {
 	}
 
 	// Handle mouse clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 
 		// OK button

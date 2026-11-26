@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -26,8 +25,8 @@ func (g *Game) updateChatInput() {
 
 	// Detect click on the side tab to slide the chat in/out
 	_, _, _, _, tabX, tabY, tabW, tabH := g.chatGeometry()
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fx, fy := float32(mx), float32(my)
 		if fx >= tabX && fx <= tabX+tabW && fy >= tabY && fy <= tabY+tabH {
 			if g.ui.ShowChat {
@@ -45,9 +44,21 @@ func (g *Game) updateChatInput() {
 		}
 	}
 
+	// Tap / clic dans la zone de saisie : on écrit (utile au doigt, sans touche Entrée).
+	if g.ui.ShowChat && !g.ui.ChatMinimized && isMouseJustPressed(ebiten.MouseButtonLeft) {
+		x, y, width, height, _, _, _, _ := g.chatGeometry()
+		boxY := y + height - 28
+		mx, my := cursorPosition()
+		fx, fy := float32(mx), float32(my)
+		if fx >= x+8 && fx <= x+width-8 && fy >= boxY-10 && fy <= boxY+30 {
+			g.ui.ChatInputFocus = true
+			g.chatScroll = 0
+		}
+	}
+
 	// Mouse wheel scrolls chat history when open
 	if g.ui.ShowChat && !g.ui.ChatMinimized {
-		_, dy := ebiten.Wheel()
+		_, dy := wheelDelta()
 		if dy != 0 {
 			g.chatScroll -= int(dy)
 			g.clampChatScroll(g.visibleChatLines())
@@ -61,7 +72,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	// Toggle chat panel visibility with C
-	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
+	if isKeyJustPressed(ebiten.KeyC) {
 		g.ui.ShowChat = !g.ui.ShowChat
 		if g.ui.ShowChat {
 			g.ui.ChatMinimized = false
@@ -80,7 +91,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	// Minimize/restore with M
-	if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+	if isKeyJustPressed(ebiten.KeyM) {
 		g.ui.ChatMinimized = !g.ui.ChatMinimized
 		if g.ui.ChatMinimized {
 			g.ui.ChatInputFocus = false
@@ -88,7 +99,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	if g.ui.ChatMinimized {
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		if isKeyJustPressed(ebiten.KeyEnter) {
 			g.ui.ChatMinimized = false
 			g.ui.ChatInputFocus = true
 			g.chatScroll = 0
@@ -97,7 +108,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	// Focus chat with Enter when visible
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+	if isKeyJustPressed(ebiten.KeyEnter) {
 		if g.ui.ChatInputFocus {
 			// Send message
 			txt := strings.TrimSpace(g.ui.ChatInput)
@@ -134,7 +145,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	// Blur chat with Escape
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ChatInputFocus = false
 		return
 	}
@@ -149,7 +160,7 @@ func (g *Game) updateChatInput() {
 	}
 
 	// Backspace (single step)
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+	if isKeyJustPressed(ebiten.KeyBackspace) {
 		if len(g.ui.ChatInput) > 0 {
 			_, size := utf8.DecodeLastRuneInString(g.ui.ChatInput)
 			g.ui.ChatInput = g.ui.ChatInput[:len(g.ui.ChatInput)-size]
@@ -218,9 +229,14 @@ func (g *Game) DrawChat(screen *ebiten.Image) {
 	// Input box
 	boxY := y + height - 28
 	vector.DrawFilledRect(screen, x+8, boxY, width-16, 20, alpha(10, 10, 10, 180), true)
+	registerTextField(textField{id: "chat", x: float64(x + 8), y: float64(boxY - 10), w: float64(width - 16), h: 40,
+		value: &g.ui.ChatInput, focused: g.ui.ChatInputFocus, label: "Message"})
 	prompt := g.ui.ChatInput
 	if !g.ui.ChatInputFocus && prompt == "" {
 		prompt = "Appuyer sur Entrée pour écrire"
+		if touchSeen() {
+			prompt = "Touche ici pour écrire"
+		}
 	}
 	ebitenutil.DebugPrintAt(screen, prompt, int(x)+12, int(boxY)+4)
 }

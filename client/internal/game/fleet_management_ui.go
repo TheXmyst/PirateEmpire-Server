@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -105,7 +104,7 @@ func (g *Game) UpdateFleetUI() {
 	}
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		if g.ui.ShowCaptainModal {
 			g.ui.ShowCaptainModal = false
 			g.ui.SelectedShipForCaptain = ""
@@ -125,8 +124,8 @@ func (g *Game) UpdateFleetUI() {
 	// Modals handle their own input in Draw calls (Immediate Mode style in this codebase)
 	// We just return to prevent clicking through to the main UI
 	if g.ui.ShowCaptainModal {
-		// Handle scrolling for captain modal here as it uses ebiten.Wheel() which is an implicit event
-		_, dy := ebiten.Wheel()
+		// Handle scrolling for captain modal here as it uses wheelDelta() which is an implicit event
+		_, dy := wheelDelta()
 		if dy != 0 {
 			g.ui.CaptainModalScroll -= dy * 20.0
 			if g.ui.CaptainModalScroll < 0 {
@@ -156,10 +155,10 @@ func (g *Game) UpdateFleetUI() {
 	detailsW := contentW - listW - 10
 
 	// Inputs
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
-	clicked := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
-	_, dy := ebiten.Wheel()
+	clicked := isMouseJustPressed(ebiten.MouseButtonLeft)
+	_, dy := wheelDelta()
 
 	// 1. FLEET LIST INTERACTION (Left Column)
 	if fmx >= contentX && fmx <= contentX+listW && fmy >= contentY && fmy <= contentY+contentH {
@@ -379,8 +378,8 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+8, int(closeY)+5)
 
 	// Handle close button click
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= closeX && float64(mx) <= closeX+closeSize && float64(my) >= closeY && float64(my) <= closeY+closeSize {
 			g.ui.ShowFleetUI = false
 			return
@@ -764,10 +763,10 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				col = color.RGBA{0, 100, 200, 255}
 			} else {
 				// Hover
-				cmx, cmy := ebiten.CursorPosition()
+				cmx, cmy := cursorPosition()
 				if float64(cmx) >= rx && float64(cmx) <= rx+resW && float64(cmy) >= currentY && float64(cmy) <= currentY+resH {
 					col = color.RGBA{60, 60, 60, 255}
-					if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+					if isMouseJustPressed(ebiten.MouseButtonLeft) {
 						g.ui.TransferSelectedResource = string(r)
 						g.ui.TransferAmount = 0
 						g.ui.TransferMessage = ""
@@ -807,10 +806,10 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		inputX := tfX + tfW - inputW - 130 // Make space for buttons
 
 		// Input Interaction
-		cmx, cmy := ebiten.CursorPosition()
+		cmx, cmy := cursorPosition()
 		inputHover := float64(cmx) >= inputX && float64(cmx) <= inputX+inputW && float64(cmy) >= currentY && float64(cmy) <= currentY+25
 
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			if inputHover {
 				g.ui.TransferInputActive = true
 				g.ui.TransferInputString = fmt.Sprintf("%.0f", g.ui.TransferAmount)
@@ -828,6 +827,16 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			}
 		}
 
+		registerTextField(textField{id: "fleet-transfer", x: inputX, y: currentY, w: inputW, h: 25,
+			value: &g.ui.TransferInputString, focused: g.ui.TransferInputActive, label: "Quantité", numeric: true,
+			onChange: func(v string) {
+				if val, err := strconv.ParseFloat(v, 64); err == nil {
+					g.ui.TransferAmount = val
+				} else if v == "" {
+					g.ui.TransferAmount = 0
+				}
+			}})
+
 		// Keyboard Input
 		if g.ui.TransferInputActive {
 			runes := ebiten.AppendInputChars(nil)
@@ -840,7 +849,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			}
 
 			// Backspace
-			if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+			if isKeyJustPressed(ebiten.KeyBackspace) {
 				if len(g.ui.TransferInputString) > 0 {
 					g.ui.TransferInputString = g.ui.TransferInputString[:len(g.ui.TransferInputString)-1]
 					// REACTIVE PARSE: Update Amount
@@ -852,7 +861,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				}
 			}
 			// Enter (Commit)
-			if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyKPEnter) {
+			if isKeyJustPressed(ebiten.KeyEnter) || isKeyJustPressed(ebiten.KeyKPEnter) {
 				g.ui.TransferInputActive = false
 				if val, err := strconv.ParseFloat(g.ui.TransferInputString, 64); err == nil {
 					g.ui.TransferAmount = val
@@ -894,12 +903,12 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				bw = 35.0
 			}
 
-			cmx, cmy = ebiten.CursorPosition()
+			cmx, cmy = cursorPosition()
 			hover := float64(cmx) >= bx && float64(cmx) <= bx+bw && float64(cmy) >= currentY && float64(cmy) <= currentY+25
 			col := color.RGBA{60, 60, 60, 255}
 			if hover {
 				col = color.RGBA{90, 90, 90, 255}
-				if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+				if isMouseJustPressed(ebiten.MouseButtonLeft) {
 					switch b.label {
 					case "MAX":
 						// Smart MAX: Load preference (fill cargo)
@@ -957,9 +966,9 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		vector.DrawFilledRect(screen, float32(loadX), float32(currentY), float32(actW), float32(actH), colLoad, true)
 		ebitenutil.DebugPrintAt(screen, "CHARGER ->", int(loadX)+35, int(currentY)+8)
 
-		cmx, cmy = ebiten.CursorPosition()
+		cmx, cmy = cursorPosition()
 		if canLoad && float64(cmx) >= loadX && float64(cmx) <= loadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				fid := fleet.ID // Capture locally for closure
 				iid := island.ID
 				amount := g.ui.TransferAmount
@@ -1001,7 +1010,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		ebitenutil.DebugPrintAt(screen, "<- DÉCHARGER", int(unloadX)+30, int(currentY)+8) // text centered approx
 
 		if canUnload && float64(cmx) >= unloadX && float64(cmx) <= unloadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				fid := fleet.ID
 				iid := island.ID
 				amount := g.ui.TransferAmount
@@ -1232,8 +1241,8 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 				ebitenutil.DebugPrintAt(screen, "UPGRADE ★", int(upgradeBtnX)+5, int(btnY)+7)
 
 				// Handle upgrade click
-				if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-					mx, my := ebiten.CursorPosition()
+				if isMouseJustPressed(ebiten.MouseButtonLeft) {
+					mx, my := cursorPosition()
 					if float64(mx) >= upgradeBtnX && float64(mx) <= upgradeBtnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 						go func() {
 							err := g.api.UpgradeCaptainStars(capt.ID)
@@ -1260,8 +1269,8 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			ebitenutil.DebugPrintAt(screen, "SELECT", int(selectBtnX)+15, int(btnY)+7)
 
 			// Handle select click
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-				mx, my := ebiten.CursorPosition()
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
+				mx, my := cursorPosition()
 				if float64(mx) >= selectBtnX && float64(mx) <= selectBtnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 					go func(captID, shipID string) {
 						err := g.api.AssignCaptain(captID, shipID)
@@ -1291,8 +1300,8 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+6, int(closeY)+3)
 
 	// Handle close button click
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= closeX && float64(mx) <= closeX+closeSize && float64(my) >= closeY && float64(my) <= closeY+closeSize {
 			g.ui.ShowCaptainModal = false
 			g.ui.SelectedShipForCaptain = ""

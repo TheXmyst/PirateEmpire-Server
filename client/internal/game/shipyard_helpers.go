@@ -8,7 +8,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -52,7 +51,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 	padding := 10.0
 	startY := y + 10
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 
 	for i := 1; i <= 3; i++ {
 		slotY := startY + float64(i-1)*(slotH+padding)
@@ -101,7 +100,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(x)+10, int(slotY)+30)
 
 			// Click to select
-			if hover && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
 				shipyardUI.SelectedFleetIndex = i
 			}
 		}
@@ -212,8 +211,8 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+20, int(btnY)+12)
 
 	// Handle click (shielded by modal)
-	if !disabled && !shipyardUI.ShowAddShipModal && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if !disabled && !shipyardUI.ShowAddShipModal && isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 			shipyardUI.ShowAddShipModal = true
 			shipyardUI.TargetFleetIndex = selIdx
@@ -249,7 +248,7 @@ func (g *Game) UpdateAddShipModalShipyard() bool {
 	}
 
 	// Handle ESC key to close modal
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		shipyardUI.ShowAddShipModal = false
 		shipyardUI.SelectedShipID = nil
 		shipyardUI.ModalMessage = ""
@@ -257,11 +256,11 @@ func (g *Game) UpdateAddShipModalShipyard() bool {
 	}
 
 	// Handle mouse clicks
-	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if !isMouseJustPressed(ebiten.MouseButtonLeft) {
 		return true // Modal is open, consume input even if no click
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	modalW, modalH := 500.0, 450.0
 	mxStart, myStart := (w-modalW)/2, (h-modalH)/2
@@ -524,7 +523,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 		}
 	}
 
-	curMx, curMy := ebiten.CursorPosition()
+	curMx, curMy := cursorPosition()
 
 	if len(availableShips) == 0 {
 		ebitenutil.DebugPrintAt(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))

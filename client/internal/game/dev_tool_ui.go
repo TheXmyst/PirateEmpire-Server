@@ -6,7 +6,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -54,7 +53,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 	currentY += 20
 	ebitenutil.DebugPrintAt(screen, "CHEATS:", int(panelX)+20, int(currentY))
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Button helper
@@ -67,7 +66,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), btnColor, true)
 		vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.White, true)
 		ebitenutil.DebugPrintAt(screen, label, int(x)+10, int(y)+10)
-		return hover && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+		return hover && isMouseJustPressed(ebiten.MouseButtonLeft)
 	}
 
 	// Row 1: Add Resources

@@ -2,7 +2,6 @@ package game
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // hud_input.go contains all HUD input handling and UI routing logic.
@@ -51,12 +50,12 @@ func (g *Game) UpdateHUDInput() {
 		x := float64(w) - targetSize - margin
 		y := float64(h) - targetSize - margin
 
-		mx, my := ebiten.CursorPosition()
+		mx, my := cursorPosition()
 		cmx, cmy := float64(mx), float64(my)
 
 		if cmx >= x && cmx <= x+targetSize && cmy >= y && cmy <= y+targetSize {
 			g.ui.HoverBuildButton = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				g.Log("Build Button Clicked")
 				// Toggle Construction Menu
 				g.ui.ShowConstruction = !g.ui.ShowConstruction
@@ -97,13 +96,13 @@ func (g *Game) UpdateHUDInput() {
 		socialBtnX := captainBtnX - btnSize - btnGap
 		socialBtnY := buildBtnY
 
-		mx, my := ebiten.CursorPosition()
+		mx, my := cursorPosition()
 		cmx, cmy := float64(mx), float64(my)
 
 		// Handle Social Button
 		if cmx >= socialBtnX && cmx <= socialBtnX+btnSize && cmy >= socialBtnY && cmy <= socialBtnY+btnSize {
 			g.ui.HoverSocialButton = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				g.Log("Social Button Clicked")
 				g.ui.SocialButtonScale = 1.05
 				g.ui.ShowSocialUI = !g.ui.ShowSocialUI
@@ -123,7 +122,7 @@ func (g *Game) UpdateHUDInput() {
 		// Handle Captain Button
 		if cmx >= captainBtnX && cmx <= captainBtnX+btnSize && cmy >= captainBtnY && cmy <= captainBtnY+btnSize {
 			g.ui.HoverCaptainButton = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				g.Log("Captain Button Clicked")
 				// Scale animation
 				g.ui.CaptainButtonScale = 1.05
@@ -146,7 +145,7 @@ func (g *Game) UpdateHUDInput() {
 		// Handle Sea Button
 		if cmx >= seaBtnX && cmx <= seaBtnX+btnSize && cmy >= seaBtnY && cmy <= seaBtnY+btnSize {
 			g.ui.HoverSeaButton = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				g.Log("[UI_NAV] click tab=SEA prev_state=%v", g.state)
 				// Scale animation
 				g.ui.SeaButtonScale = 1.05
@@ -171,7 +170,7 @@ func (g *Game) UpdateHUDInput() {
 		// Handle Fleet Button
 		if cmx >= fleetBtnX && cmx <= fleetBtnX+btnSize && cmy >= fleetBtnY && cmy <= fleetBtnY+btnSize {
 			g.ui.HoverFleetButton = true
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				g.Log("[UI_NAV] click tab=FLEET")
 				// Scale animation
 				g.ui.FleetButtonScale = 1.05
@@ -232,7 +231,7 @@ func (g *Game) IsModalOpen() bool {
 // IsHoveringAnyButton checks if the cursor is over any HUD or map button.
 func (g *Game) IsHoveringAnyButton() bool {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	cmx, cmy := float64(mx), float64(my)
 
 	// 1. HUD Buttons (Bottom Right)

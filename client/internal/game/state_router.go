@@ -2,7 +2,6 @@ package game
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 // state_router.go contains state-based routing logic for Update() and Draw().
@@ -48,7 +47,7 @@ func (g *Game) updateByState() error {
 	}
 
 	// Toggle Dev Menu with F1 (now allowed for any logged-in player)
-	if inpututil.IsKeyJustPressed(ebiten.KeyF1) {
+	if isKeyJustPressed(ebiten.KeyF1) {
 		if g.player != nil {
 			g.showDevMenu = !g.showDevMenu
 		}
@@ -63,7 +62,7 @@ func (g *Game) updateByState() error {
 	if g.state == StatePlaying || g.state == StateWorldMap {
 		mx, my := ebiten.CursorPosition()
 		// Only allow panning if NO modal is open
-		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) && !g.ShouldBlockWorldInteraction() {
+		if isMousePressed(ebiten.MouseButtonRight) && !g.ShouldBlockWorldInteraction() {
 			dx := mx - g.lastMouseX
 			dy := my - g.lastMouseY
 
@@ -71,7 +70,13 @@ func (g *Game) updateByState() error {
 			g.camY -= float64(dy) / g.camZoom
 		}
 
-		// Zoom (only if NOT blocking interaction)
+		// Tactile : glisser un doigt déplace la carte, pincer zoome.
+		if !g.ShouldBlockWorldInteraction() {
+			g.touchCamera()
+		}
+
+		// Zoom (only if NOT blocking interaction). Molette de la vraie souris
+		// seulement : le glisser du doigt sert déjà au déplacement.
 		_, wy := ebiten.Wheel()
 		if wy != 0 && !g.ShouldBlockWorldInteraction() {
 			oldZoom := g.camZoom
@@ -161,7 +166,7 @@ func (g *Game) updateByState() error {
 		}
 
 		// Check if UI overlays consume the click first
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			// Update UI overlays that can consume clicks
 			if g.UpdateTavernUI() {
 				// Tavern UI consumed the click

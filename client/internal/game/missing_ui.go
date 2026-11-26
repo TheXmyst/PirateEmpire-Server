@@ -310,7 +310,7 @@ func (g *Game) DrawBuildingTooltips(screen *ebiten.Image) {
 		return
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Check each building for hover
