@@ -161,30 +161,18 @@ func (g *Game) DrawBuildingTooltips(screen *ebiten.Image) {
 	}
 
 	mx, my := cursorPosition()
-	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
 
-	// Check each building for hover
-	for _, b := range g.player.Islands[0].Buildings {
-		bx, by := b.X, b.Y
-		sx := (bx-g.camX)*g.camZoom + screenW/2
-		sy := (by-g.camY)*g.camZoom + screenH/2
-
-		// Check if mouse is over building (64x64 icon)
-		hoverRadius := 32.0 * g.camZoom
-		if math.Abs(float64(mx)-sx) <= hoverRadius && math.Abs(float64(my)-sy) <= hoverRadius {
-			// Draw tooltip
-			tooltipLines := []string{
-				buildingDisplayName(b.Type),
-				fmt.Sprintf("Niveau %d", b.Level),
-			}
-
-			if b.Constructing {
-				tooltipLines = append(tooltipLines, "En construction...")
-			}
-
-			// Draw tooltip box
-			drawTooltip(screen, mx+15, my+15, tooltipLines)
-			return // Only show one tooltip at a time
-		}
+	// Bâtiment sous la souris (le plus en avant d'abord)
+	b, ok := g.buildingAt(float64(mx), float64(my))
+	if !ok {
+		return
 	}
+	tooltipLines := []string{
+		buildingDisplayName(b.Type),
+		fmt.Sprintf("Niveau %d", b.Level),
+	}
+	if b.Constructing {
+		tooltipLines = append(tooltipLines, "En construction...")
+	}
+	drawTooltip(screen, mx+15, my+15, tooltipLines)
 }
