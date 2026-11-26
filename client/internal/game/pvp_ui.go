@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -35,7 +34,7 @@ func (g *Game) DrawPvpButton(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
 
 	// Button text
-	ebitenutil.DebugPrintAt(screen, "⚔️ PvP", int(btnX)+60, int(btnY)+18)
+	uiPrint(screen, "⚔️ PvP", int(btnX)+60, int(btnY)+18)
 
 	// Handle click
 	if hoverPvp && isMousePressed(ebiten.MouseButtonLeft) {
@@ -98,7 +97,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "Cibles PvP Disponibles", int(modalX)+20, int(modalY)+20)
+	uiPrint(screen, "Cibles PvP Disponibles", int(modalX)+20, int(modalY)+20)
 
 	// Close button
 	closeX := modalX + modalW - 40
@@ -112,7 +111,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 		closeColor = color.RGBA{220, 50, 50, 255}
 	}
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpUI = false
@@ -121,19 +120,19 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 
 	// Loading state
 	if g.ui.PvpTargetsBusy {
-		ebitenutil.DebugPrintAt(screen, "Chargement...", int(modalX)+250, int(modalY)+250)
+		uiPrint(screen, "Chargement...", int(modalX)+250, int(modalY)+250)
 		return
 	}
 
 	// Error state
 	if g.ui.PvpTargetsError != "" {
-		ebitenutil.DebugPrintAt(screen, "Erreur: "+g.ui.PvpTargetsError, int(modalX)+20, int(modalY)+60)
+		uiPrint(screen, "Erreur: "+g.ui.PvpTargetsError, int(modalX)+20, int(modalY)+60)
 		return
 	}
 
 	// Target list
 	if len(g.ui.PvpTargets) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucune cible disponible", int(modalX)+200, int(modalY)+250)
+		uiPrint(screen, "Aucune cible disponible", int(modalX)+200, int(modalY)+250)
 		return
 	}
 
@@ -166,8 +165,8 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 		vector.StrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
 
 		// Target info
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Joueur: %s", target.Name), int(modalX+30), int(boxY+10))
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Niveau: Tier %d", target.Tier), int(modalX+30), int(boxY+30))
+		uiPrint(screen, fmt.Sprintf("Joueur: %s", target.Name), int(modalX+30), int(boxY+10))
+		uiPrint(screen, fmt.Sprintf("Niveau: Tier %d", target.Tier), int(modalX+30), int(boxY+30))
 
 		// Attack button or protected status
 		btnX := modalX + modalW - 160
@@ -177,7 +176,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 
 		if isProtected {
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{100, 100, 100, 255}, vecAA)
-			ebitenutil.DebugPrintAt(screen, "🛡️ PROTÉGÉ", int(btnX)+10, int(btnY)+10)
+			uiPrint(screen, "🛡️ PROTÉGÉ", int(btnX)+10, int(btnY)+10)
 		} else {
 			hoverAttack := fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH
 
@@ -187,7 +186,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 			}
 
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), attackColor, vecAA)
-			ebitenutil.DebugPrintAt(screen, "ATTAQUER", int(btnX)+25, int(btnY)+10)
+			uiPrint(screen, "ATTAQUER", int(btnX)+25, int(btnY)+10)
 
 			if hoverAttack && isMousePressed(ebiten.MouseButtonLeft) {
 				// Select this target and show fleet selection
@@ -220,8 +219,8 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "Sélectionner une Flotte", int(modalX)+20, int(modalY)+20)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+20, int(modalY)+45)
+	uiPrint(screen, "Sélectionner une Flotte", int(modalX)+20, int(modalY)+20)
+	uiPrint(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+20, int(modalY)+45)
 
 	// Close button
 	closeX := modalX + modalW - 40
@@ -235,7 +234,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	} else {
 		vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, color.RGBA{180, 30, 30, 255}, vecAA)
 	}
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
@@ -245,7 +244,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 
 	// Fleet list
 	if g.player == nil || len(g.player.Islands) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucune flotte disponible", int(modalX)+150, int(modalY)+200)
+		uiPrint(screen, "Aucune flotte disponible", int(modalX)+150, int(modalY)+200)
 		return
 	}
 
@@ -270,7 +269,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 		vector.StrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
 
 		// Fleet info
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("○ %s (%d navires)", fleet.Name, len(fleet.Ships)), int(modalX+30), int(boxY+10))
+		uiPrint(screen, fmt.Sprintf("○ %s (%d navires)", fleet.Name, len(fleet.Ships)), int(modalX+30), int(boxY+10))
 
 		status := "Disponible"
 		if isLocked {
@@ -278,7 +277,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 		} else if isAway {
 			status = "En mission"
 		}
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("   État: %s", status), int(modalX+30), int(boxY+30))
+		uiPrint(screen, fmt.Sprintf("   État: %s", status), int(modalX+30), int(boxY+30))
 
 		// Click to select
 		if hoverFleet && !isLocked && !isAway && isMousePressed(ebiten.MouseButtonLeft) {
@@ -298,7 +297,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 		cancelColor = color.RGBA{130, 130, 130, 255}
 	}
 	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
+	uiPrint(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
 
 	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
@@ -328,10 +327,10 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 4, color.RGBA{220, 50, 50, 255}, vecAA)
 
 	// Warning title
-	ebitenutil.DebugPrintAt(screen, "⚠️  CONFIRMER L'ATTAQUE", int(modalX)+120, int(modalY)+20)
+	uiPrint(screen, "⚠️  CONFIRMER L'ATTAQUE", int(modalX)+120, int(modalY)+20)
 
 	// Info
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+30, int(modalY)+60)
+	uiPrint(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+30, int(modalY)+60)
 
 	// Find fleet name
 	fleetName := "Flotte"
@@ -343,13 +342,13 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 			}
 		}
 	}
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Flotte: %s", fleetName), int(modalX)+30, int(modalY)+85)
+	uiPrint(screen, fmt.Sprintf("Flotte: %s", fleetName), int(modalX)+30, int(modalY)+85)
 
 	// Warnings
-	ebitenutil.DebugPrintAt(screen, "• Les navires détruits sont perdus", int(modalX)+30, int(modalY)+120)
-	ebitenutil.DebugPrintAt(screen, "  définitivement", int(modalX)+30, int(modalY)+135)
-	ebitenutil.DebugPrintAt(screen, "• Votre flotte sera verrouillée", int(modalX)+30, int(modalY)+155)
-	ebitenutil.DebugPrintAt(screen, "  pendant 5-10 minutes", int(modalX)+30, int(modalY)+170)
+	uiPrint(screen, "• Les navires détruits sont perdus", int(modalX)+30, int(modalY)+120)
+	uiPrint(screen, "  définitivement", int(modalX)+30, int(modalY)+135)
+	uiPrint(screen, "• Votre flotte sera verrouillée", int(modalX)+30, int(modalY)+155)
+	uiPrint(screen, "  pendant 5-10 minutes", int(modalX)+30, int(modalY)+170)
 
 	// Buttons
 	btnY := modalY + modalH - 60
@@ -366,7 +365,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 		cancelColor = color.RGBA{130, 130, 130, 255}
 	}
 	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
+	uiPrint(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
 
 	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpConfirm = false
@@ -379,7 +378,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 		attackColor = color.RGBA{220, 50, 50, 255}
 	}
 	vector.DrawFilledRect(screen, float32(attackX), float32(btnY), 120, 40, attackColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ATTAQUER", int(attackX)+25, int(btnY)+15)
+	uiPrint(screen, "ATTAQUER", int(attackX)+25, int(btnY)+15)
 
 	if hoverAttack && isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.PvpAttackBusy {
 		g.Log("[PVP UI] Confirmation button clicked!")

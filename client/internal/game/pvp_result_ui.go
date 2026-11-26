@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -41,7 +40,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 
 	// Title background
 	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), 50, titleColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, title, int(modalX)+280, int(modalY)+18)
+	uiPrint(screen, title, int(modalX)+280, int(modalY)+18)
 
 	// Close button
 	closeX := modalX + modalW - 40
@@ -55,7 +54,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 		closeColor = color.RGBA{220, 50, 50, 255}
 	}
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false
@@ -71,19 +70,19 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	contentY := modalY + 70
 
 	// Combat summary
-	ebitenutil.DebugPrintAt(screen, "Résultat du Combat PvP", int(modalX)+30, int(contentY))
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Navires détruits (vous): %d", len(result.ShipsDestroyedA)), int(modalX)+30, int(contentY+25))
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Navires détruits (ennemi): %d", len(result.ShipsDestroyedB)), int(modalX)+30, int(contentY+50))
+	uiPrint(screen, "Résultat du Combat PvP", int(modalX)+30, int(contentY))
+	uiPrint(screen, fmt.Sprintf("Navires détruits (vous): %d", len(result.ShipsDestroyedA)), int(modalX)+30, int(contentY+25))
+	uiPrint(screen, fmt.Sprintf("Navires détruits (ennemi): %d", len(result.ShipsDestroyedB)), int(modalX)+30, int(contentY+50))
 
 	// Loot section (only if victory)
 	if result.Winner == "fleet_a" && g.ui.PvpLoot != nil {
 		lootY := contentY + 100
-		ebitenutil.DebugPrintAt(screen, "🏆 BUTIN RÉCUPÉRÉ:", int(modalX)+30, int(lootY))
+		uiPrint(screen, "🏆 BUTIN RÉCUPÉRÉ:", int(modalX)+30, int(lootY))
 
 		yOffset := lootY + 30
 		for res, amount := range g.ui.PvpLoot {
 			if amount > 0 {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  • %s: %.0f", res, amount), int(modalX)+40, int(yOffset))
+				uiPrint(screen, fmt.Sprintf("  • %s: %.0f", res, amount), int(modalX)+40, int(yOffset))
 				yOffset += 20
 			}
 		}
@@ -99,7 +98,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 		okColor = color.RGBA{70, 180, 70, 255}
 	}
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 150, 40, okColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+65, int(btnY)+15)
+	uiPrint(screen, "OK", int(btnX)+65, int(btnY)+15)
 
 	if hoverOK && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false

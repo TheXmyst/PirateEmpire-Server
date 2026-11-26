@@ -3,32 +3,21 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"math"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // render_helpers.go contains shared rendering helper functions used across multiple UI components.
 // This file was extracted from main.go during Phase 1.8 refactoring to reduce file size.
 // No logic or behavior changes were made - only code organization.
 
-// drawTextWithBackground draws text with an opaque background to prevent ghosting.
-// This ensures old text is cleared before new text is drawn, preventing visual artifacts.
-func drawTextWithBackground(screen *ebiten.Image, text string, x, y int, bgColor color.RGBA) {
-	// Estimate text width (approximate: ~6 pixels per character, with some margin)
-	textWidth := len(text) * 6
-	if textWidth < 60 {
-		textWidth = 60 // Minimum width for short text
-	}
-	textHeight := 14
-
-	// Draw opaque background rectangle to clear any previous text
-	vector.DrawFilledRect(screen, float32(x-2), float32(y-2), float32(textWidth+4), float32(textHeight+4), bgColor, vecAA)
-
-	// Draw text on top
-	ebitenutil.DebugPrintAt(screen, text, x, y)
+// drawTextWithBackground : texte sur une pastille sombre (coûts, etc.).
+func drawTextWithBackground(screen *ebiten.Image, txt string, x, y int, bgColor color.RGBA) {
+	w := textWidth(stripUnsupported(txt), bodyFace(uiTextSize, false))
+	fillRoundRect(screen, float64(x)-6, float64(y)-3, w+12, 21, 8, color.RGBA{20, 13, 7, 200})
+	uiPrint(screen, txt, x, y)
 }
 
 // buildCostString builds a cost string in a fixed order to prevent flickering.
@@ -66,32 +55,12 @@ func buildCostString(costs map[domain.ResourceType]float64, markMissing bool, ha
 	return costStr
 }
 
-// draw9Slice draws a 9-slice UI element using the game's slice assets.
-// This creates a scalable UI panel with corners, edges, and center.
+// draw9Slice dessinait un cadre en images ; il dessine maintenant le
+// panneau du thème (bois sombre, bord or) pour toutes les fenêtres qui
+// l'utilisent.
 func draw9Slice(screen *ebiten.Image, g *Game, x, y, width, height, targetCornerSize float64) {
-	if g.sliceTopLeft == nil {
-		return
-	}
-	bounds := g.sliceTopLeft.Bounds()
-	sw, sh := bounds.Dx(), bounds.Dy()
-	scale := 1.0
-	if targetCornerSize > 0 {
-		scale = targetCornerSize / float64(sw)
-	}
-
-	cornerW := float64(sw) * scale
-	cornerH := float64(sh) * scale
-
-	drawImgScaled(screen, g.sliceTopLeft, x, y, cornerW, cornerH)
-	drawImgScaled(screen, g.sliceTopRight, x+width-cornerW, y, cornerW, cornerH)
-	drawImgScaled(screen, g.sliceBotLeft, x, y+height-cornerH, cornerW, cornerH)
-	drawImgScaled(screen, g.sliceBotRight, x+width-cornerW, y+height-cornerH, cornerW, cornerH)
-
-	drawImgScaled(screen, g.sliceTopCenter, x+cornerW, y, width-2*cornerW, cornerH)
-	drawImgScaled(screen, g.sliceBotCenter, x+cornerW, y+height-cornerH, width-2*cornerW, cornerH)
-	drawImgScaled(screen, g.sliceMidLeft, x, y+cornerH, cornerW, height-2*cornerH)
-	drawImgScaled(screen, g.sliceMidRight, x+width-cornerW, y+cornerH, cornerW, height-2*cornerH)
-	drawImgScaled(screen, g.sliceCenter, x+cornerW, y+cornerH, width-2*cornerW, height-2*cornerH)
+	r := math.Min(16, math.Min(width, height)/2)
+	drawThemePanel(screen, x, y, width, height, r)
 }
 
 // drawImgScaled draws an image scaled to the specified width and height.
@@ -108,21 +77,39 @@ func drawImgScaled(screen *ebiten.Image, img *ebiten.Image, x, y, w, h float64) 
 	screen.DrawImage(img, op)
 }
 
-// drawTooltip draws a tooltip box with multiple lines of text.
+// drawTooltip : bulle d'aide (première ligne en titre doré).
 func drawTooltip(screen *ebiten.Image, x, y int, lines []string) {
 	if len(lines) == 0 {
 		return
 	}
-	var textHeight = 14
-	var boxH = len(lines)*textHeight + 10
-	var boxW = 0
-	for _, l := range lines {
-		if len(l)*7 > boxW {
-			boxW = len(l) * 7
-		}
-	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(boxW+10), float32(boxH), color.RGBA{0, 0, 0, 200}, vecAA)
+	f := bodyFace(13, false)
+	fTitle := bodyFace(13, true)
+	lineH := 18.0
+	w := 0.0
 	for i, l := range lines {
-		ebitenutil.DebugPrintAt(screen, l, x+5, y+5+i*textHeight)
+		ff := f
+		if i == 0 {
+			ff = fTitle
+		}
+		w = math.Max(w, textWidth(stripUnsupported(l), ff))
+	}
+	bw, bh := w+20, float64(len(lines))*lineH+12
+	fx, fy := float64(x), float64(y)
+	// Reste dans l'écran.
+	sw, sh := float64(screen.Bounds().Dx()), float64(screen.Bounds().Dy())
+	if fx+bw > sw-4 {
+		fx = sw - 4 - bw
+	}
+	if fy+bh > sh-4 {
+		fy = sh - 4 - bh
+	}
+	fillRoundRect(screen, fx, fy, bw, bh, 10, color.RGBA{20, 13, 7, 235})
+	strokeRoundRect(screen, fx, fy, bw, bh, 10, 1.5, themeGoldDim)
+	for i, l := range lines {
+		ff, clr := f, color.Color(themeText)
+		if i == 0 {
+			ff, clr = fTitle, themeGold
+		}
+		drawText(screen, stripUnsupported(l), ff, fx+10, fy+7+float64(i)*lineH, clr, alignLeft)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -27,19 +26,19 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 
 	// Title
 	title := "INTERCEPTION"
-	ebitenutil.DebugPrintAt(screen, title, int(modalX+modalW/2-40), int(modalY)+20)
+	uiPrint(screen, title, int(modalX+modalW/2-40), int(modalY)+20)
 
 	// Text
 	text := fmt.Sprintf("Voulez-vous intercepter la flotte\n\"%s\" avec votre flotte \"%s\" ?",
 		g.ui.InterceptTargetName, g.ui.InterceptAttackerName)
-	ebitenutil.DebugPrintAt(screen, text, int(modalX+20), int(modalY)+60)
+	uiPrint(screen, text, int(modalX+20), int(modalY)+60)
 
 	note := "Note: La poursuite dure max 2 mins.\nCooldown de 10 mins si échec."
-	ebitenutil.DebugPrintAt(screen, note, int(modalX+20), int(modalY)+110)
+	uiPrint(screen, note, int(modalX+20), int(modalY)+110)
 
 	if g.ui.InterceptError != "" {
 		vector.DrawFilledRect(screen, float32(modalX+20), float32(modalY+150), float32(modalW-40), 40, color.RGBA{150, 0, 0, 200}, vecAA)
-		ebitenutil.DebugPrintAt(screen, g.ui.InterceptError, int(modalX+30), int(modalY)+155)
+		uiPrint(screen, g.ui.InterceptError, int(modalX+30), int(modalY)+155)
 	}
 
 	// Buttons
@@ -52,12 +51,12 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 		confirmColor = color.RGBA{50, 50, 50, 255}
 	}
 	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "POURSUIVRE", int(confirmX+20), int(confirmY+12))
+	uiPrint(screen, "POURSUIVRE", int(confirmX+20), int(confirmY+12))
 
 	// CANCEL
 	cancelX, cancelY := modalX+modalW-160, modalY+modalH-60
 	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), color.RGBA{150, 0, 0, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX+30), int(cancelY+12))
+	uiPrint(screen, "ANNULER", int(cancelX+30), int(cancelY+12))
 
 	// Interaction
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -122,5 +121,5 @@ func (g *Game) DrawPursuitBanner(screen *ebiten.Image) {
 	vector.StrokeLine(screen, 0, float32(bannerY+bannerH), float32(w), float32(bannerY+bannerH), 2, color.RGBA{255, 255, 0, 255}, vecAA)
 
 	text := "!!! ALERTE : VOUS ÊTES POURSUIVI !!! REJOIGNEZ VOTRE PORT !"
-	ebitenutil.DebugPrintAt(screen, text, int(w/2-180), int(bannerY+12))
+	uiPrint(screen, text, int(w/2-180), int(bannerY+12))
 }

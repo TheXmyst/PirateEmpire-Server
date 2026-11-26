@@ -9,7 +9,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -41,7 +40,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 	closeY := y + padding
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
 	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Tabs
 	tabW := 150.0
@@ -54,7 +53,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 		listColor = color.RGBA{80, 80, 150, 255}
 	}
 	vector.DrawFilledRect(screen, float32(x+padding), float32(tabY), float32(tabW), float32(tabH), listColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "LISTE", int(x+padding+50), int(tabY+8))
+	uiPrint(screen, "LISTE", int(x+padding+50), int(tabY+8))
 
 	// Tab Upgrade
 	upgradeColor := color.RGBA{40, 40, 60, 255}
@@ -62,7 +61,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 		upgradeColor = color.RGBA{80, 80, 150, 255}
 	}
 	vector.DrawFilledRect(screen, float32(x+padding+tabW+10), float32(tabY), float32(tabW), float32(tabH), upgradeColor, vecAA)
-	ebitenutil.DebugPrintAt(screen, "AMÉLIORER", int(x+padding+tabW+10+30), int(tabY+8))
+	uiPrint(screen, "AMÉLIORER", int(x+padding+tabW+10+30), int(tabY+8))
 
 	// Content bounds
 	contentY := tabY + tabH + 10
@@ -70,12 +69,12 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 
 	// Busy state
 	if g.ui.CaptainUIBusy {
-		ebitenutil.DebugPrintAt(screen, "Chargement...", int(x+padding), int(contentY+padding))
+		uiPrint(screen, "Chargement...", int(x+padding), int(contentY+padding))
 		return
 	}
 	// Error display
 	if g.ui.CaptainUIError != "" {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Erreur: %s", g.ui.CaptainUIError), int(x+padding), int(contentY+padding))
+		uiPrint(screen, fmt.Sprintf("Erreur: %s", g.ui.CaptainUIError), int(x+padding), int(contentY+padding))
 		return
 	}
 
@@ -223,7 +222,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 
 	// Draw captain list (left column)
 	if len(g.captains) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun capitaine", int(leftX+padding), int(y+padding))
+		uiPrint(screen, "Aucun capitaine", int(leftX+padding), int(y+padding))
 	} else {
 		lineHeight := 50.0
 		visibleLines := int(leftH / lineHeight)
@@ -257,11 +256,11 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 
 			// Captain name
 			nameY := int(itemY + 8)
-			ebitenutil.DebugPrintAt(screen, captain.Name, int(leftX+padding), nameY)
+			uiPrint(screen, captain.Name, int(leftX+padding), nameY)
 
 			// Rarity
 			rarityText := strings.ToUpper(captain.Rarity)
-			ebitenutil.DebugPrintAt(screen, rarityText, int(leftX+padding), nameY+15)
+			uiPrint(screen, rarityText, int(leftX+padding), nameY+15)
 
 			// Stars
 			maxStars := 3
@@ -272,7 +271,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 				maxStars = 5
 			}
 			starsText := formatStars(captain.Stars, maxStars)
-			ebitenutil.DebugPrintAt(screen, starsText, int(leftX+padding), nameY+28)
+			uiPrint(screen, starsText, int(leftX+padding), nameY+28)
 		}
 	}
 
@@ -291,9 +290,9 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			lineSpacing := 20.0
 
 			// Name and Rarity
-			ebitenutil.DebugPrintAt(screen, selectedCaptain.Name, int(rightX+padding), int(detailY))
+			uiPrint(screen, selectedCaptain.Name, int(rightX+padding), int(detailY))
 			rarityText := fmt.Sprintf("Rareté: %s", strings.ToUpper(selectedCaptain.Rarity))
-			ebitenutil.DebugPrintAt(screen, rarityText, int(rightX+padding), int(detailY+lineSpacing))
+			uiPrint(screen, rarityText, int(rightX+padding), int(detailY+lineSpacing))
 			detailY += lineSpacing * 2
 
 			// Stars
@@ -305,13 +304,13 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 				maxStars = 5
 			}
 			starsText := formatStars(selectedCaptain.Stars, maxStars)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Étoiles: %s", starsText), int(rightX+padding), int(detailY))
+			uiPrint(screen, fmt.Sprintf("Étoiles: %s", starsText), int(rightX+padding), int(detailY))
 			detailY += lineSpacing * 2
 
 			// Naval Bonuses (from stars)
 			if selectedCaptain.NavalHPBonusPct != 0 || selectedCaptain.NavalSpeedBonusPct != 0 ||
 				selectedCaptain.NavalDamageReductionPct != 0 || selectedCaptain.RumConsumptionReductionPct != 0 {
-				ebitenutil.DebugPrintAt(screen, "Bonus Navals:", int(rightX+padding), int(detailY))
+				uiPrint(screen, "Bonus Navals:", int(rightX+padding), int(detailY))
 				detailY += lineSpacing
 
 				bonuses := []string{}
@@ -329,31 +328,31 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 				}
 
 				bonusText := strings.Join(bonuses, " ")
-				ebitenutil.DebugPrintAt(screen, bonusText, int(rightX+padding+10), int(detailY))
+				uiPrint(screen, bonusText, int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing * 2
 			}
 
 			// Skill/Effect
-			ebitenutil.DebugPrintAt(screen, "Compétence:", int(rightX+padding), int(detailY))
+			uiPrint(screen, "Compétence:", int(rightX+padding), int(detailY))
 			detailY += lineSpacing
 			if selectedCaptain.SkillID != "" {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  ID: %s", selectedCaptain.SkillID), int(rightX+padding+10), int(detailY))
+				uiPrint(screen, fmt.Sprintf("  ID: %s", selectedCaptain.SkillID), int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing
 			}
 			if selectedCaptain.PassiveID != "" {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  Passive: %s", selectedCaptain.PassiveID), int(rightX+padding+10), int(detailY))
+				uiPrint(screen, fmt.Sprintf("  Passive: %s", selectedCaptain.PassiveID), int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing
 			}
 			if selectedCaptain.PassiveValue != 0 {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  Valeur: %.2f", selectedCaptain.PassiveValue), int(rightX+padding+10), int(detailY))
+				uiPrint(screen, fmt.Sprintf("  Valeur: %.2f", selectedCaptain.PassiveValue), int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing
 			}
 			if selectedCaptain.PassiveIntValue != 0 {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  Valeur (int): %d", selectedCaptain.PassiveIntValue), int(rightX+padding+10), int(detailY))
+				uiPrint(screen, fmt.Sprintf("  Valeur (int): %d", selectedCaptain.PassiveIntValue), int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing
 			}
 			if selectedCaptain.Threshold != 0 {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  Seuil: %d", selectedCaptain.Threshold), int(rightX+padding+10), int(detailY))
+				uiPrint(screen, fmt.Sprintf("  Seuil: %d", selectedCaptain.Threshold), int(rightX+padding+10), int(detailY))
 				detailY += lineSpacing
 			}
 			detailY += lineSpacing
@@ -366,10 +365,10 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			} else if selectedCaptain.AssignedShipID != nil {
 				statusText = "Statut: Assigné à un navire"
 			}
-			ebitenutil.DebugPrintAt(screen, statusText, int(rightX+padding), int(detailY))
+			uiPrint(screen, statusText, int(rightX+padding), int(detailY))
 		}
 	} else {
-		ebitenutil.DebugPrintAt(screen, "Sélectionnez un capitaine", int(rightX+padding), int(y+padding))
+		uiPrint(screen, "Sélectionnez un capitaine", int(rightX+padding), int(y+padding))
 	}
 }
 
@@ -384,7 +383,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 	vector.DrawFilledRect(screen, float32(listX), float32(y), float32(listW), float32(listH), color.RGBA{20, 25, 35, 240}, vecAA)
 
 	if len(g.captains) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun capitaine", int(listX+padding), int(y+padding))
+		uiPrint(screen, "Aucun capitaine", int(listX+padding), int(y+padding))
 		return
 	}
 
@@ -424,8 +423,8 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 		vector.DrawFilledRect(screen, float32(listX+10), float32(itemY+10), 60, 60, rarityColor, vecAA)
 
 		// Name & Rarity
-		ebitenutil.DebugPrintAt(screen, captain.Name, int(listX+80), int(itemY+15))
-		ebitenutil.DebugPrintAt(screen, strings.ToUpper(captain.Rarity), int(listX+80), int(itemY+35))
+		uiPrint(screen, captain.Name, int(listX+80), int(itemY+15))
+		uiPrint(screen, strings.ToUpper(captain.Rarity), int(listX+80), int(itemY+35))
 
 		// Stars
 		maxStars := 3
@@ -436,19 +435,19 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 			maxStars = 5
 		}
 		starsText := formatStars(captain.Stars, maxStars)
-		ebitenutil.DebugPrintAt(screen, starsText, int(listX+200), int(itemY+25))
+		uiPrint(screen, starsText, int(listX+200), int(itemY+25))
 
 		// Progress / Cost
 		// Need logic to show "MAX" if max stars
 		if captain.Stars >= maxStars {
-			ebitenutil.DebugPrintAt(screen, "MAX STARS", int(listX+350), int(itemY+25))
+			uiPrint(screen, "MAX STARS", int(listX+350), int(itemY+25))
 		} else {
 			// Shards Progress
 			progressText := fmt.Sprintf("%d / %d Éclats", captain.Shards, captain.NextStarCost)
 			// Draw progress text
-			ebitenutil.DebugPrintAt(screen, progressText, int(listX+350), int(itemY+25))
+			uiPrint(screen, progressText, int(listX+350), int(itemY+25))
 			if captain.Shards >= captain.NextStarCost {
-				ebitenutil.DebugPrintAt(screen, "(Prêt!)", int(listX+350), int(itemY+40))
+				uiPrint(screen, "(Prêt!)", int(listX+350), int(itemY+40))
 			}
 
 			// Upgrade Button
@@ -464,7 +463,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 			}
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
 			vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-			ebitenutil.DebugPrintAt(screen, "UPGRADE", int(btnX+10), int(btnY+12))
+			uiPrint(screen, "UPGRADE", int(btnX+10), int(btnY+12))
 		}
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -30,7 +29,7 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 
 	// Title
 	titleY := y + padding
-	ebitenutil.DebugPrintAt(screen, "ENGAGEMENT IMPOSSIBLE", int(x+padding), int(titleY))
+	uiPrint(screen, "ENGAGEMENT IMPOSSIBLE", int(x+padding), int(titleY))
 
 	// Error message
 	msgY := titleY + 40
@@ -68,7 +67,7 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 			// Limit to 5 lines
 			break
 		}
-		ebitenutil.DebugPrintAt(screen, line, int(x+padding), int(msgY+float64(i)*lineHeight))
+		uiPrint(screen, line, int(x+padding), int(msgY+float64(i)*lineHeight))
 	}
 
 	// OK button
@@ -79,7 +78,7 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	btnCol := color.RGBA{150, 50, 50, 255}
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+35, int(btnY)+8)
+	uiPrint(screen, "OK", int(btnX)+35, int(btnY)+8)
 }
 
 // UpdatePveEngageErrorModal handles input for the engagement error modal

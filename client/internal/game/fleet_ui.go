@@ -8,7 +8,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -84,12 +83,12 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 		if locked {
 			// Locked State
 			vector.DrawFilledRect(screen, float32(lx), float32(slotY), float32(lw), float32(slotH), color.RGBA{50, 50, 50, 200}, false)
-			ebitenutil.DebugPrintAt(screen, msg+" (Verrouillée)", int(lx)+10, int(slotY)+10)
+			uiPrint(screen, msg+" (Verrouillée)", int(lx)+10, int(slotY)+10)
 			req := 10
 			if i == 3 {
 				req = 20
 			}
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Req: Niv. %d", req), int(lx)+10, int(slotY)+30)
+			uiPrint(screen, fmt.Sprintf("Req: Niv. %d", req), int(lx)+10, int(slotY)+30)
 		} else {
 			// Unlocked State
 			col := color.RGBA{0, 0, 0, 100} // Default Dark
@@ -117,8 +116,8 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 				}
 			}
 
-			ebitenutil.DebugPrintAt(screen, msg, int(lx)+10, int(slotY)+10)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(lx)+10, int(slotY)+30)
+			uiPrint(screen, msg, int(lx)+10, int(slotY)+10)
+			uiPrint(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(lx)+10, int(slotY)+30)
 
 			// Click to Select
 			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -132,7 +131,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 	vector.DrawFilledRect(screen, float32(rx), float32(ry), float32(rw), float32(rh), color.RGBA{0, 0, 0, 80}, false)
 
 	if fleetUI.SelectedFleetIndex == 0 {
-		ebitenutil.DebugPrintAt(screen, "Sélectionnez une flotte.", int(rx)+20, int(ry)+20)
+		uiPrint(screen, "Sélectionnez une flotte.", int(rx)+20, int(ry)+20)
 		return
 	}
 
@@ -140,12 +139,12 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 
 	// Double check lock
 	if selIdx > maxFleets {
-		ebitenutil.DebugPrintAt(screen, "Flotte Verrouillée.", int(rx)+20, int(ry)+20)
+		uiPrint(screen, "Flotte Verrouillée.", int(rx)+20, int(ry)+20)
 		return
 	}
 
 	title := fmt.Sprintf("FLOTTE %d", selIdx)
-	ebitenutil.DebugPrintAt(screen, title, int(rx)+20, int(ry)+10)
+	uiPrint(screen, title, int(rx)+20, int(ry)+10)
 
 	// Determine Ships in this Fleet
 	currentShips := 0
@@ -176,20 +175,20 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 	}
 
 	if currentFleet == nil {
-		ebitenutil.DebugPrintAt(screen, "Flotte non initialisée.", int(rx)+20, int(listY))
+		uiPrint(screen, "Flotte non initialisée.", int(rx)+20, int(listY))
 	} else {
 		if currentShips == 0 {
-			ebitenutil.DebugPrintAt(screen, "Aucun navire assigné.", int(rx)+20, int(listY))
+			uiPrint(screen, "Aucun navire assigné.", int(rx)+20, int(listY))
 		} else {
 			for k, s := range currentFleet.Ships {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("- %s (%s)", s.Name, s.Type), int(rx)+20, int(listY+float64(k)*30))
+				uiPrint(screen, fmt.Sprintf("- %s (%s)", s.Name, s.Type), int(rx)+20, int(listY+float64(k)*30))
 			}
 			// Update listY to after ships
 			listY += float64(len(currentFleet.Ships)) * 30
 		}
 	}
 
-	ebitenutil.DebugPrintAt(screen, capacityMsg, int(rx)+20, int(ry+rh-60))
+	uiPrint(screen, capacityMsg, int(rx)+20, int(ry+rh-60))
 
 	// Add Ship Button
 	btnAddW, btnAddH := 200.0, 40.0
@@ -212,7 +211,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 	if currentShips >= maxShips {
 		labelAdd = "Flotte Complète"
 	}
-	ebitenutil.DebugPrintAt(screen, labelAdd, int(btnAddX)+20, int(btnAddY)+12)
+	uiPrint(screen, labelAdd, int(btnAddX)+20, int(btnAddY)+12)
 
 	if hoverAdd && isMouseJustPressed(ebiten.MouseButtonLeft) && currentShips < maxShips {
 		// Open Modal
@@ -246,11 +245,11 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 
 	draw9Slice(screen, g, mxStart, myStart, modalW, modalH, 12)
 
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Ajouter un navire a la Flotte %d", fleetUI.TargetFleetIndex), int(mxStart)+20, int(myStart)+20)
+	uiPrint(screen, fmt.Sprintf("Ajouter un navire a la Flotte %d", fleetUI.TargetFleetIndex), int(mxStart)+20, int(myStart)+20)
 
 	// Feedback Message
 	if fleetUI.ModalMessage != "" {
-		ebitenutil.DebugPrintAt(screen, fleetUI.ModalMessage, int(mxStart)+20, int(myStart)+40)
+		uiPrint(screen, fleetUI.ModalMessage, int(mxStart)+20, int(myStart)+40)
 	}
 
 	// List available ships
@@ -269,7 +268,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	curMx, curMy := cursorPosition()
 
 	if len(availableShips) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
+		uiPrint(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
 	} else {
 		for i, s := range availableShips {
 			rowY := shipsY + float64(i)*35
@@ -286,7 +285,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 			}
 
 			vector.DrawFilledRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
+			uiPrint(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
 
 			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
 				id := s.ID
@@ -307,7 +306,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnCancelX), float32(btnCancelY), float32(btnW), float32(btnH), colCancel, false)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
+	uiPrint(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
 
 	if inputEnabled && hoverCancel && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		fleetUI.ShowAddModal = false
@@ -326,7 +325,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnOkX), float32(btnOkY), float32(btnW), float32(btnH), colOk, false)
-	ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
+	uiPrint(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
 
 	if inputEnabled && !disabled && hoverOk && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Execute Assign - find fleet by name to get the correct ID from server

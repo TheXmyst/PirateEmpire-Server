@@ -9,7 +9,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -74,13 +73,13 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 
 	// Title
 	title := fmt.Sprintf("%s (Lvl %d)", sb.Type, sb.Level)
-	ebitenutil.DebugPrintAt(screen, title, int(x)+20, int(y)+20)
+	uiPrint(screen, title, int(x)+20, int(y)+20)
 
 	status := "Status: Active"
 	if sb.Constructing {
 		status = "Status: En Construction..."
 	}
-	ebitenutil.DebugPrintAt(screen, status, int(x)+20, int(y)+45)
+	uiPrint(screen, status, int(x)+20, int(y)+45)
 
 	// Tavern cannot be upgraded - hide upgrade section completely
 	if sb.Type == "Tavern" {
@@ -92,7 +91,7 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	vector.StrokeLine(screen, float32(x)+20, float32(y)+70, float32(x+w)-20, float32(y)+70, 1, color.Gray{100}, vecAA)
 
 	// Next Level Info
-	ebitenutil.DebugPrintAt(screen, "Next Level:", int(x)+20, int(y)+90)
+	uiPrint(screen, "Next Level:", int(x)+20, int(y)+90)
 
 	// Prerequisites check removed - server is authoritative
 	// Upgrade button will show prerequisites modal if needed
@@ -101,9 +100,9 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	// Cost Display - use fixed order to prevent flickering
 	costs := g.getBuildingCost(sb.Type, sb.Level+1)
 	costStr := "Cost: " + buildCostString(costs, false, nil)
-	ebitenutil.DebugPrintAt(screen, costStr, int(x)+20, infoY)
+	uiPrint(screen, costStr, int(x)+20, infoY)
 	infoY += 30
-	ebitenutil.DebugPrintAt(screen, "Time: 30s", int(x)+20, infoY)
+	uiPrint(screen, "Time: 30s", int(x)+20, infoY)
 
 	// Upgrade Button
 	btnW, btnH := 200.0, 50.0
@@ -122,7 +121,7 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 		label = "EN COURS"
 	}
 	// Center text manually approx
-	ebitenutil.DebugPrintAt(screen, label, int(btnX)+70, int(btnY)+20)
+	uiPrint(screen, label, int(btnX)+70, int(btnY)+20)
 
 	// Handle Click - Upgrade
 	// Logic moved to UpdateBuildingModal

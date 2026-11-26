@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -33,16 +32,16 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), 3, color.RGBA{100, 150, 255, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "=== DEV TOOL ===", int(panelX)+230, int(panelY)+10)
-	ebitenutil.DebugPrintAt(screen, "[F1] to close", int(panelX)+240, int(panelY)+25)
+	uiPrint(screen, "=== DEV TOOL ===", int(panelX)+230, int(panelY)+10)
+	uiPrint(screen, "[F1] to close", int(panelX)+240, int(panelY)+25)
 
 	// Stats Section
 	currentY := panelY + 50
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("FPS: %.1f | TPS: %.1f | State: %d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.state), int(panelX)+20, int(currentY))
+	uiPrint(screen, fmt.Sprintf("FPS: %.1f | TPS: %.1f | State: %d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.state), int(panelX)+20, int(currentY))
 
 	if g.player != nil {
 		currentY += 20
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Player: %s (Admin: %v)", g.player.Username, g.player.IsAdmin), int(panelX)+20, int(currentY))
+		uiPrint(screen, fmt.Sprintf("Player: %s (Admin: %v)", g.player.Username, g.player.IsAdmin), int(panelX)+20, int(currentY))
 	}
 
 	// Separator
@@ -51,7 +50,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Cheat Buttons Section
 	currentY += 20
-	ebitenutil.DebugPrintAt(screen, "CHEATS:", int(panelX)+20, int(currentY))
+	uiPrint(screen, "CHEATS:", int(panelX)+20, int(currentY))
 
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
@@ -65,7 +64,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		}
 		vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), btnColor, vecAA)
 		vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.White, vecAA)
-		ebitenutil.DebugPrintAt(screen, label, int(x)+10, int(y)+10)
+		uiPrint(screen, label, int(x)+10, int(y)+10)
 		return hover && isMouseJustPressed(ebiten.MouseButtonLeft)
 	}
 
@@ -127,15 +126,15 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Combat Simulator Section
 	currentY += 20
-	ebitenutil.DebugPrintAt(screen, "COMBAT SIMULATOR:", int(panelX)+20, int(currentY))
+	uiPrint(screen, "COMBAT SIMULATOR:", int(panelX)+20, int(currentY))
 
 	currentY += 30
-	ebitenutil.DebugPrintAt(screen, "Fleet A (Your Fleet):", int(panelX)+30, int(currentY))
+	uiPrint(screen, "Fleet A (Your Fleet):", int(panelX)+30, int(currentY))
 	currentY += 20
-	ebitenutil.DebugPrintAt(screen, "Select your active fleet from Fleet UI", int(panelX)+40, int(currentY))
+	uiPrint(screen, "Select your active fleet from Fleet UI", int(panelX)+40, int(currentY))
 
 	currentY += 30
-	ebitenutil.DebugPrintAt(screen, "Fleet B (Enemy):", int(panelX)+30, int(currentY))
+	uiPrint(screen, "Fleet B (Enemy):", int(panelX)+30, int(currentY))
 	currentY += 20
 
 	// Enemy tier selector
@@ -157,7 +156,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 	}
 
 	currentY += btnH + 20
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Selected Enemy Tier: %d", g.ui.DevSimTier), int(panelX)+40, int(currentY))
+	uiPrint(screen, fmt.Sprintf("Selected Enemy Tier: %d", g.ui.DevSimTier), int(panelX)+40, int(currentY))
 
 	currentY += 30
 	if drawButton(panelX+20, currentY, panelW-40, btnH+10, "SIMULATE COMBAT", color.RGBA{255, 100, 100, 255}, color.RGBA{180, 60, 60, 255}) {
@@ -170,7 +169,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Logs Section
 	currentY += 20
-	ebitenutil.DebugPrintAt(screen, "RECENT LOGS:", int(panelX)+20, int(currentY))
+	uiPrint(screen, "RECENT LOGS:", int(panelX)+20, int(currentY))
 
 	currentY += 25
 	// Display last 5 logs
@@ -179,7 +178,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		logStartIdx = 0
 	}
 	for i := logStartIdx; i < len(g.devLogs); i++ {
-		ebitenutil.DebugPrintAt(screen, g.devLogs[i], int(panelX)+30, int(currentY))
+		uiPrint(screen, g.devLogs[i], int(panelX)+30, int(currentY))
 		currentY += 15
 	}
 }

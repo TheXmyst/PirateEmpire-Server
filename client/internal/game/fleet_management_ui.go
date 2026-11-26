@@ -10,7 +10,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -369,13 +368,13 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 
 	// Title
 	titleY := winY + 15
-	ebitenutil.DebugPrintAt(screen, "GESTION DES FLOTTES", int(cx)-80, int(titleY))
+	uiPrint(screen, "GESTION DES FLOTTES", int(cx)-80, int(titleY))
 
 	// Close button (X)
 	closeX, closeY := winX+winW-35, winY+10
 	closeSize := 25.0
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+8, int(closeY)+5)
+	uiPrint(screen, "X", int(closeX)+8, int(closeY)+5)
 
 	// Handle close button click
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -393,13 +392,13 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	contentH := winH - 80 // Footer space
 
 	if g.player == nil || len(g.player.Islands) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucune île disponible.", int(contentX), int(contentY))
+		uiPrint(screen, "Aucune île disponible.", int(contentX), int(contentY))
 		return
 	}
 
 	island := g.player.Islands[0]
 	if len(island.Fleets) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucune flotte disponible.", int(contentX), int(contentY))
+		uiPrint(screen, "Aucune flotte disponible.", int(contentX), int(contentY))
 		return
 	}
 
@@ -434,7 +433,7 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 
 	// Footer info
 	footerY := winY + winH - 30
-	ebitenutil.DebugPrintAt(screen, "[ESC] pour fermer", int(contentX), int(footerY))
+	uiPrint(screen, "[ESC] pour fermer", int(contentX), int(footerY))
 
 	// Draw captain selection modal if open (overlay on top)
 	if g.ui.ShowCaptainModal {
@@ -452,7 +451,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	// Header
 	headerH := 60.0
 	vector.DrawFilledRect(screen, float32(startX), float32(startY), float32(w), float32(headerH), color.RGBA{30, 40, 50, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("DÉTAILS: %s", fleet.Name), int(startX)+20, int(startY)+20)
+	uiPrint(screen, fmt.Sprintf("DÉTAILS: %s", fleet.Name), int(startX)+20, int(startY)+20)
 
 	// Status / Activate button area
 	// FIND CORRECT ISLAND for this fleet
@@ -471,7 +470,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	}
 
 	if island == nil {
-		ebitenutil.DebugPrintAt(screen, "Île non trouvée pour cette flotte.", int(startX)+20, int(startY)+20)
+		uiPrint(screen, "Île non trouvée pour cette flotte.", int(startX)+20, int(startY)+20)
 		return
 	}
 	isActive := false
@@ -507,7 +506,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	}
 
 	if statusText == "Verrouillée" {
-		ebitenutil.DebugPrintAt(screen, "Status: Verrouillée (Tech requise)", int(startX)+200, int(startY)+20)
+		uiPrint(screen, "Status: Verrouillée (Tech requise)", int(startX)+200, int(startY)+20)
 		return // Stop drawing details if locked
 	}
 
@@ -516,7 +515,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if fleet.State == domain.FleetStateChasingPvP {
 			statusText = "🏹 EN POURSUITE (PvP)"
 		}
-		ebitenutil.DebugPrintAt(screen, statusText, int(startX)+200, int(startY)+20)
+		uiPrint(screen, statusText, int(startX)+200, int(startY)+20)
 
 		if fleet.State == domain.FleetStateChasingPvP {
 			// Abort Button
@@ -525,7 +524,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			btnW := 100.0
 			btnH := 30.0
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{150, 0, 0, 255}, vecAA)
-			ebitenutil.DebugPrintAt(screen, "ABANDON", int(btnX)+20, int(btnY)+8)
+			uiPrint(screen, "ABANDON", int(btnX)+20, int(btnY)+8)
 		}
 	} else {
 		// Activate Button
@@ -534,7 +533,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		btnW := 100.0
 		btnH := 30.0
 		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{0, 100, 200, 255}, vecAA)
-		ebitenutil.DebugPrintAt(screen, "ACTIVER", int(btnX)+20, int(btnY)+8)
+		uiPrint(screen, "ACTIVER", int(btnX)+20, int(btnY)+8)
 
 		// Handle Activate Click
 		// Note: Logic is usually in Update, but handling simple clicks here for UI context is common in immediate mode GUIs
@@ -552,7 +551,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	}
 
 	if len(activeShips) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun navire dans cette flotte.", int(startX)+20, int(shipsStartY))
+		uiPrint(screen, "Aucun navire dans cette flotte.", int(startX)+20, int(shipsStartY))
 		return
 	}
 
@@ -572,10 +571,10 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	subCol4X := subCol3X + subCol3W + colGap
 
 	// Headers
-	ebitenutil.DebugPrintAt(screen, "NAVIRE", int(col1X), int(shipsStartY))
-	ebitenutil.DebugPrintAt(screen, "ÉQUIPAGE", int(subCol2X), int(shipsStartY))
-	ebitenutil.DebugPrintAt(screen, "CAPITAINE", int(subCol3X), int(shipsStartY))
-	ebitenutil.DebugPrintAt(screen, "ACTIONS", int(subCol4X), int(shipsStartY))
+	uiPrint(screen, "NAVIRE", int(col1X), int(shipsStartY))
+	uiPrint(screen, "ÉQUIPAGE", int(subCol2X), int(shipsStartY))
+	uiPrint(screen, "CAPITAINE", int(subCol3X), int(shipsStartY))
+	uiPrint(screen, "ACTIONS", int(subCol4X), int(shipsStartY))
 
 	currentY := shipsStartY + 25
 	lineH := 100.0 // Taller cards for better detail
@@ -585,11 +584,11 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		vector.StrokeRect(screen, float32(col1X), float32(currentY), float32(colW), float32(lineH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
 
 		// 1. Ship Info
-		ebitenutil.DebugPrintAt(screen, ship.Name, int(col1X)+5, int(currentY)+5)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("(%s)", ship.Type), int(col1X)+5, int(currentY)+25)
+		uiPrint(screen, ship.Name, int(col1X)+5, int(currentY)+5)
+		uiPrint(screen, fmt.Sprintf("(%s)", ship.Type), int(col1X)+5, int(currentY)+25)
 		if ship.MaxHealth > 0 {
 			hpPct := (ship.Health / ship.MaxHealth) * 100
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("HP: %.0f/%.0f (%.0f%%)", ship.Health, ship.MaxHealth, hpPct), int(col1X)+5, int(currentY)+45)
+			uiPrint(screen, fmt.Sprintf("HP: %.0f/%.0f (%.0f%%)", ship.Health, ship.MaxHealth, hpPct), int(col1X)+5, int(currentY)+45)
 		}
 
 		// 2. Militia Info
@@ -607,13 +606,13 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		case "manowar":
 			maxMilitia = 250
 		}
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Milice: %d/%d", totalMilitia, maxMilitia), int(subCol2X), int(currentY)+5)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("G:%d A:%d Ar:%d", ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(subCol2X), int(currentY)+25)
+		uiPrint(screen, fmt.Sprintf("Milice: %d/%d", totalMilitia, maxMilitia), int(subCol2X), int(currentY)+5)
+		uiPrint(screen, fmt.Sprintf("G:%d A:%d Ar:%d", ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(subCol2X), int(currentY)+25)
 
 		// Crew Button placeholder (Visual only, inputs handled in Update)
 		btnCrewY := currentY + 50
 		vector.DrawFilledRect(screen, float32(subCol2X), float32(btnCrewY), float32(subCol2W-10), 20, color.RGBA{0, 120, 200, 255}, vecAA)
-		ebitenutil.DebugPrintAt(screen, "GÉRER", int(subCol2X)+10, int(btnCrewY)+3)
+		uiPrint(screen, "GÉRER", int(subCol2X)+10, int(btnCrewY)+3)
 
 		// 3. Captain Info
 		captain := g.GetCaptainForShip(ship.ID.String())
@@ -626,10 +625,10 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				stars = formatStars(captain.Stars, 4)
 			}
 
-			ebitenutil.DebugPrintAt(screen, captain.Name, int(subCol3X), int(currentY)+5)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Lvl %d %s", captain.Level, stars), int(subCol3X), int(currentY)+25)
+			uiPrint(screen, captain.Name, int(subCol3X), int(currentY)+5)
+			uiPrint(screen, fmt.Sprintf("Lvl %d %s", captain.Level, stars), int(subCol3X), int(currentY)+25)
 		} else {
-			ebitenutil.DebugPrintAt(screen, "Aucun", int(subCol3X), int(currentY)+5)
+			uiPrint(screen, "Aucun", int(subCol3X), int(currentY)+5)
 		}
 
 		// 4. Actions (Captain buttons)
@@ -637,15 +636,15 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if captain != nil {
 			// Upgrade
 			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{200, 150, 0, 255}, vecAA)
-			ebitenutil.DebugPrintAt(screen, "UPGRADE", int(subCol4X)+5, int(btnCaptY)+3)
+			uiPrint(screen, "UPGRADE", int(subCol4X)+5, int(btnCaptY)+3)
 
 			// Unassign
 			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY+25), float32(subCol4W-5), 20, color.RGBA{150, 50, 50, 255}, vecAA)
-			ebitenutil.DebugPrintAt(screen, "RETIRER", int(subCol4X)+5, int(btnCaptY+28))
+			uiPrint(screen, "RETIRER", int(subCol4X)+5, int(btnCaptY+28))
 		} else {
 			// Assign
 			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{0, 150, 0, 255}, vecAA)
-			ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(subCol4X)+5, int(btnCaptY)+3)
+			uiPrint(screen, "ASSIGNER", int(subCol4X)+5, int(btnCaptY)+3)
 		}
 
 		currentY += lineH + 10
@@ -670,9 +669,9 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		remainingCap = 0
 	}
 
-	ebitenutil.DebugPrintAt(screen, "CARGAISON", int(startX)+20, int(currentY))
+	uiPrint(screen, "CARGAISON", int(startX)+20, int(currentY))
 	// Summary Line
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Capacité: %.0f/%.0f   Libre: %.0f", curLoad, capacity, remainingCap), int(startX)+150, int(currentY))
+	uiPrint(screen, fmt.Sprintf("Capacité: %.0f/%.0f   Libre: %.0f", curLoad, capacity, remainingCap), int(startX)+150, int(currentY))
 	currentY += 25
 
 	// 2. Cargo List
@@ -704,9 +703,9 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	}
 
 	if !hasCargo {
-		ebitenutil.DebugPrintAt(screen, "Cargaison vide", int(startX)+20, int(currentY))
+		uiPrint(screen, "Cargaison vide", int(startX)+20, int(currentY))
 	} else {
-		ebitenutil.DebugPrintAt(screen, cargoLine, int(startX)+20, int(currentY))
+		uiPrint(screen, cargoLine, int(startX)+20, int(currentY))
 	}
 	currentY += 25
 
@@ -727,13 +726,13 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	// TRANSFER SECTION COMPACT
 	currentY += 15
-	ebitenutil.DebugPrintAt(screen, "TRANSFERT (ÎLE <-> FLOTTE)", int(startX)+20, int(currentY))
+	uiPrint(screen, "TRANSFERT (ÎLE <-> FLOTTE)", int(startX)+20, int(currentY))
 	currentY += 20
 
 	// Check eligibility
 	canTransfer := fleet.State == domain.FleetStateIdle || fleet.State == domain.FleetStateStationed
 	if !canTransfer {
-		ebitenutil.DebugPrintAt(screen, "Transfert possible uniquement à quai (Idle/Stationné)", int(startX)+20, int(currentY))
+		uiPrint(screen, "Transfert possible uniquement à quai (Idle/Stationné)", int(startX)+20, int(currentY))
 		currentY += 20
 	} else {
 		// Layout Constants
@@ -784,7 +783,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			if textX < int(rx)+5 {
 				textX = int(rx) + 5
 			}
-			ebitenutil.DebugPrintAt(screen, label, textX, int(currentY)+5)
+			uiPrint(screen, label, textX, int(currentY)+5)
 		}
 		currentY += resH + 10
 
@@ -797,7 +796,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		}
 
 		// Left Info
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Île: %.0f   Flotte: %.0f   Libre: %.0f", islandStock, fleetStock, remainingCap), int(tfX), int(currentY)+5)
+		uiPrint(screen, fmt.Sprintf("Île: %.0f   Flotte: %.0f   Libre: %.0f", islandStock, fleetStock, remainingCap), int(tfX), int(currentY)+5)
 
 		// Right Controls
 		// Input Box
@@ -887,7 +886,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			}
 		}
 
-		ebitenutil.DebugPrintAt(screen, displayText, int(inputX)+5, int(currentY)+5)
+		uiPrint(screen, displayText, int(inputX)+5, int(currentY)+5)
 
 		// Quick Buttons (Pills)
 		btns := []struct {
@@ -941,7 +940,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			if len(b.label) > 3 {
 				lX = int(bx) + 1
 			}
-			ebitenutil.DebugPrintAt(screen, b.label, lX, int(currentY)+5)
+			uiPrint(screen, b.label, lX, int(currentY)+5)
 			bx += bw + 3
 		}
 		currentY += 35
@@ -964,7 +963,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			colLoad = color.RGBA{40, 40, 40, 255}
 		}
 		vector.DrawFilledRect(screen, float32(loadX), float32(currentY), float32(actW), float32(actH), colLoad, vecAA)
-		ebitenutil.DebugPrintAt(screen, "CHARGER ->", int(loadX)+35, int(currentY)+8)
+		uiPrint(screen, "CHARGER ->", int(loadX)+35, int(currentY)+8)
 
 		cmx, cmy = cursorPosition()
 		if canLoad && float64(cmx) >= loadX && float64(cmx) <= loadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
@@ -1007,7 +1006,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			colUnload = color.RGBA{40, 40, 40, 255}
 		}
 		vector.DrawFilledRect(screen, float32(unloadX), float32(currentY), float32(actW), float32(actH), colUnload, vecAA)
-		ebitenutil.DebugPrintAt(screen, "<- DÉCHARGER", int(unloadX)+30, int(currentY)+8) // text centered approx
+		uiPrint(screen, "<- DÉCHARGER", int(unloadX)+30, int(currentY)+8) // text centered approx
 
 		if canUnload && float64(cmx) >= unloadX && float64(cmx) <= unloadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
 			if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1043,7 +1042,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 		// Feedback message
 		if g.ui.TransferMessage != "" {
-			ebitenutil.DebugPrintAt(screen, g.ui.TransferMessage, int(startX)+20, int(currentY)+35)
+			uiPrint(screen, g.ui.TransferMessage, int(startX)+20, int(currentY)+35)
 		}
 	}
 }
@@ -1107,11 +1106,11 @@ func (g *Game) DrawManagementFleetList(screen *ebiten.Image, startX, startY, w, 
 		vector.StrokeRect(screen, float32(startX), float32(itemY), float32(w), float32(itemHeight), 1, borderColor, vecAA)
 
 		// Name
-		ebitenutil.DebugPrintAt(screen, fleet.Name, int(startX)+10, int(itemY)+10)
+		uiPrint(screen, fleet.Name, int(startX)+10, int(itemY)+10)
 
 		// Active Icon
 		if isActive {
-			ebitenutil.DebugPrintAt(screen, "✅ ACTIVE", int(startX)+10, int(itemY)+35)
+			uiPrint(screen, "✅ ACTIVE", int(startX)+10, int(itemY)+35)
 		} else {
 			// Count ships
 			activeShips := 0
@@ -1120,7 +1119,7 @@ func (g *Game) DrawManagementFleetList(screen *ebiten.Image, startX, startY, w, 
 					activeShips++
 				}
 			}
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d navires", activeShips), int(startX)+10, int(itemY)+35)
+			uiPrint(screen, fmt.Sprintf("%d navires", activeShips), int(startX)+10, int(itemY)+35)
 		}
 	}
 }
@@ -1140,7 +1139,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "SELECTIONNER UN CAPITAINE", int(modalX)+20, int(modalY)+20)
+	uiPrint(screen, "SELECTIONNER UN CAPITAINE", int(modalX)+20, int(modalY)+20)
 
 	// List available captains (not assigned to any ship)
 	contentY := modalY + 50
@@ -1161,10 +1160,10 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	totalItemHeight := captainCardHeight + captainCardSpacing
 
 	if len(availableCaptains) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun capitaine disponible", int(contentX), int(contentY))
-		ebitenutil.DebugPrintAt(screen, "Tous les capitaines sont assignés", int(contentX), int(contentY)+20)
+		uiPrint(screen, "Aucun capitaine disponible", int(contentX), int(contentY))
+		uiPrint(screen, "Tous les capitaines sont assignés", int(contentX), int(contentY)+20)
 	} else {
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Capitaines disponibles (%d):", len(availableCaptains)), int(contentX), int(contentY))
+		uiPrint(screen, fmt.Sprintf("Capitaines disponibles (%d):", len(availableCaptains)), int(contentX), int(contentY))
 
 		// Calculate scroll bounds
 		totalHeight := float64(len(availableCaptains)) * totalItemHeight
@@ -1221,8 +1220,8 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 					starsText += "☆"
 				}
 			}
-			ebitenutil.DebugPrintAt(screen, capt.Name, int(contentX)+10, int(captY)+5)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Niveau %d | %s | %s", capt.Level, capt.Rarity, starsText), int(contentX)+10, int(captY)+20)
+			uiPrint(screen, capt.Name, int(contentX)+10, int(captY)+5)
+			uiPrint(screen, fmt.Sprintf("Niveau %d | %s | %s", capt.Level, capt.Rarity, starsText), int(contentX)+10, int(captY)+20)
 
 			// Buttons: Select and Upgrade
 			btnX := modalX + modalW - 200
@@ -1238,7 +1237,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 				upgradeBtnX := btnX
 				upgradeBtnCol := color.RGBA{200, 150, 0, 255}
 				vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(btnY), float32(btnW), float32(btnH), upgradeBtnCol, vecAA)
-				ebitenutil.DebugPrintAt(screen, "UPGRADE ★", int(upgradeBtnX)+5, int(btnY)+7)
+				uiPrint(screen, "UPGRADE ★", int(upgradeBtnX)+5, int(btnY)+7)
 
 				// Handle upgrade click
 				if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1266,7 +1265,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			}
 			btnCol := color.RGBA{0, 150, 0, 255}
 			vector.DrawFilledRect(screen, float32(selectBtnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-			ebitenutil.DebugPrintAt(screen, "SELECT", int(selectBtnX)+15, int(btnY)+7)
+			uiPrint(screen, "SELECT", int(selectBtnX)+15, int(btnY)+7)
 
 			// Handle select click
 			if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1297,7 +1296,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	closeY := modalY + 10
 	closeSize := 20.0
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+6, int(closeY)+3)
+	uiPrint(screen, "X", int(closeX)+6, int(closeY)+3)
 
 	// Handle close button click
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {

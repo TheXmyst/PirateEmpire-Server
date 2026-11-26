@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -31,8 +30,8 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 100, 100, 255}, false)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "INFIRMERIE", int(winX)+20, int(winY)+20)
-	ebitenutil.DebugPrintAt(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
+	uiPrint(screen, "INFIRMERIE", int(winX)+20, int(winY)+20)
+	uiPrint(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
 
 	vector.StrokeLine(screen, float32(winX)+20, float32(winY)+50, float32(winX+winW)-20, float32(winY)+50, 1, color.RGBA{150, 100, 100, 255}, false)
 
@@ -82,7 +81,7 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 	gap := 10.0
 	// No items message
 	if len(injuredList) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun capitaine blessé.", int(winX)+20, int(currentY))
+		uiPrint(screen, "Aucun capitaine blessé.", int(winX)+20, int(currentY))
 		return
 	}
 
@@ -102,7 +101,7 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 
 		// Content
 		// Name & Rarity
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", cap.Name, cap.Rarity), int(winX)+30, int(currentY)+10)
+		uiPrint(screen, fmt.Sprintf("%s (%s)", cap.Name, cap.Rarity), int(winX)+30, int(currentY)+10)
 
 		// Stars
 		starStr := ""
@@ -112,13 +111,13 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 		for i := cap.Stars; i < cap.MaxStars; i++ {
 			starStr += "☆"
 		}
-		ebitenutil.DebugPrintAt(screen, starStr, int(winX)+30, int(currentY)+30)
+		uiPrint(screen, starStr, int(winX)+30, int(currentY)+30)
 
 		// Timer (Large & Red)
 		mins := int(cap.Remaining.Minutes())
 		secs := int(cap.Remaining.Seconds()) % 60
 		timeStr := fmt.Sprintf("Soins: %02dm %02ds", mins, secs)
-		ebitenutil.DebugPrintAt(screen, timeStr, int(winX)+300, int(currentY)+30)
+		uiPrint(screen, timeStr, int(winX)+300, int(currentY)+30)
 
 		// Progress Bar (Visual fluff)
 		// Assuming max injury times: Common=30m, Rare=2h, Leg=5h

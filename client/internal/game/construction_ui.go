@@ -9,7 +9,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -133,8 +132,8 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 180, 50, 255}, vecAA)
 	}
 
-	ebitenutil.DebugPrintAt(screen, "CONSTRUCTION", int(winX)+20, int(winY)+20)
-	ebitenutil.DebugPrintAt(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
+	uiPrint(screen, "CONSTRUCTION", int(winX)+20, int(winY)+20)
+	uiPrint(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
 
 	items := g.getConstructionItems()
 	startY := winY + 60
@@ -174,8 +173,8 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 
 		// Text
 		textX := int(ix) + 80
-		ebitenutil.DebugPrintAt(screen, item.Name, textX, int(y)+10)
-		ebitenutil.DebugPrintAt(screen, item.Desc, textX, int(y)+30)
+		uiPrint(screen, item.Name, textX, int(y)+10)
+		uiPrint(screen, item.Desc, textX, int(y)+30)
 
 		// Check if building exists
 		var existing *domain.Building
@@ -223,7 +222,7 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		} else {
 			// For upgrade, we rely on server for advanced reqs, or basic resource/busy checks
 			// Visual indication of upgrade level
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("(Niv %d -> %d)", currentLevel, currentLevel+1), int(ix)+250, int(y)+20)
+			uiPrint(screen, fmt.Sprintf("(Niv %d -> %d)", currentLevel, currentLevel+1), int(ix)+250, int(y)+20)
 		}
 
 		// Draw cost text with opaque background to prevent ghosting
@@ -251,7 +250,7 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		}
 
 		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-		ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+5, int(btnY)+8)
+		uiPrint(screen, btnText, int(btnX)+5, int(btnY)+8)
 	}
 }
 

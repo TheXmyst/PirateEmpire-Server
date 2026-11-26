@@ -7,7 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -66,12 +65,12 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 		if locked {
 			// Locked state
 			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, vecAA)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Flotte %d (Verrouillée)", i), int(x)+10, int(slotY)+10)
+			uiPrint(screen, fmt.Sprintf("Flotte %d (Verrouillée)", i), int(x)+10, int(slotY)+10)
 			req := 10
 			if i == 3 {
 				req = 20
 			}
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Req: Niv. %d", req), int(x)+10, int(slotY)+30)
+			uiPrint(screen, fmt.Sprintf("Req: Niv. %d", req), int(x)+10, int(slotY)+30)
 		} else {
 			// Unlocked state
 			col := color.RGBA{30, 40, 50, 255}
@@ -96,8 +95,8 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 				}
 			}
 
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Flotte %d", i), int(x)+10, int(slotY)+10)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(x)+10, int(slotY)+30)
+			uiPrint(screen, fmt.Sprintf("Flotte %d", i), int(x)+10, int(slotY)+10)
+			uiPrint(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(x)+10, int(slotY)+30)
 
 			// Click to select
 			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -113,7 +112,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	if shipyardUI.SelectedFleetIndex == 0 {
-		ebitenutil.DebugPrintAt(screen, "Sélectionnez une flotte.", int(x)+10, int(y)+10)
+		uiPrint(screen, "Sélectionnez une flotte.", int(x)+10, int(y)+10)
 		return
 	}
 
@@ -128,12 +127,12 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 
 	selIdx := shipyardUI.SelectedFleetIndex
 	if selIdx > maxFleets {
-		ebitenutil.DebugPrintAt(screen, "Flotte Verrouillée.", int(x)+10, int(y)+10)
+		uiPrint(screen, "Flotte Verrouillée.", int(x)+10, int(y)+10)
 		return
 	}
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("FLOTTE %d", selIdx), int(x)+10, int(y)+10)
+	uiPrint(screen, fmt.Sprintf("FLOTTE %d", selIdx), int(x)+10, int(y)+10)
 
 	// Get max ships
 	maxShips := 3
@@ -178,21 +177,21 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	}
 
 	if currentFleet == nil {
-		ebitenutil.DebugPrintAt(screen, "Flotte non initialisée.", int(x)+10, int(listY))
+		uiPrint(screen, "Flotte non initialisée.", int(x)+10, int(listY))
 	} else {
 		if currentShips == 0 {
-			ebitenutil.DebugPrintAt(screen, "Aucun navire", int(x)+10, int(listY))
+			uiPrint(screen, "Aucun navire", int(x)+10, int(listY))
 		} else {
 			// Display only active ships (already filtered)
 			for k, s := range activeShips {
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("- %s (%s)", s.Name, s.Type), int(x)+10, int(listY+float64(k)*25))
+				uiPrint(screen, fmt.Sprintf("- %s (%s)", s.Name, s.Type), int(x)+10, int(listY+float64(k)*25))
 			}
 		}
 	}
 
 	// Capacity display
 	capacityY := y + h - 80
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Capacité : %d / %d", currentShips, maxShips), int(x)+10, int(capacityY))
+	uiPrint(screen, fmt.Sprintf("Capacité : %d / %d", currentShips, maxShips), int(x)+10, int(capacityY))
 
 	// Add ship button
 	btnW, btnH := 200.0, 40.0
@@ -208,7 +207,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+20, int(btnY)+12)
+	uiPrint(screen, btnText, int(btnX)+20, int(btnY)+12)
 
 	// Handle click (shielded by modal)
 	if !disabled && !shipyardUI.ShowAddShipModal && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -437,7 +436,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 
 	draw9Slice(screen, g, mxStart, myStart, modalW, modalH, 12)
 
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Ajouter un navire a la Flotte %d", shipyardUI.TargetFleetIndex), int(mxStart)+20, int(myStart)+20)
+	uiPrint(screen, fmt.Sprintf("Ajouter un navire a la Flotte %d", shipyardUI.TargetFleetIndex), int(mxStart)+20, int(myStart)+20)
 
 	// Recalculate fleet capacity from current g.player (no cache) - single source of truth
 	var targetFleet *domain.Fleet
@@ -496,17 +495,17 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 
 	// Feedback message
 	if shipyardUI.ModalMessage != "" {
-		ebitenutil.DebugPrintAt(screen, shipyardUI.ModalMessage, int(mxStart)+20, int(myStart)+40)
+		uiPrint(screen, shipyardUI.ModalMessage, int(mxStart)+20, int(myStart)+40)
 	}
 
 	// Display capacity info block
 	infoY := myStart + 60
 	if targetFleet != nil {
-		ebitenutil.DebugPrintAt(screen, "Capacite:", int(mxStart)+20, int(infoY))
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("  %d / %d", totalShipsCount, fleetCapacity), int(mxStart)+30, int(infoY)+15)
+		uiPrint(screen, "Capacite:", int(mxStart)+20, int(infoY))
+		uiPrint(screen, fmt.Sprintf("  %d / %d", totalShipsCount, fleetCapacity), int(mxStart)+30, int(infoY)+15)
 	} else {
-		ebitenutil.DebugPrintAt(screen, "Flotte introuvable (status non synchronise)", int(mxStart)+20, int(infoY))
-		ebitenutil.DebugPrintAt(screen, "Rafraichir...", int(mxStart)+20, int(infoY)+15)
+		uiPrint(screen, "Flotte introuvable (status non synchronise)", int(mxStart)+20, int(infoY))
+		uiPrint(screen, "Rafraichir...", int(mxStart)+20, int(infoY)+15)
 	}
 
 	// List available ships (below capacity info)
@@ -526,7 +525,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	curMx, curMy := cursorPosition()
 
 	if len(availableShips) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
+		uiPrint(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
 	} else {
 		for i, s := range availableShips {
 			rowY := shipsY + float64(i)*35
@@ -543,7 +542,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 			}
 
 			vector.DrawFilledRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
+			uiPrint(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
 
 			// Ship selection is now handled in UpdateAddShipModalShipyard()
 			// Visual feedback only here
@@ -562,7 +561,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnCancelX), float32(btnCancelY), float32(btnW), float32(btnH), colCancel, false)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
+	uiPrint(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
 
 	// Cancel button click is now handled in UpdateAddShipModalShipyard()
 
@@ -578,7 +577,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnOkX), float32(btnOkY), float32(btnW), float32(btnH), colOk, false)
-	ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
+	uiPrint(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
 
 	// Input handling is now in UpdateAddShipModalShipyard()
 }

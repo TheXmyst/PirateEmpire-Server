@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -33,14 +32,14 @@ func (g *Game) DrawLocalizationOverlay(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), 2, color.RGBA{100, 100, 200, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "LOCALIZATION MODE", int(boxX)+10, int(boxY)+10)
+	uiPrint(screen, "LOCALIZATION MODE", int(boxX)+10, int(boxY)+10)
 
 	// Coordinates
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("WORLD X: %.0f", worldX), int(boxX)+10, int(boxY)+30)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("WORLD Y: %.0f", worldY), int(boxX)+10, int(boxY)+45)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("SCREEN X: %d", mx), int(boxX)+10, int(boxY)+60)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("SCREEN Y: %d", my), int(boxX)+10, int(boxY)+75)
+	uiPrint(screen, fmt.Sprintf("WORLD X: %.0f", worldX), int(boxX)+10, int(boxY)+30)
+	uiPrint(screen, fmt.Sprintf("WORLD Y: %.0f", worldY), int(boxX)+10, int(boxY)+45)
+	uiPrint(screen, fmt.Sprintf("SCREEN X: %d", mx), int(boxX)+10, int(boxY)+60)
+	uiPrint(screen, fmt.Sprintf("SCREEN Y: %d", my), int(boxX)+10, int(boxY)+75)
 
 	// Hint
-	ebitenutil.DebugPrintAt(screen, "Press F1 or ESC to return", int(boxX)+10, int(boxY)+95)
+	uiPrint(screen, "Press F1 or ESC to return", int(boxX)+10, int(boxY)+95)
 }

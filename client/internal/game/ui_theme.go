@@ -127,6 +127,9 @@ func drawText(screen *ebiten.Image, s string, face text.Face, x, y float64, clr 
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(x, y)
 	op.ColorScale.ScaleWithColor(clr)
+	if gf, ok := face.(*text.GoTextFace); ok {
+		op.LineSpacing = gf.Size * 1.3
+	}
 	switch align {
 	case alignCenter:
 		op.PrimaryAlign = text.AlignCenter
@@ -134,6 +137,61 @@ func drawText(screen *ebiten.Image, s string, face text.Face, x, y float64, clr 
 		op.PrimaryAlign = text.AlignEnd
 	}
 	text.Draw(screen, s, face, op)
+}
+
+// uiTextSize : taille de la police lisible qui remplace la police de debug
+// (6x16 pixels par caractère) dans les fenêtres du jeu.
+const uiTextSize = 12.5
+
+// uiPrint remplace ebitenutil.DebugPrintAt : même position (haut-gauche du
+// texte), mais avec la police lisible du jeu et une ombre légère pour rester
+// lisible sur tous les fonds.
+func uiPrint(screen *ebiten.Image, s string, x, y int) {
+	s = stripUnsupported(s)
+	if s == "" {
+		return
+	}
+	f := bodyFace(uiTextSize, false)
+	if f == nil {
+		ebitenutil.DebugPrintAt(screen, s, x, y)
+		return
+	}
+	op := &text.DrawOptions{}
+	op.LineSpacing = 16 // même interligne que l'ancienne police
+	op.GeoM.Translate(float64(x)+1, float64(y)+2)
+	op.ColorScale.ScaleWithColor(color.NRGBA{0, 0, 0, 150})
+	text.Draw(screen, s, f, op)
+	op.GeoM.Translate(-1, -1)
+	op.ColorScale.Reset()
+	op.ColorScale.ScaleWithColor(themeText)
+	text.Draw(screen, s, f, op)
+}
+
+// stripUnsupported retire les émojis (la police n'en a pas : ils
+// s'afficheraient en carrés vides).
+func stripUnsupported(s string) string {
+	clean := true
+	for _, r := range s {
+		if isEmojiRune(r) {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if !isEmojiRune(r) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func isEmojiRune(r rune) bool {
+	return r >= 0x1F000 || (r >= 0x2600 && r <= 0x27BF) || (r >= 0x2B00 && r <= 0x2BFF) ||
+		r == 0xFE0F || r == 0x200D || (r >= 0x2300 && r <= 0x23FF)
 }
 
 // textWidth : largeur du texte en pixels.

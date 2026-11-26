@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -30,5 +29,5 @@ func (g *Game) DrawError(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.White, vecAA)
 
 	// Draw Message (Centered)
-	ebitenutil.DebugPrintAt(screen, g.errorMessage, int(x)+20, int(y)+40)
+	uiPrint(screen, g.errorMessage, int(x)+20, int(y)+40)
 }

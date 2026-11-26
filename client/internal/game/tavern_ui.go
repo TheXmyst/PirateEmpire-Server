@@ -7,7 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -31,7 +30,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "Tavern", int(x)+20, int(y)+20)
+	uiPrint(screen, "Tavern", int(x)+20, int(y)+20)
 
 	// Close button (X) - top right
 	closeBtnSize := 30.0
@@ -39,7 +38,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	closeY := y + 10
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
 	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Get ticket balance from island resources
 	ticketBalance := 0
@@ -51,14 +50,14 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	}
 
 	// Ticket balance display
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Tickets: %d", ticketBalance), int(x)+20, int(y)+50)
+	uiPrint(screen, fmt.Sprintf("Tickets: %d", ticketBalance), int(x)+20, int(y)+50)
 
 	// Separator
 	vector.StrokeLine(screen, float32(x)+20, float32(y)+80, float32(x+w)-20, float32(y)+80, 1, color.Gray{100}, vecAA)
 
 	// Busy state indicator
 	if g.ui.TavernBusy {
-		ebitenutil.DebugPrintAt(screen, "Recrutement...", int(x)+20, int(y)+100)
+		uiPrint(screen, "Recrutement...", int(x)+20, int(y)+100)
 	}
 
 	// Error display
@@ -73,11 +72,11 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 		for len(errorText) > maxLen {
 			line := errorText[:maxLen]
 			errorText = errorText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, errorY)
+			uiPrint(screen, line, int(x)+20, errorY)
 			errorY += 15
 		}
 		if errorText != "" {
-			ebitenutil.DebugPrintAt(screen, errorText, int(x)+20, errorY)
+			uiPrint(screen, errorText, int(x)+20, errorY)
 		}
 	}
 
@@ -93,7 +92,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	// Display results based on last summon
 	if g.ui.TavernLastResult != "" && !g.ui.TavernBusy {
 		resultY := resultStartY
-		ebitenutil.DebugPrintAt(screen, "Dernier recrutement:", int(x)+20, resultY)
+		uiPrint(screen, "Dernier recrutement:", int(x)+20, resultY)
 		resultY += 20
 		// Split long messages
 		resultText := g.ui.TavernLastResult
@@ -101,11 +100,11 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 		for len(resultText) > maxLen {
 			line := resultText[:maxLen]
 			resultText = resultText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, resultY)
+			uiPrint(screen, line, int(x)+20, resultY)
 			resultY += 15
 		}
 		if resultText != "" {
-			ebitenutil.DebugPrintAt(screen, resultText, int(x)+20, resultY)
+			uiPrint(screen, resultText, int(x)+20, resultY)
 		}
 	}
 
@@ -127,7 +126,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	}
 	vector.DrawFilledRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), btn1Col, vecAA)
 	vector.StrokeRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "RECRUTER x1", int(btn1X)+40, int(btnY)+15)
+	uiPrint(screen, "RECRUTER x1", int(btn1X)+40, int(btnY)+15)
 
 	// x10 button
 	btn10X := btnStartX + btnW + btnSpacing
@@ -140,7 +139,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	}
 	vector.DrawFilledRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), btn10Col, vecAA)
 	vector.StrokeRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "RECRUTER x10", int(btn10X)+35, int(btnY)+15)
+	uiPrint(screen, "RECRUTER x10", int(btn10X)+35, int(btnY)+15)
 }
 
 // UpdateTavernUI handles input for the Tavern UI

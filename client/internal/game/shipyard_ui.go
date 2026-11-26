@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -85,13 +84,13 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	// Draw header elements on top (title, close button, tabs) so they're always visible
 	// Title
 	titleY := winY + 15
-	ebitenutil.DebugPrintAt(screen, "CHANTIER NAVAL", int(cx)-60, int(titleY))
+	uiPrint(screen, "CHANTIER NAVAL", int(cx)-60, int(titleY))
 
 	// Close button (X)
 	closeX, closeY := winX+winW-35, winY+10
 	closeSize := 25.0
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+8, int(closeY)+5)
+	uiPrint(screen, "X", int(closeX)+8, int(closeY)+5)
 
 	// Handle close button click
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -112,7 +111,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 		tab1Col = color.RGBA{200, 180, 0, 255} // Yellow for active
 	}
 	vector.DrawFilledRect(screen, float32(tab1X), float32(tabY), float32(tabW), float32(tabH), tab1Col, vecAA)
-	ebitenutil.DebugPrintAt(screen, "CONSTRUCTION", int(tab1X)+40, int(tabY)+12)
+	uiPrint(screen, "CONSTRUCTION", int(tab1X)+40, int(tabY)+12)
 
 	// Tab 2: FLOTTES
 	tab2Col := color.RGBA{100, 100, 100, 255}
@@ -120,7 +119,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 		tab2Col = color.RGBA{200, 180, 0, 255}
 	}
 	vector.DrawFilledRect(screen, float32(tab2X), float32(tabY), float32(tabW), float32(tabH), tab2Col, vecAA)
-	ebitenutil.DebugPrintAt(screen, "FLOTTES", int(tab2X)+60, int(tabY)+12)
+	uiPrint(screen, "FLOTTES", int(tab2X)+60, int(tabY)+12)
 
 	// Handle tab clicks
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -230,19 +229,19 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		// Ship name (relative to cardTop)
 		nameY := int(cardTop + titleOffset)
 		if float64(nameY+textHeight) <= clipBottom && float64(nameY) >= clipTop {
-			ebitenutil.DebugPrintAt(screen, ship.Name, textX, nameY)
+			uiPrint(screen, ship.Name, textX, nameY)
 		}
 
 		// Stats (multiline, relative to cardTop)
 		statsY := int(cardTop + statsOffset)
 		if float64(statsY+textHeight*2) <= clipBottom && float64(statsY) >= clipTop {
-			ebitenutil.DebugPrintAt(screen, ship.Stats, textX, statsY)
+			uiPrint(screen, ship.Stats, textX, statsY)
 		}
 
 		// Cost label (relative to cardTop)
 		costLabelY := int(cardTop + costLabelOffset)
 		if float64(costLabelY+textHeight) <= clipBottom && float64(costLabelY) >= clipTop {
-			ebitenutil.DebugPrintAt(screen, "Cout:", textX, costLabelY)
+			uiPrint(screen, "Cout:", textX, costLabelY)
 		}
 
 		// Cost values (relative to cardTop)
@@ -259,7 +258,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		timeY := int(cardTop + timeOffset)
 		// Only draw if fully within visible bounds (prevent text bleeding)
 		if float64(timeY+textHeight) <= clipBottom && float64(timeY) >= clipTop {
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Temps: %s", ship.BuildTime), textX, timeY)
+			uiPrint(screen, fmt.Sprintf("Temps: %s", ship.BuildTime), textX, timeY)
 		}
 
 		// Build button (relative to cardTop, not cardBottom for consistency)
@@ -299,7 +298,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		// Only draw button if fully within visible bounds (button is relative to cardTop)
 		if btnY+btnH <= clipBottom && btnY >= clipTop {
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-			ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+40, int(btnY)+12)
+			uiPrint(screen, btnText, int(btnX)+40, int(btnY)+12)
 		}
 
 		// Handle button click
@@ -364,7 +363,7 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "BATEAU(X) DISPONIBLE(S)", int(x)+10, int(y)+10)
+	uiPrint(screen, "BATEAU(X) DISPONIBLE(S)", int(x)+10, int(y)+10)
 
 	if g.player == nil || len(g.player.Islands) == 0 {
 		return
@@ -374,7 +373,7 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 	island := g.player.Islands[0]
 
 	if len(island.Ships) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun navire", int(x)+10, int(listY))
+		uiPrint(screen, "Aucun navire", int(x)+10, int(listY))
 		return
 	}
 
@@ -399,13 +398,13 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 		vector.StrokeRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 
 		// Ship name
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", ship.Name, ship.Type), int(itemX)+10, int(itemY)+10)
+		uiPrint(screen, fmt.Sprintf("%s (%s)", ship.Name, ship.Type), int(itemX)+10, int(itemY)+10)
 
 		// Status
 		if ship.State == "UnderConstruction" {
-			ebitenutil.DebugPrintAt(screen, "En Construction...", int(itemX)+10, int(itemY)+30)
+			uiPrint(screen, "En Construction...", int(itemX)+10, int(itemY)+30)
 		} else {
-			ebitenutil.DebugPrintAt(screen, "Disponible", int(itemX)+10, int(itemY)+30)
+			uiPrint(screen, "Disponible", int(itemX)+10, int(itemY)+30)
 		}
 
 		idx++
@@ -442,10 +441,10 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	// Display current level
 	textX := int(x) + 30
 	textY := int(y) + 10
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Niveau Actuel: %d", currentLevel), textX, textY)
+	uiPrint(screen, fmt.Sprintf("Niveau Actuel: %d", currentLevel), textX, textY)
 
 	if currentLevel >= 30 {
-		ebitenutil.DebugPrintAt(screen, "NIVEAU MAX ATTEINT", textX, textY+20)
+		uiPrint(screen, "NIVEAU MAX ATTEINT", textX, textY+20)
 		return
 	}
 
@@ -460,7 +459,7 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 
 	// Build time
 	buildTime := g.getBuildingDuration("Chantier Naval", currentLevel+1)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Temps Construction: %ds", int(buildTime.Seconds())), textX, costY+15)
+	uiPrint(screen, fmt.Sprintf("Temps Construction: %ds", int(buildTime.Seconds())), textX, costY+15)
 
 	// Upgrade button
 	btnW, btnH := 150.0, 40.0
@@ -501,7 +500,7 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	}
 
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+30, int(btnY)+12)
+	uiPrint(screen, btnText, int(btnX)+30, int(btnY)+12)
 
 	// Handle upgrade button click
 	if canAfford && !isBusy && isMouseJustPressed(ebiten.MouseButtonLeft) {

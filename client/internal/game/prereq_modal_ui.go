@@ -6,7 +6,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -35,12 +34,12 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	if title == "" {
 		title = "PRÉREQUIS MANQUANTS"
 	}
-	ebitenutil.DebugPrintAt(screen, title, int(x+padding), int(titleY))
+	uiPrint(screen, title, int(x+padding), int(titleY))
 
 	// Subtitle (optional)
 	if g.ui.PrereqModalSubtitle != "" {
 		subtitleY := titleY + 25
-		ebitenutil.DebugPrintAt(screen, g.ui.PrereqModalSubtitle, int(x+padding), int(subtitleY))
+		uiPrint(screen, g.ui.PrereqModalSubtitle, int(x+padding), int(subtitleY))
 	}
 
 	// Separator
@@ -78,7 +77,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	}
 
 	if totalItems == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun prérequis spécifié", int(x+padding), int(currentY))
+		uiPrint(screen, "Aucun prérequis spécifié", int(x+padding), int(currentY))
 	} else {
 		for i := startIdx; i < endIdx; i++ {
 			if i >= len(g.ui.PrereqModalReqs) {
@@ -86,7 +85,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			}
 			req := g.ui.PrereqModalReqs[i]
 			reqText := formatRequirement(req)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("• %s", reqText), int(x+padding+10), int(currentY))
+			uiPrint(screen, fmt.Sprintf("• %s", reqText), int(x+padding+10), int(currentY))
 			currentY += 25
 		}
 
@@ -118,7 +117,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	btnCol := color.RGBA{0, 150, 0, 255}
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+45, int(btnY)+10)
+	uiPrint(screen, "OK", int(btnX)+45, int(btnY)+10)
 
 	// Close button (X) in top right
 	closeBtnSize := 25.0
@@ -126,7 +125,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	closeBtnY := y + padding
 	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{100, 50, 50, 255}, vecAA)
 	vector.StrokeRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeBtnX)+8, int(closeBtnY)+5)
+	uiPrint(screen, "X", int(closeBtnX)+8, int(closeBtnY)+5)
 }
 
 // formatRequirement formats a requirement for display

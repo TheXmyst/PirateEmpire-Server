@@ -295,7 +295,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	loginY := cy + 80
 
 	// Captain Name Input
-	ebitenutil.DebugPrintAt(screen, "Captain Name:", int(cx)-150, int(loginY)-80)
+	uiPrint(screen, "Captain Name:", int(cx)-150, int(loginY)-80)
 	if g.sliceTopLeft != nil {
 		draw9Slice(screen, g, cx-150, loginY-60, 300, 50, 16)
 	} else {
@@ -312,10 +312,10 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	if g.ui.IsTypingUser && (g.ui.CaretTimer/30)%2 == 0 {
 		utxt += "|"
 	}
-	ebitenutil.DebugPrintAt(screen, utxt, int(cx)-140, int(loginY)-45)
+	uiPrint(screen, utxt, int(cx)-140, int(loginY)-45)
 
 	// Password Input
-	ebitenutil.DebugPrintAt(screen, "Password:", int(cx)-150, int(loginY))
+	uiPrint(screen, "Password:", int(cx)-150, int(loginY))
 	if g.sliceTopLeft != nil {
 		draw9Slice(screen, g, cx-150, loginY+20, 300, 50, 16)
 	} else {
@@ -329,7 +329,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	if g.ui.IsTypingPass && (g.ui.CaretTimer/30)%2 == 0 {
 		ptxt += "|"
 	}
-	ebitenutil.DebugPrintAt(screen, ptxt, int(cx)-140, int(loginY)+35)
+	uiPrint(screen, ptxt, int(cx)-140, int(loginY)+35)
 
 	// Main Action Button (Connect or Register)
 	// Gold Style - SET SAIL / REGISTER
@@ -369,7 +369,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	if g.ui.IsRegisterMode {
 		txtX = int(btnX) + 65
 	}
-	ebitenutil.DebugPrintAt(screen, mainBtnLabel, txtX, int(btnY)+18)
+	uiPrint(screen, mainBtnLabel, txtX, int(btnY)+18)
 
 	// Toggle Mode Button (Switch between Login/Register)
 	regBtnY := btnY + 60
@@ -385,21 +385,21 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 
 	// Just text with underline effect if hovered (simulated)
 	// We'll just draw centered text for now
-	ebitenutil.DebugPrintAt(screen, toggleLabel, int(btnX)+45, int(regBtnY))
+	uiPrint(screen, toggleLabel, int(btnX)+45, int(regBtnY))
 
 	checkboxX, checkboxY := cx-150, float64(regBtnY)+60
 	ebitenutil.DrawRect(screen, checkboxX, checkboxY, 20, 20, color.RGBA{200, 200, 200, 255})
 	if g.ui.RememberMe {
 		vector.DrawFilledRect(screen, float32(checkboxX+4), float32(checkboxY+4), 12, 12, color.RGBA{0, 200, 0, 255}, vecAA)
 	}
-	ebitenutil.DebugPrintAt(screen, "Se souvenir de moi", int(checkboxX)+30, int(checkboxY)+2)
+	uiPrint(screen, "Se souvenir de moi", int(checkboxX)+30, int(checkboxY)+2)
 
 	versionLabel := "v0.9.0-alpha"
 	if ClientVersion != "dev" && ClientVersion != "" {
 		versionLabel += " (" + ClientVersion + ")"
 	}
-	ebitenutil.DebugPrintAt(screen, versionLabel, 10, int(h)-40)
-	ebitenutil.DebugPrintAt(screen, "Developed by Masterkey Technologic", 10, int(h)-20)
+	uiPrint(screen, versionLabel, 10, int(h)-40)
+	uiPrint(screen, "Developed by Masterkey Technologic", 10, int(h)-20)
 
 	if g.ui.LoginError != "" {
 		f := bodyFace(14, true)

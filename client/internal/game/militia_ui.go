@@ -8,7 +8,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -32,7 +31,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "MILICE", int(x)+20, int(y)+20)
+	uiPrint(screen, "MILICE", int(x)+20, int(y)+20)
 
 	// Close button (X) - top right
 	closeBtnSize := 30.0
@@ -40,7 +39,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	closeY := y + 10
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
 	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
+	uiPrint(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Get island data
 	var island *domain.Island
@@ -59,7 +58,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Militia level display
 	levelY := int(y) + 50
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Niveau Milice: %d", militiaLevel), int(x)+20, levelY)
+	uiPrint(screen, fmt.Sprintf("Niveau Milice: %d", militiaLevel), int(x)+20, levelY)
 
 	// Upgrade button (if building exists and not constructing)
 	if militiaBuilding != nil && !militiaBuilding.Constructing {
@@ -68,14 +67,14 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		upgradeBtnW := 100.0
 		upgradeBtnH := 30.0
 		vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(upgradeBtnY), float32(upgradeBtnW), float32(upgradeBtnH), color.RGBA{200, 150, 0, 255}, vecAA)
-		ebitenutil.DebugPrintAt(screen, "UPGRADE", int(upgradeBtnX)+20, int(upgradeBtnY)+8)
+		uiPrint(screen, "UPGRADE", int(upgradeBtnX)+20, int(upgradeBtnY)+8)
 	}
 
 	// Stock actuel display
 	stockY := int(y) + 80
 	if island != nil {
-		ebitenutil.DebugPrintAt(screen, "Stock actuel:", int(x)+20, stockY)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d",
+		uiPrint(screen, "Stock actuel:", int(x)+20, stockY)
+		uiPrint(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d",
 			island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(x)+20, stockY+20)
 	}
 
@@ -84,7 +83,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Recruitment section
 	recruitY := int(y) + 140
-	ebitenutil.DebugPrintAt(screen, "Recrutement:", int(x)+20, recruitY)
+	uiPrint(screen, "Recrutement:", int(x)+20, recruitY)
 
 	// Sliders
 	sliderX := x + 20
@@ -94,17 +93,17 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Warrior slider
 	warriorY := sliderY
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d", g.ui.MilitiaWarriors), int(sliderX), int(warriorY))
+	uiPrint(screen, fmt.Sprintf("Guerriers: %d", g.ui.MilitiaWarriors), int(sliderX), int(warriorY))
 	drawSlider(screen, sliderX, warriorY+20, sliderW, sliderH, g.ui.MilitiaWarriors, 0, 200)
 
 	// Archer slider
 	archerY := warriorY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Archers: %d", g.ui.MilitiaArchers), int(sliderX), int(archerY))
+	uiPrint(screen, fmt.Sprintf("Archers: %d", g.ui.MilitiaArchers), int(sliderX), int(archerY))
 	drawSlider(screen, sliderX, archerY+20, sliderW, sliderH, g.ui.MilitiaArchers, 0, 200)
 
 	// Gunner slider
 	gunnerY := archerY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Artilleurs: %d", g.ui.MilitiaGunners), int(sliderX), int(gunnerY))
+	uiPrint(screen, fmt.Sprintf("Artilleurs: %d", g.ui.MilitiaGunners), int(sliderX), int(gunnerY))
 	drawSlider(screen, sliderX, gunnerY+20, sliderW, sliderH, g.ui.MilitiaGunners, 0, 200)
 
 	// Calculate costs and duration
@@ -129,8 +128,8 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Cost and duration display
 	infoY := int(gunnerY) + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Coût: %d Or, %d Rhum", goldCost, rumCost), int(x)+20, infoY)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Temps estimé: %.1f s (bonus: %.1f%%)", duration, bonusPct*100), int(x)+20, infoY+20)
+	uiPrint(screen, fmt.Sprintf("Coût: %d Or, %d Rhum", goldCost, rumCost), int(x)+20, infoY)
+	uiPrint(screen, fmt.Sprintf("Temps estimé: %.1f s (bonus: %.1f%%)", duration, bonusPct*100), int(x)+20, infoY+20)
 
 	// Check if can afford
 	canAfford := true
@@ -160,25 +159,25 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		vector.StrokeRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), 2, color.RGBA{100, 150, 200, 255}, vecAA)
 
 		// Title
-		ebitenutil.DebugPrintAt(screen, "🔄 RECRUTEMENT EN COURS", int(recruitBlockX)+10, int(recruitBlockY)+10)
+		uiPrint(screen, "🔄 RECRUTEMENT EN COURS", int(recruitBlockX)+10, int(recruitBlockY)+10)
 
 		// Countdown (formatted)
 		if now.Before(*island.MilitiaRecruitDoneAt) {
 			remaining := island.MilitiaRecruitDoneAt.Sub(now)
 			timeStr := formatRecruitDuration(remaining)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Fin dans: %s", timeStr), int(recruitBlockX)+10, int(recruitBlockY)+30)
+			uiPrint(screen, fmt.Sprintf("Fin dans: %s", timeStr), int(recruitBlockX)+10, int(recruitBlockY)+30)
 		} else {
-			ebitenutil.DebugPrintAt(screen, "Fin dans: 00:00 (en attente mise à jour)", int(recruitBlockX)+10, int(recruitBlockY)+30)
+			uiPrint(screen, "Fin dans: 00:00 (en attente mise à jour)", int(recruitBlockX)+10, int(recruitBlockY)+30)
 		}
 
 		// Quantities
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("→ %d Guerriers | %d Archers | %d Artilleurs",
+		uiPrint(screen, fmt.Sprintf("→ %d Guerriers | %d Archers | %d Artilleurs",
 			island.MilitiaRecruitWarriors, island.MilitiaRecruitArchers, island.MilitiaRecruitGunners),
 			int(recruitBlockX)+10, int(recruitBlockY)+50)
 	} else if island != nil && !island.MilitiaRecruiting {
 		// Show "no recruitment" status
 		recruitBlockY := stockY + 60
-		ebitenutil.DebugPrintAt(screen, "Aucun recrutement en cours", int(x)+20, int(recruitBlockY)+10)
+		uiPrint(screen, "Aucun recrutement en cours", int(x)+20, int(recruitBlockY)+10)
 	}
 
 	// Recruit button
@@ -200,7 +199,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	if g.ui.MilitiaBusy {
 		btnText = "EN COURS..."
 	}
-	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+40, int(btnY)+12)
+	uiPrint(screen, btnText, int(btnX)+40, int(btnY)+12)
 
 	// Error display
 	if g.ui.MilitiaError != "" {
@@ -210,11 +209,11 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		for len(errorText) > maxLen {
 			line := errorText[:maxLen]
 			errorText = errorText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, errorY)
+			uiPrint(screen, line, int(x)+20, errorY)
 			errorY += 15
 		}
 		if errorText != "" {
-			ebitenutil.DebugPrintAt(screen, errorText, int(x)+20, errorY)
+			uiPrint(screen, errorText, int(x)+20, errorY)
 		}
 	}
 }
