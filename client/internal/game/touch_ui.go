@@ -43,6 +43,12 @@ func scaledLayout(outsideWidth, outsideHeight int) (int, int) {
 func (g *Game) Update() error {
 	t0 := time.Now()
 	g.updatePointer()
+	// Un clic vu par cette mise à jour reste visible jusqu'au prochain Draw :
+	// quand le jeu affiche moins d'images qu'il ne fait de mises à jour, les
+	// boutons gérés dans Draw ne le ratent plus.
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		pointer.clickForDraw = true
+	}
 	syncSoftKeyboard(g)
 	err := g.updateGame()
 	diag.update += time.Since(t0)
@@ -62,8 +68,11 @@ var diag struct {
 func (g *Game) Draw(screen *ebiten.Image) {
 	t0 := time.Now()
 	beginTextFieldFrame()
+	inDraw = true
 	g.drawGame(screen)
 	g.drawTouchButtons(screen)
+	inDraw = false
+	pointer.clickForDraw = false
 	diag.draw += time.Since(t0)
 	diag.draws++
 	if showFPS() {

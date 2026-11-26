@@ -59,6 +59,7 @@ type pointerState struct {
 
 	lastMouseX, lastMouseY int
 	mouseConsumed          bool // clic souris pris par un bouton rond
+	clickForDraw           bool // clic pas encore vu par un Draw
 
 	// Tap trop rapide pour être vu par le jeu (doigt posé et levé entre deux
 	// frames) : le navigateur nous le signale ici (voir softkeyboard_js.go).
@@ -249,8 +250,14 @@ func cursorPosition() (int, int) {
 	return ebiten.CursorPosition()
 }
 
+// inDraw : vrai pendant Game.Draw (voir pointer.clickForDraw).
+var inDraw bool
+
 // isMouseJustPressed remplace inpututil.IsMouseButtonJustPressed.
 func isMouseJustPressed(b ebiten.MouseButton) bool {
+	if inDraw && b == ebiten.MouseButtonLeft {
+		return pointer.clickForDraw
+	}
 	if b == ebiten.MouseButtonLeft && pointer.justPressed {
 		return true
 	}

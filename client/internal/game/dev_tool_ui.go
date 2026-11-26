@@ -3,9 +3,9 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawDevTool renders the comprehensive developer tool panel
@@ -19,163 +19,111 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		g.ui.DevSimTier = 1
 	}
 
-	w := float64(screen.Bounds().Dx())
+	w := float64(g.screenWidth)
 
-	// Dev Tool Panel
-	panelW := 600.0
-	panelH := 700.0
-	panelX := w - panelW - 20
-	panelY := 20.0
+	panelW, panelH := 600.0, 610.0
+	panelX, panelY := w-panelW-20, 86.0
+	drawThemePanel(screen, panelX, panelY, panelW, panelH, 18)
+	drawText(screen, "Outils dev", titleFace(26), panelX+20, panelY+10, themeGold, alignLeft)
+	drawText(screen, "F1 pour fermer", bodyFace(12, false), panelX+panelW-20, panelY+20, themeMuted, alignRight)
 
-	// Background
-	drawButton(screen, float64(panelX), float64(panelY), float64(panelW), float64(panelH), "=== dev tool ===", kindFromColor(color.RGBA{20, 20, 40, 240}))
-
-	// Title
-	uiPrint(screen, "[F1] to close", int(panelX)+240, int(panelY)+25)
-
-	// Stats Section
-	currentY := panelY + 50
-	uiPrint(screen, fmt.Sprintf("FPS: %.1f | TPS: %.1f | State: %d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.state), int(panelX)+20, int(currentY))
-
+	stats := fmt.Sprintf("FPS %.0f · TPS %.0f · état %d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.state)
 	if g.player != nil {
-		currentY += 20
-		uiPrint(screen, fmt.Sprintf("Player: %s (Admin: %v)", g.player.Username, g.player.IsAdmin), int(panelX)+20, int(currentY))
-	}
-
-	// Separator
-	currentY += 30
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
-
-	// Cheat Buttons Section
-	currentY += 20
-	uiSubtitle(screen, "Triches", int(panelX)+20, int(currentY))
-
-	mx, my := cursorPosition()
-	fmx, fmy := float64(mx), float64(my)
-
-	// Button helper
-	drawButton := func(x, y, w, h float64, label string, hoverColor, normalColor color.RGBA) bool {
-		hover := fmx >= x && fmx <= x+w && fmy >= y && fmy <= y+h
-		btnColor := normalColor
-		if hover {
-			btnColor = hoverColor
+		admin := "non admin"
+		if g.player.IsAdmin {
+			admin = "admin"
 		}
-		drawButton(screen, float64(x), float64(y), float64(w), float64(h), label, kindFromColor(btnColor))
-		return hover && isMouseJustPressed(ebiten.MouseButtonLeft)
+		stats += fmt.Sprintf(" · %s (%s)", g.player.Username, admin)
+	}
+	drawText(screen, stats, bodyFace(12, false), panelX+20, panelY+50, themeMuted, alignLeft)
+
+	btn := func(x, y, bw, bh float64, label string, kind buttonKind) bool {
+		if g.ui.DevActionBusy {
+			kind = btnDisabled
+		}
+		drawButton(screen, x, y, bw, bh, label, kind)
+		return !g.ui.DevActionBusy && isHovered(x, y, bw, bh) && isMouseJustPressed(ebiten.MouseButtonLeft)
 	}
 
-	// Row 1: Add Resources
-	currentY += 30
-	btnW := 130.0
-	btnH := 30.0
-	gap := 10.0
-
-	if drawButton(panelX+20, currentY, btnW, btnH, "+1000 Wood", color.RGBA{100, 200, 100, 255}, color.RGBA{60, 120, 60, 255}) {
+	x0 := panelX + 20
+	btnW, btnH, gap := 130.0, 30.0, 10.0
+	wideW := btnW*2 + gap
+	y := panelY + 80
+	uiSubtitle(screen, "Triches", int(x0), int(y))
+	y += 28
+	// Le serveur ajoute la même quantité à toutes les ressources.
+	if btn(x0, y, panelW-40, btnH, "+1000 de chaque ressource", btnPrimary) {
 		g.devAddResources(1000)
 	}
-	if drawButton(panelX+20+btnW+gap, currentY, btnW, btnH, "+1000 Stone", color.RGBA{150, 150, 150, 255}, color.RGBA{90, 90, 90, 255}) {
-		g.devAddResources(1000)
-	}
-	if drawButton(panelX+20+(btnW+gap)*2, currentY, btnW, btnH, "+1000 Gold", color.RGBA{255, 215, 0, 255}, color.RGBA{180, 150, 0, 255}) {
-		g.devAddResources(1000)
-	}
-	if drawButton(panelX+20+(btnW+gap)*3, currentY, btnW, btnH, "+1000 Rum", color.RGBA{139, 69, 19, 255}, color.RGBA{100, 50, 10, 255}) {
-		g.devAddResources(1000)
-	}
-
-	// Row 2: Instant Finish
-	currentY += btnH + gap
-	if drawButton(panelX+20, currentY, btnW*2+gap, btnH, "Finish Building", color.RGBA{100, 150, 255, 255}, color.RGBA{60, 90, 150, 255}) {
+	y += btnH + gap
+	if btn(x0, y, wideW, btnH, "Finir la construction", btnSecondary) {
 		g.devFinishBuilding()
 	}
-	if drawButton(panelX+20+(btnW*2+gap)+gap, currentY, btnW*2+gap, btnH, "Finish Research", color.RGBA{255, 150, 100, 255}, color.RGBA{150, 90, 60, 255}) {
+	if btn(x0+wideW+gap, y, wideW, btnH, "Finir la recherche", btnSecondary) {
 		g.devFinishResearch()
 	}
-
-	// Row 3: More Instant Finish
-	currentY += btnH + gap
-	if drawButton(panelX+20, currentY, btnW*2+gap, btnH, "Finish Ship", color.RGBA{100, 200, 255, 255}, color.RGBA{60, 120, 150, 255}) {
+	y += btnH + gap
+	if btn(x0, y, wideW, btnH, "Finir le navire", btnSecondary) {
 		g.devFinishShip()
 	}
-	if drawButton(panelX+20+(btnW*2+gap)+gap, currentY, btnW*2+gap, btnH, "Time Skip +1h", color.RGBA{200, 100, 255, 255}, color.RGBA{120, 60, 150, 255}) {
-		g.devTimeSkip(1) // 1 hour
+	if btn(x0+wideW+gap, y, wideW, btnH, "Avancer d'1 h", btnSecondary) {
+		g.devTimeSkip(1)
 	}
-
-	// Row 4: Captains & Tickets
-	currentY += btnH + gap
-	if drawButton(panelX+20, currentY, btnW*2+gap, btnH, "Grant Captain", color.RGBA{255, 200, 100, 255}, color.RGBA{150, 120, 60, 255}) {
+	y += btnH + gap
+	if btn(x0, y, wideW, btnH, "Donner un capitaine", btnSecondary) {
 		g.devGrantCaptain()
 	}
-	if drawButton(panelX+20+(btnW*2+gap)+gap, currentY, btnW*2+gap, btnH, "+10 Tickets", color.RGBA{255, 100, 200, 255}, color.RGBA{150, 60, 120, 255}) {
+	if btn(x0+wideW+gap, y, wideW, btnH, "+10 tickets", btnSecondary) {
 		g.devGrantTickets(10)
 	}
-
-	// Row 5: Guild Ticket
-	currentY += btnH + gap
-	if drawButton(panelX+20, currentY, btnW*2+gap, btnH, "+1 Guild Ticket", color.RGBA{100, 180, 200, 255}, color.RGBA{60, 120, 140, 255}) {
+	y += btnH + gap
+	if btn(x0, y, wideW, btnH, "+1 ticket de guilde", btnSecondary) {
 		g.devGrantGuildTicket()
 	}
 
-	// Separator
-	currentY += 50
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
-
-	// Combat Simulator Section
-	currentY += 20
-	uiSubtitle(screen, "Simulateur de combat", int(panelX)+20, int(currentY))
-
-	currentY += 30
-	uiPrint(screen, "Fleet A (Your Fleet):", int(panelX)+30, int(currentY))
-	currentY += 20
-	uiPrint(screen, "Select your active fleet from Fleet UI", int(panelX)+40, int(currentY))
-
-	currentY += 30
-	uiPrint(screen, "Fleet B (Enemy):", int(panelX)+30, int(currentY))
-	currentY += 20
-
-	// Enemy tier selector
-	tierBtnW := 80.0
-	if drawButton(panelX+40, currentY, tierBtnW, btnH, "Tier 1", color.RGBA{100, 255, 100, 255}, color.RGBA{60, 150, 60, 255}) {
-		g.ui.DevSimTier = 1
+	// Journal : juste sous les boutons, pour voir tout de suite le résultat.
+	y += btnH + 22
+	uiSubtitle(screen, "Journal", int(x0), int(y))
+	if g.ui.DevActionBusy {
+		drawText(screen, "Envoi au serveur…", bodyFace(12, true), panelX+panelW-20, y+4, themeOrange, alignRight)
 	}
-	if drawButton(panelX+40+tierBtnW+gap, currentY, tierBtnW, btnH, "Tier 2", color.RGBA{255, 255, 100, 255}, color.RGBA{150, 150, 60, 255}) {
-		g.ui.DevSimTier = 2
+	y += 28
+	logH := 5 * 17.0
+	drawInset(screen, x0, y, panelW-40, logH+12)
+	if len(g.devLogs) == 0 {
+		drawText(screen, "Rien pour l'instant. Clique sur une triche.", bodyFace(12, false), x0+12, y+8, themeMuted, alignLeft)
 	}
-	if drawButton(panelX+40+(tierBtnW+gap)*2, currentY, tierBtnW, btnH, "Tier 3", color.RGBA{255, 150, 100, 255}, color.RGBA{150, 90, 60, 255}) {
-		g.ui.DevSimTier = 3
+	start := len(g.devLogs) - 5
+	if start < 0 {
+		start = 0
 	}
-	if drawButton(panelX+40+(tierBtnW+gap)*3, currentY, tierBtnW, btnH, "Tier 4", color.RGBA{255, 100, 100, 255}, color.RGBA{150, 60, 60, 255}) {
-		g.ui.DevSimTier = 4
+	for i := start; i < len(g.devLogs); i++ {
+		line := stripUnsupported(g.devLogs[i])
+		clr := color.Color(themeText)
+		if strings.HasPrefix(line, "Échec") {
+			clr = color.RGBA{235, 90, 70, 255}
+		}
+		drawText(screen, ellipsize(line, bodyFace(12, false), panelW-64), bodyFace(12, false), x0+12, y+8+float64(i-start)*17, clr, alignLeft)
 	}
-	if drawButton(panelX+40+(tierBtnW+gap)*4, currentY, tierBtnW, btnH, "Tier 5", color.RGBA{200, 100, 255, 255}, color.RGBA{120, 60, 150, 255}) {
-		g.ui.DevSimTier = 5
-	}
+	y += logH + 32
 
-	currentY += btnH + 20
-	uiPrint(screen, fmt.Sprintf("Selected Enemy Tier: %d", g.ui.DevSimTier), int(panelX)+40, int(currentY))
-
-	currentY += 30
-	if drawButton(panelX+20, currentY, panelW-40, btnH+10, "SIMULATE COMBAT", color.RGBA{255, 100, 100, 255}, color.RGBA{180, 60, 60, 255}) {
+	// Simulateur de combat
+	uiSubtitle(screen, "Simulateur de combat", int(x0), int(y))
+	y += 28
+	drawText(screen, "Ta flotte active contre une flotte ennemie de palier :", bodyFace(13, false), x0, y, themeText, alignLeft)
+	y += 24
+	tierW := 80.0
+	for t := 1; t <= 5; t++ {
+		tx := x0 + float64(t-1)*(tierW+gap)
+		active := g.ui.DevSimTier == t
+		drawTab(screen, tx, y, tierW, btnH, fmt.Sprintf("Palier %d", t), active)
+		if isHovered(tx, y, tierW, btnH) && isMouseJustPressed(ebiten.MouseButtonLeft) {
+			g.ui.DevSimTier = t
+		}
+	}
+	y += btnH + 16
+	if btn(x0, y, panelW-40, btnH+8, "Lancer le combat simulé", btnDanger) {
 		g.devSimulateEngagement()
-	}
-
-	// Separator
-	currentY += 60
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
-
-	// Logs Section
-	currentY += 20
-	uiSubtitle(screen, "Journaux récents", int(panelX)+20, int(currentY))
-
-	currentY += 25
-	// Display last 5 logs
-	logStartIdx := len(g.devLogs) - 5
-	if logStartIdx < 0 {
-		logStartIdx = 0
-	}
-	for i := logStartIdx; i < len(g.devLogs); i++ {
-		uiPrint(screen, g.devLogs[i], int(panelX)+30, int(currentY))
-		currentY += 15
 	}
 }
 
@@ -191,11 +139,11 @@ func (g *Game) devAddResources(amount float64) {
 
 		err := g.api.DevAddResources(amount)
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Add resources failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec ajout de ressources : %v", err))
 			return
 		}
 
-		g.addDevLog(fmt.Sprintf("✅ Added %.0f to all resources", amount))
+		g.addDevLog(fmt.Sprintf("+%.0f de chaque ressource", amount))
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -211,11 +159,11 @@ func (g *Game) devFinishBuilding() {
 
 		err := g.api.DevFinishBuilding()
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Finish building failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec fin de construction : %v", err))
 			return
 		}
 
-		g.addDevLog("✅ Building finished")
+		g.addDevLog("Construction terminée")
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -231,11 +179,11 @@ func (g *Game) devFinishResearch() {
 
 		err := g.api.DevFinishResearch()
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Finish research failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec fin de recherche : %v", err))
 			return
 		}
 
-		g.addDevLog("✅ Research finished")
+		g.addDevLog("Recherche terminée")
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -251,11 +199,11 @@ func (g *Game) devFinishShip() {
 
 		err := g.api.DevFinishShip()
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Finish ship failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec fin du navire : %v", err))
 			return
 		}
 
-		g.addDevLog("✅ Ship finished")
+		g.addDevLog("Navire terminé")
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -271,11 +219,11 @@ func (g *Game) devTimeSkip(hours int) {
 
 		err := g.api.DevTimeSkip(hours)
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Time skip failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec avance du temps : %v", err))
 			return
 		}
 
-		g.addDevLog(fmt.Sprintf("✅ Skipped %d hours", hours))
+		g.addDevLog(fmt.Sprintf("Temps avancé de %d h", hours))
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -291,11 +239,11 @@ func (g *Game) devGrantCaptain() {
 
 		err := g.api.DevGrantCaptain(g.player.ID, "")
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Grant captain failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec don de capitaine : %v", err))
 			return
 		}
 
-		g.addDevLog("✅ Captain granted")
+		g.addDevLog("Capitaine ajouté")
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -311,11 +259,11 @@ func (g *Game) devGrantTickets(amount int) {
 
 		err := g.api.DevGrantTickets(g.player.ID, amount)
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Grant tickets failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec don de tickets : %v", err))
 			return
 		}
 
-		g.addDevLog(fmt.Sprintf("✅ Granted %d tickets", amount))
+		g.addDevLog(fmt.Sprintf("%d tickets ajoutés", amount))
 		g.refreshStatusAfterDevAction()
 	}()
 }
@@ -324,7 +272,7 @@ func (g *Game) devGrantGuildTicket() {
 	// Local-only toggle for now (no backend endpoint yet)
 	g.ui.SocialGuildHasTicket = true
 	g.persistSocialState()
-	g.addDevLog("✅ Guild ticket granted (local)")
+	g.addDevLog("Ticket de guilde ajouté (local)")
 }
 
 func (g *Game) devSimulateEngagement() {
@@ -333,7 +281,7 @@ func (g *Game) devSimulateEngagement() {
 	}
 
 	if g.player == nil || len(g.player.Islands) == 0 || g.player.Islands[0].ActiveFleetID == nil {
-		g.addDevLog("❌ No active fleet selected")
+		g.addDevLog("Échec : aucune flotte active")
 		return
 	}
 
@@ -344,11 +292,11 @@ func (g *Game) devSimulateEngagement() {
 
 		result, err := g.api.DevSimulateEngagement(g.player.Islands[0].ActiveFleetID.String(), g.ui.DevSimTier)
 		if err != nil {
-			g.addDevLog(fmt.Sprintf("❌ Simulation failed: %v", err))
+			g.addDevLog(fmt.Sprintf("Échec simulation : %v", err))
 			return
 		}
 
-		g.addDevLog(fmt.Sprintf("✅ Combat simulated - Winner: %s", result.Winner))
+		g.addDevLog(fmt.Sprintf("Combat simulé, vainqueur : %s", result.Winner))
 
 		// Show result in PvE result UI
 		g.ui.PveCombatResult = result
@@ -357,6 +305,11 @@ func (g *Game) devSimulateEngagement() {
 }
 
 func (g *Game) addDevLog(message string) {
+	if strings.Contains(message, "404") {
+		message += " (triches désactivées sur ce serveur)"
+	} else if strings.Contains(message, "403") {
+		message += " (compte non admin)"
+	}
 	g.devLogs = append(g.devLogs, message)
 	// Keep only last 50 logs
 	if len(g.devLogs) > 50 {
