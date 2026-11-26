@@ -7,7 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 func (g *Game) DevLog(lType, format string, a ...interface{}) {
@@ -144,14 +143,10 @@ func (g *Game) updateGame() error {
 	default:
 	}
 
-	// Vraie touche seulement : le bouton tactile « Fermer » ne met pas le jeu en pause.
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		g.isPaused = !g.isPaused
-	}
-
-	if g.isPaused {
-		return nil
-	}
+	// Échap sert seulement à fermer les fenêtres (géré par chaque fenêtre).
+	// Avant, il mettait aussi le jeu en pause sans rien afficher : les menus
+	// ne répondaient plus jusqu'au prochain Échap. Dans un jeu en ligne la
+	// pause n'a pas de sens (le serveur continue), donc on l'a retirée.
 
 	g.hammerTimer++
 	if g.hammerTimer%10 == 0 {

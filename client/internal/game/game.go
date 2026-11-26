@@ -105,7 +105,6 @@ type Game struct {
 	screenWidth, screenHeight int
 
 	// Pause State
-	isPaused bool
 
 	// Developer Mode
 	isDev       bool
