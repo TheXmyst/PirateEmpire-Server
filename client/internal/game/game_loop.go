@@ -57,6 +57,7 @@ func (g *Game) updateGame() error {
 	g.updateVisualResources(g.dt)
 
 	// Poll chat feed periodically (shared island/world views)
+	g.applyChatResults()
 	g.chatPollTimer += g.dt
 	if g.state != StateLogin && g.chatPollTimer >= 2.0 {
 		g.chatPollTimer = 0

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"runtime"
 	"strings"
 	"time"
@@ -184,9 +185,11 @@ func (c *APIClient) SendChat(message string) error {
 
 // FetchChat retrieves chat messages newer than `since`.
 func (c *APIClient) FetchChat(since time.Time) ([]domain.ChatMessage, error) {
-	url := fmt.Sprintf("%s/chat/feed", c.BaseURL)
+	// Chemin seulement : doAuthorizedRequest ajoute déjà l'adresse du serveur.
+	// (Avant, l'adresse était collée deux fois et le chat ne marchait jamais.)
+	url := "/chat/feed"
 	if !since.IsZero() {
-		url += "?since=" + since.Format(time.RFC3339)
+		url += "?since=" + neturl.QueryEscape(since.Format(time.RFC3339))
 	}
 	resp, err := c.doAuthorizedRequest("GET", url, nil)
 	if err != nil {
@@ -209,10 +212,10 @@ func (c *APIClient) FetchChat(since time.Time) ([]domain.ChatMessage, error) {
 
 // FetchChatBefore retrieves older chat messages before a timestamp with pagination.
 func (c *APIClient) FetchChatBefore(before time.Time, limit int) ([]domain.ChatMessage, string, error) {
-	url := fmt.Sprintf("%s/chat/feed", c.BaseURL)
+	url := "/chat/feed" // chemin seulement, voir FetchChat
 	params := []string{}
 	if !before.IsZero() {
-		params = append(params, "before="+before.Format(time.RFC3339))
+		params = append(params, "before="+neturl.QueryEscape(before.Format(time.RFC3339)))
 	}
 	if limit > 0 {
 		params = append(params, fmt.Sprintf("limit=%d", limit))
