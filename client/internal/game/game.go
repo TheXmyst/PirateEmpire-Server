@@ -137,6 +137,9 @@ type Game struct {
 	chatLastFetch       time.Time
 	chatPollTimer       float64
 	chatScroll          int
+	chatUnread          int       // messages arrivés chat fermé (pastille rouge)
+	chatPrimed          bool      // le premier chargement est fait
+	chatPreviewUntil    time.Time // aperçu du dernier message jusqu'à cette heure
 	chatOldest          time.Time
 	chatNextCursor      string
 	seenChatIDs         map[uuid.UUID]struct{}
@@ -246,7 +249,11 @@ func (g *Game) applyChatResults() {
 			}
 			prevLen := len(g.chatMessages)
 			for _, m := range r.messages {
+				_, seen := g.seenChatIDs[m.ID]
 				g.addIncomingChatNoSave(m)
+				if !seen && g.chatPrimed {
+					g.noteNewChatMessage(m)
+				}
 				if m.Timestamp.After(g.chatLastFetch) {
 					g.chatLastFetch = m.Timestamp
 				}
@@ -257,6 +264,7 @@ func (g *Game) applyChatResults() {
 			if prevLen == 0 && len(g.chatMessages) > 0 {
 				g.chatScroll = 0
 			}
+			g.chatPrimed = true
 		default:
 			return
 		}

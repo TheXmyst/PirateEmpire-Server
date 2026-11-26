@@ -58,6 +58,7 @@ type pointerState struct {
 	zoomFactor   float64 // facteur de zoom demandé cette frame (1 = rien)
 
 	lastMouseX, lastMouseY int
+	mouseConsumed          bool // clic souris pris par un bouton rond
 
 	// Tap trop rapide pour être vu par le jeu (doigt posé et levé entre deux
 	// frames) : le navigateur nous le signale ici (voir softkeyboard_js.go).
@@ -101,6 +102,12 @@ func (g *Game) updatePointer() {
 		p.usingTouch = false
 	}
 	p.lastMouseX, p.lastMouseY = mx, my
+
+	// Clic souris sur un bouton rond : on le prend pour nous.
+	p.mouseConsumed = false
+	if len(ids) == 0 && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.consumeTouchButtonTap(mx, my) {
+		p.mouseConsumed = true
+	}
 
 	if p.hideAfterRelease && len(ids) == 0 {
 		// Le doigt est levé depuis une frame : on « retire » le curseur pour
@@ -246,6 +253,9 @@ func cursorPosition() (int, int) {
 func isMouseJustPressed(b ebiten.MouseButton) bool {
 	if b == ebiten.MouseButtonLeft && pointer.justPressed {
 		return true
+	}
+	if b == ebiten.MouseButtonLeft && pointer.mouseConsumed {
+		return false
 	}
 	return inpututil.IsMouseButtonJustPressed(b)
 }

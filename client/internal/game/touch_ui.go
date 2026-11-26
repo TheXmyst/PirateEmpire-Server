@@ -100,9 +100,9 @@ func (g *Game) drawDiag(screen *ebiten.Image) {
 			maxLen = len(l)
 		}
 	}
-	vector.DrawFilledRect(screen, 8, 44, float32(maxLen*6+12), float32(len(lines)*16+8), color.RGBA{0, 0, 0, 200}, false)
+	vector.DrawFilledRect(screen, 8, 300, float32(maxLen*6+12), float32(len(lines)*16+8), color.RGBA{0, 0, 0, 200}, false)
 	for i, l := range lines {
-		ebitenutil.DebugPrintAt(screen, l, 14, 48+i*16)
+		ebitenutil.DebugPrintAt(screen, l, 14, 304+i*16)
 	}
 }
 
@@ -111,45 +111,44 @@ func (g *Game) drawDiag(screen *ebiten.Image) {
 
 type touchButton struct {
 	x, y, w, h float64
+	icon       string
 	label      string
 	fullscreen bool // ce bouton passe en plein écran (géré par le navigateur)
 	action     func()
 }
 
-// touchSeen : un doigt a déjà touché l'écran (on n'affiche les boutons
-// tactiles qu'à partir de là, donc jamais sur PC).
+// touchSeen : un doigt a déjà touché l'écran.
 func touchSeen() bool { return pointer.everTouched }
 
+// touchButtons : les petits boutons ronds en haut à droite (plein écran,
+// menu dev, et sur téléphone « fermer la fenêtre », qui remplace Échap).
 func (g *Game) touchButtons() []touchButton {
-	if !touchSeen() {
-		return nil
-	}
-	const bw, bh, gap = 110.0, 60.0, 12.0
-	x := float64(g.screenWidth) - bw - 14
-	y := float64(g.screenHeight) * 0.30
+	const size, gap = 48.0, 10.0
+	x := float64(g.screenWidth) - hudMargin - size
+	y := hudMargin + (topBarH-size)/2
 
 	var btns []touchButton
-	add := func(label string, fs bool, action func()) {
-		btns = append(btns, touchButton{x: x, y: y, w: bw, h: bh, label: label, fullscreen: fs, action: action})
-		y += bh + gap
+	add := func(icon, label string, fs bool, action func()) {
+		btns = append(btns, touchButton{x: x, y: y, w: size, h: size, icon: icon, label: label, fullscreen: fs, action: action})
+		x -= size + gap
 	}
 
-	if g.state != StateLogin {
+	if g.state != StateLogin && touchSeen() {
 		if g.showDevMenu {
-			add("FERMER", false, func() { g.showDevMenu = false })
+			add("close", "Fermer", false, func() { g.showDevMenu = false })
 		} else if g.IsModalOpen() {
-			add("FERMER", false, func() { pressVirtualKey(ebiten.KeyEscape) })
+			add("close", "Fermer", false, func() { pressVirtualKey(ebiten.KeyEscape) })
 		}
 	}
 	if fullscreenAvailable() && !isFullscreenNow() {
-		add("PLEIN ECRAN", true, func() {
+		add("fullscreen", "Plein écran", true, func() {
 			if !IsWebBuild {
 				ebiten.SetFullscreen(true)
 			}
 		})
 	}
 	if g.state != StateLogin && g.player != nil && g.player.IsAdmin {
-		add("DEV", false, func() { pressVirtualKey(ebiten.KeyF1) })
+		add("code", "Menu dev", false, func() { pressVirtualKey(ebiten.KeyF1) })
 	}
 	return btns
 }
@@ -158,8 +157,8 @@ func (b touchButton) contains(x, y float64) bool {
 	return x >= b.x && x <= b.x+b.w && y >= b.y && y <= b.y+b.h
 }
 
-// consumeTouchButtonTap : un tap sur un bouton tactile déclenche son action
-// et n'est pas transmis au reste du jeu.
+// consumeTouchButtonTap : un tap (ou un clic) sur un bouton rond déclenche
+// son action et n'est pas transmis au reste du jeu.
 func (g *Game) consumeTouchButtonTap(x, y int) bool {
 	for _, b := range g.touchButtons() {
 		if b.contains(float64(x), float64(y)) {
@@ -181,12 +180,17 @@ func (g *Game) touchButtonAt(x, y float64) (touchButton, bool) {
 }
 
 func (g *Game) drawTouchButtons(screen *ebiten.Image) {
+	mx, my := cursorPosition()
 	for _, b := range g.touchButtons() {
-		x, y, w, h := float32(b.x), float32(b.y), float32(b.w), float32(b.h)
-		vector.DrawFilledRect(screen, x, y, w, h, color.RGBA{60, 38, 18, 215}, vecAA)
-		vector.StrokeRect(screen, x, y, w, h, 3, color.RGBA{218, 165, 32, 255}, vecAA)
-		tx := int(b.x+b.w/2) - len(b.label)*3
-		ebitenutil.DebugPrintAt(screen, b.label, tx, int(b.y+b.h/2)-8)
+		hover := b.contains(float64(mx), float64(my))
+		drawRoundButton(screen, b.x+b.w/2, b.y+b.h/2, b.w/2, b.icon, hover)
+		if hover && !pointer.usingTouch {
+			f := bodyFace(12, false)
+			tw := textWidth(b.label, f)
+			tx := math.Min(b.x+b.w/2-tw/2, float64(g.screenWidth)-tw-hudMargin-8)
+			fillRoundRect(screen, tx-8, b.y+b.h+6, tw+16, 22, 8, themePanel)
+			drawText(screen, b.label, f, tx, b.y+b.h+9, themeText, alignLeft)
+		}
 	}
 }
 
