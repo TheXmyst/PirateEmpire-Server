@@ -3,41 +3,39 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
+
+// Géométrie de la fenêtre Milice (partagée entre Draw et Update).
+const (
+	militiaW       = 700.0
+	militiaH       = 560.0
+	militiaSlider0 = 222.0 // ordonnée (relative) de la première glissière
+	militiaSliderH = 14.0
+	militiaRowGap  = 60.0
+)
+
+func (g *Game) militiaRect() (x, y, w, h float64) {
+	cx, cy := float64(g.screenWidth)/2, float64(g.screenHeight)/2
+	return cx - militiaW/2, cy - militiaH/2, militiaW, militiaH
+}
 
 // DrawMilitiaUI draws the dedicated Militia recruitment modal
 func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	if !g.ui.ShowMilitiaUI {
 		return
 	}
+	x, y, w, h := g.militiaRect()
 
-	cx, cy := float64(g.screenWidth)/2, float64(g.screenHeight)/2
-	w, h := 700.0, 600.0
-	x, y := cx-w/2, cy-h/2
+	drawDimBackground(screen, 170)
+	drawWindowFrame(screen, x, y, w, h, "Milice")
+	drawCloseButton(screen, x+w-30, y+27, 15)
 
-	// Draw dark overlay
-	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
-	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
-
-	// Draw Window Background
-	drawButton(screen, float64(x), float64(y), float64(w), float64(h), "Milice", kindFromColor(color.RGBA{10, 15, 25, 240}))
-	// Border
-
-	// Title
-
-	// Close button (X) - top right
-	closeBtnSize := 30.0
-	closeX := x + w - closeBtnSize - 10
-	closeY := y + 10
-	drawCloseButton(screen, float64(closeX)+float64(closeBtnSize)/2, float64(closeY)+float64(closeBtnSize)/2, 15)
-
-	// Get island data
 	var island *domain.Island
 	var militiaBuilding *domain.Building
 	militiaLevel := 0
@@ -51,68 +49,59 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 			}
 		}
 	}
+	drawText(screen, fmt.Sprintf("Niveau %d", militiaLevel), bodyFace(14, true), x+w-60, y+20, themeText, alignRight)
 
-	// Militia level display
-	levelY := int(y) + 50
-	uiPrint(screen, fmt.Sprintf("Niveau Milice: %d", militiaLevel), int(x)+20, levelY)
-
-	// Upgrade button (if building exists and not constructing)
-	if militiaBuilding != nil && !militiaBuilding.Constructing {
-		upgradeBtnX := x + w - 150
-		upgradeBtnY := y + 45
-		upgradeBtnW := 100.0
-		upgradeBtnH := 30.0
-		drawButton(screen, float64(upgradeBtnX), float64(upgradeBtnY), float64(upgradeBtnW), float64(upgradeBtnH), "Upgrade", kindFromColor(color.RGBA{200, 150, 0, 255}))
-	}
-
-	// Stock actuel display
-	stockY := int(y) + 80
+	// Matelots disponibles
+	drawCard(screen, x+24, y+66, w-48, 70, false)
+	drawText(screen, "Matelots à quai", bodyFace(12, true), x+40, y+74, themeMuted, alignLeft)
 	if island != nil {
-		uiPrint(screen, "Stock actuel:", int(x)+20, stockY)
-		uiPrint(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d",
-			island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(x)+20, stockY+20)
+		stats := []struct {
+			name string
+			n    int
+		}{{"Guerriers", island.Crew[domain.Warrior]}, {"Archers", island.Crew[domain.Archer]}, {"Artilleurs", island.Crew[domain.Gunner]}}
+		for i, st := range stats {
+			sx := x + 40 + float64(i)*140
+			drawText(screen, fmt.Sprintf("%d", st.n), bodyFace(22, true), sx, y+94, themeGold, alignLeft)
+			drawText(screen, st.name, bodyFace(13, false), sx+textWidth(fmt.Sprintf("%d", st.n), bodyFace(22, true))+8, y+102, themeText, alignLeft)
+		}
+	}
+	if militiaBuilding != nil && !militiaBuilding.Constructing {
+		ux, uy, uw, uh := militiaUpgradeRect(x, y, w)
+		drawButton(screen, ux, uy, uw, uh, "Améliorer", btnSecondary)
 	}
 
-	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+120, float32(x+w)-20, float32(y)+120, 1, color.Gray{100}, vecAA)
+	// Recrutement
+	uiSubtitle(screen, "Recruter", int(x)+24, int(y)+158)
+	isRecruiting := false
+	if island != nil && island.MilitiaRecruiting && island.MilitiaRecruitDoneAt != nil {
+		isRecruiting = true
+		left := "en attente de mise à jour"
+		if rem := time.Until(*island.MilitiaRecruitDoneAt); rem > 0 {
+			left = "fin dans " + formatRecruitDuration(rem)
+		}
+		msg := fmt.Sprintf("En cours : %d guerriers, %d archers, %d artilleurs · %s",
+			island.MilitiaRecruitWarriors, island.MilitiaRecruitArchers, island.MilitiaRecruitGunners, left)
+		drawText(screen, msg, bodyFace(13, true), x+130, y+161, themeOrange, alignLeft)
+	}
 
-	// Recruitment section
-	recruitY := int(y) + 140
-	uiPrint(screen, "Recrutement:", int(x)+20, recruitY)
+	sliderX, sliderW := x+24, w-48
+	rows := []struct {
+		name string
+		val  int
+	}{{"Guerriers", g.ui.MilitiaWarriors}, {"Archers", g.ui.MilitiaArchers}, {"Artilleurs", g.ui.MilitiaGunners}}
+	for i, r := range rows {
+		by := y + militiaSlider0 + float64(i)*militiaRowGap
+		drawText(screen, r.name, bodyFace(14, false), sliderX, by-24, themeText, alignLeft)
+		drawText(screen, fmt.Sprintf("%d", r.val), bodyFace(14, true), sliderX+sliderW, by-24, themeGold, alignRight)
+		drawSlider(screen, sliderX, by, sliderW, militiaSliderH, r.val, 0, 200)
+	}
 
-	// Sliders
-	sliderX := x + 20
-	sliderW := w - 40
-	sliderH := 20.0
-	sliderY := float64(recruitY) + 30
-
-	// Warrior slider
-	warriorY := sliderY
-	uiPrint(screen, fmt.Sprintf("Guerriers: %d", g.ui.MilitiaWarriors), int(sliderX), int(warriorY))
-	drawSlider(screen, sliderX, warriorY+20, sliderW, sliderH, g.ui.MilitiaWarriors, 0, 200)
-
-	// Archer slider
-	archerY := warriorY + 60
-	uiPrint(screen, fmt.Sprintf("Archers: %d", g.ui.MilitiaArchers), int(sliderX), int(archerY))
-	drawSlider(screen, sliderX, archerY+20, sliderW, sliderH, g.ui.MilitiaArchers, 0, 200)
-
-	// Gunner slider
-	gunnerY := archerY + 60
-	uiPrint(screen, fmt.Sprintf("Artilleurs: %d", g.ui.MilitiaGunners), int(sliderX), int(gunnerY))
-	drawSlider(screen, sliderX, gunnerY+20, sliderW, sliderH, g.ui.MilitiaGunners, 0, 200)
-
-	// Calculate costs and duration
+	// Coût et durée
 	totalUnits := g.ui.MilitiaWarriors + g.ui.MilitiaArchers + g.ui.MilitiaGunners
 	goldCost := g.ui.MilitiaWarriors*10 + g.ui.MilitiaArchers*12 + g.ui.MilitiaGunners*15
 	rumCost := g.ui.MilitiaWarriors*2 + g.ui.MilitiaArchers*2 + g.ui.MilitiaGunners*3
-
-	// Calculate duration (base 15s + 3s per unit, with bonus)
-	baseDuration := 15.0
-	perUnitDuration := 3.0
-	rawDuration := baseDuration + float64(totalUnits)*perUnitDuration
-
-	// Apply Militia bonus (0.5% per level, max 30%)
-	bonusPct := float64(militiaLevel) * 0.005
+	rawDuration := 15.0 + float64(totalUnits)*3.0
+	bonusPct := float64(militiaLevel) * 0.005 // 0,5 % par niveau, 30 % max
 	if bonusPct > 0.30 {
 		bonusPct = 0.30
 	}
@@ -121,94 +110,54 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		duration = 10.0
 	}
 
-	// Cost and duration display
-	infoY := int(gunnerY) + 60
-	uiPrint(screen, fmt.Sprintf("Coût: %d Or, %d Rhum", goldCost, rumCost), int(x)+20, infoY)
-	uiPrint(screen, fmt.Sprintf("Temps estimé: %.1f s (bonus: %.1f%%)", duration, bonusPct*100), int(x)+20, infoY+20)
-
-	// Check if can afford
-	canAfford := true
+	infoY := y + militiaSlider0 + 3*militiaRowGap - 4
+	var have map[domain.ResourceType]float64
 	if island != nil {
-		if island.Resources[domain.Gold] < float64(goldCost) {
-			canAfford = false
-		}
-		if island.Resources[domain.Rum] < float64(rumCost) {
-			canAfford = false
-		}
+		have = island.Resources
+	}
+	drawText(screen, "Coût", bodyFace(13, false), x+24, infoY, themeMuted, alignLeft)
+	if totalUnits > 0 {
+		drawCost(screen, map[domain.ResourceType]float64{domain.Gold: float64(goldCost), domain.Rum: float64(rumCost)}, have, x+64, infoY)
+	} else {
+		drawText(screen, "choisis combien de matelots recruter", bodyFace(13, false), x+64, infoY, themeMuted, alignLeft)
+	}
+	drawText(screen, fmt.Sprintf("Durée %s (bonus de la Milice %.1f %%)", formatDuration(int(duration)), bonusPct*100), bodyFace(13, false), x+24, infoY+20, themeMuted, alignLeft)
+
+	canAfford := true
+	if island != nil && (island.Resources[domain.Gold] < float64(goldCost) || island.Resources[domain.Rum] < float64(rumCost)) {
+		canAfford = false
 	}
 
-	// RECRUITMENT STATUS BLOCK (if recruiting)
-	isRecruiting := false
-	if island != nil && island.MilitiaRecruiting && island.MilitiaRecruitDoneAt != nil {
-		isRecruiting = true
-		now := time.Now()
-
-		// Dedicated recruitment block (after stock display)
-		recruitBlockY := stockY + 60
-		recruitBlockH := 80.0
-		recruitBlockW := w - 40
-		recruitBlockX := x + 20
-
-		// Background block (distinct color)
-		drawButton(screen, float64(recruitBlockX), float64(recruitBlockY), float64(recruitBlockW), float64(recruitBlockH), "🔄 recrutement en cours", kindFromColor(color.RGBA{20, 40, 60, 240}))
-
-		// Title
-
-		// Countdown (formatted)
-		if now.Before(*island.MilitiaRecruitDoneAt) {
-			remaining := island.MilitiaRecruitDoneAt.Sub(now)
-			timeStr := formatRecruitDuration(remaining)
-			uiPrint(screen, fmt.Sprintf("Fin dans: %s", timeStr), int(recruitBlockX)+10, int(recruitBlockY)+30)
-		} else {
-			uiPrint(screen, "Fin dans: 00:00 (en attente mise à jour)", int(recruitBlockX)+10, int(recruitBlockY)+30)
-		}
-
-		// Quantities
-		uiPrint(screen, fmt.Sprintf("→ %d Guerriers | %d Archers | %d Artilleurs",
-			island.MilitiaRecruitWarriors, island.MilitiaRecruitArchers, island.MilitiaRecruitGunners),
-			int(recruitBlockX)+10, int(recruitBlockY)+50)
-	} else if island != nil && !island.MilitiaRecruiting {
-		// Show "no recruitment" status
-		recruitBlockY := stockY + 60
-		uiPrint(screen, "Aucun recrutement en cours", int(x)+20, int(recruitBlockY)+10)
+	bx, by, bw, bh := militiaRecruitRect(x, y, w, h)
+	kind, label := btnPrimary, "Recruter"
+	switch {
+	case g.ui.MilitiaBusy:
+		kind, label = btnDisabled, "Envoi…"
+	case isRecruiting:
+		kind, label = btnDisabled, "Recrutement en cours"
+	case totalUnits <= 0:
+		kind = btnDisabled
+	case !canAfford:
+		kind, label = btnDisabled, "Ressources"
 	}
+	drawButton(screen, bx, by, bw, bh, label, kind)
 
-	// Recruit button
-	btnY := y + h - 80
-	btnW := 150.0
-	btnH := 40.0
-	btnX := x + w/2 - btnW/2
-
-	disabled := totalUnits <= 0 || !canAfford || isRecruiting || g.ui.MilitiaBusy
-	btnColor := color.RGBA{0, 150, 0, 255}
-	if disabled {
-		btnColor = color.RGBA{100, 100, 100, 255}
-	}
-
-	uiFillRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
-	uiStrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
-
-	btnText := "RECRUTER"
-	if g.ui.MilitiaBusy {
-		btnText = "EN COURS..."
-	}
-	uiPrint(screen, btnText, int(btnX)+40, int(btnY)+12)
-
-	// Error display
 	if g.ui.MilitiaError != "" {
-		errorY := int(btnY) - 30
-		errorText := fmt.Sprintf("Erreur: %s", g.ui.MilitiaError)
-		maxLen := 60
-		for len(errorText) > maxLen {
-			line := errorText[:maxLen]
-			errorText = errorText[maxLen:]
-			uiPrint(screen, line, int(x)+20, errorY)
-			errorY += 15
-		}
-		if errorText != "" {
-			uiPrint(screen, errorText, int(x)+20, errorY)
+		for i, l := range wrapText(stripUnsupported(g.ui.MilitiaError), bodyFace(13, true), w-48) {
+			if i >= 2 {
+				break
+			}
+			drawText(screen, l, bodyFace(13, true), x+24, by-44+float64(i)*17, color.RGBA{235, 90, 70, 255}, alignLeft)
 		}
 	}
+}
+
+func militiaUpgradeRect(x, y, w float64) (float64, float64, float64, float64) {
+	return x + w - 24 - 16 - 120, y + 84, 120.0, 34.0
+}
+
+func militiaRecruitRect(x, y, w, h float64) (float64, float64, float64, float64) {
+	return x + w/2 - 100, y + h - 62, 200.0, 42.0
 }
 
 // formatRecruitDuration formats a duration as mm:ss or hh:mm:ss
@@ -225,38 +174,27 @@ func formatRecruitDuration(d time.Duration) string {
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
-// drawSlider draws a slider control
+// drawSlider : glissière arrondie, remplie en or, avec une poignée ronde.
 func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
-	// Background
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 50, 50, 255}, vecAA)
-	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
-
-	// Fill (value indicator)
-	if max > min {
-		fillRatio := float64(value-min) / float64(max-min)
-		if fillRatio > 1.0 {
-			fillRatio = 1.0
-		}
-		if fillRatio < 0.0 {
-			fillRatio = 0.0
-		}
-		fillW := w * fillRatio
-		uiFillRect(screen, float32(x), float32(y), float32(fillW), float32(h), color.RGBA{0, 150, 0, 255}, vecAA)
+	fillRoundRect(screen, x, y, w, h, h/2, color.NRGBA{0, 0, 0, 110})
+	strokeRoundRect(screen, x, y, w, h, h/2, 1, color.NRGBA{224, 176, 74, 60})
+	if max <= min {
+		return
 	}
-
-	// Handle (draggable thumb)
-	handleW := 10.0
-	if max > min {
-		handleX := x + (w-handleW)*(float64(value-min)/float64(max-min))
-		if handleX < x {
-			handleX = x
-		}
-		if handleX > x+w-handleW {
-			handleX = x + w - handleW
-		}
-		uiFillRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), color.RGBA{200, 200, 200, 255}, vecAA)
-		uiStrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
+	ratio := float64(value-min) / float64(max-min)
+	if ratio < 0 {
+		ratio = 0
 	}
+	if ratio > 1 {
+		ratio = 1
+	}
+	if ratio > 0 {
+		fillRoundRect(screen, x, y, math.Max(h, w*ratio), h, h/2, themeGoldDark)
+	}
+	r := h/2 + 5
+	cx := x + w*ratio
+	fillRoundRect(screen, cx-r, y+h/2-r, 2*r, 2*r, r, themeGold)
+	strokeRoundRect(screen, cx-r, y+h/2-r, 2*r, 2*r, r, 2, themeInk)
 }
 
 // UpdateMilitiaUI handles input for the Militia UI
@@ -265,9 +203,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 		return false
 	}
 
-	cx, cy := float64(g.screenWidth)/2, float64(g.screenHeight)/2
-	w, h := 700.0, 600.0
-	x, y := cx-w/2, cy-h/2
+	x, y, w, h := g.militiaRect()
 
 	// Close on ESC
 	if isKeyJustPressed(ebiten.KeyEscape) {
@@ -297,15 +233,14 @@ func (g *Game) UpdateMilitiaUI() bool {
 	fmx, fmy := float64(mx), float64(my)
 
 	// Slider positions (synchronized with Draw)
-	sliderX := x + 20
-	sliderW := w - 40
-	sliderH := 20.0
-	sliderY := float64(y) + 170
+	sliderX := x + 24
+	sliderW := w - 48
+	sliderH := militiaSliderH
 	sliderCaptureH := 30.0 // Larger hit area
 
-	warriorY := sliderY
-	archerY := warriorY + 60
-	gunnerY := archerY + 60
+	warriorY := y + militiaSlider0
+	archerY := warriorY + militiaRowGap
+	gunnerY := archerY + militiaRowGap
 
 	// Stop dragging when mouse released
 	if !isMousePressed(ebiten.MouseButtonLeft) {
@@ -335,10 +270,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 
 	// PRIORITY 1: Handle close button FIRST
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		closeBtnSize := 30.0
-		closeX := x + w - closeBtnSize - 10
-		closeY := y + 10
-		if fmx >= closeX && fmx <= closeX+closeBtnSize && fmy >= closeY && fmy <= closeY+closeBtnSize {
+		if fmx >= x+w-47 && fmx <= x+w-13 && fmy >= y+10 && fmy <= y+44 {
 			g.ui.ShowMilitiaUI = false
 			g.ui.MilitiaError = ""
 			g.ui.DraggingMilitiaWarrior = false
@@ -386,10 +318,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingMilitiaWarrior && !g.ui.DraggingMilitiaArcher && !g.ui.DraggingMilitiaGunner {
 		// Upgrade button
 		if militiaBuilding != nil && !militiaBuilding.Constructing {
-			upgradeBtnX := x + w - 150
-			upgradeBtnY := y + 45
-			upgradeBtnW := 100.0
-			upgradeBtnH := 30.0
+			upgradeBtnX, upgradeBtnY, upgradeBtnW, upgradeBtnH := militiaUpgradeRect(x, y, w)
 			if fmx >= upgradeBtnX && fmx <= upgradeBtnX+upgradeBtnW && fmy >= upgradeBtnY && fmy <= upgradeBtnY+upgradeBtnH {
 				// Call upgrade endpoint
 				go func(bid string) {
@@ -423,10 +352,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 			isRecruiting = true
 		}
 
-		btnY := y + h - 80
-		btnW := 150.0
-		btnH := 40.0
-		btnX := x + w/2 - btnW/2
+		btnX, btnY, btnW, btnH := militiaRecruitRect(x, y, w, h)
 
 		if !g.ui.MilitiaBusy && totalUnits > 0 && canAfford && !isRecruiting {
 			if fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH {

@@ -1,9 +1,6 @@
 package game
 
 import (
-	"image/color"
-	"strings"
-
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -19,63 +16,27 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	x, y := cx-w/2, cy-h/2
 	padding := 20.0
 
-	// Draw dark overlay
-	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
+	drawDimBackground(screen, 170)
+	drawWindowFrame(screen, x, y, w, h, "Engagement impossible")
+	strokeRoundRect(screen, x, y, w, h, 18, 2, themeRed)
 
-	// Draw modal background (red tint)
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 10, 10, 240}, vecAA)
-	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 50, 50, 255}, vecAA)
-
-	// Title
-	titleY := y + padding
-	uiTitle(screen, "Engagement impossible", int(x+padding), int(titleY))
-
-	// Error message
-	msgY := titleY + 40
 	errorText := g.ui.PveEngageError
 	if errorText == "" {
 		errorText = "Erreur inconnue"
 	}
-
-	// Split long messages into multiple lines
-	lineHeight := 20.0
-	maxWidth := int(w - padding*2)
-	charsPerLine := maxWidth / 6 // Approximate
-	lines := []string{}
-	currentLine := ""
-	words := strings.Fields(errorText)
-	for _, word := range words {
-		testLine := currentLine
-		if testLine != "" {
-			testLine += " "
-		}
-		testLine += word
-		if len(testLine) > charsPerLine && currentLine != "" {
-			lines = append(lines, currentLine)
-			currentLine = word
-		} else {
-			currentLine = testLine
-		}
-	}
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-
-	for i, line := range lines {
-		if i >= 5 {
-			// Limit to 5 lines
+	face := bodyFace(15, false)
+	for i, line := range wrapText(errorText, face, w-padding*2) {
+		if i >= 4 {
 			break
 		}
-		uiPrint(screen, line, int(x+padding), int(msgY+float64(i)*lineHeight))
+		drawText(screen, line, face, x+padding, y+68+float64(i)*20, themeText, alignLeft)
 	}
 
-	// OK button
 	btnY := y + h - 50
 	btnW := 100.0
 	btnH := 30.0
 	btnX := x + w/2 - btnW/2
-	btnCol := color.RGBA{150, 50, 50, 255}
-	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Ok", kindFromColor(btnCol))
+	drawButton(screen, btnX, btnY, btnW, btnH, "Ok", btnPrimary)
 }
 
 // UpdatePveEngageErrorModal handles input for the engagement error modal

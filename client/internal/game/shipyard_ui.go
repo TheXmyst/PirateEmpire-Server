@@ -2,9 +2,12 @@ package game
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"strings"
 	"time"
 
+	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -45,8 +48,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	// Semi-transparent overlay
 	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, vecAA)
 
-	// Main window with 9-slice
-	draw9Slice(screen, g, winX, winY, winW, winH, 16)
+	drawThemePanel(screen, winX, winY, winW, winH, 18)
 
 	// Define explicit boundaries for the scrollable list viewport
 	tabY := winY + 50
@@ -103,19 +105,8 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	tabW := 200.0
 	tab1X, tab2X := winX+20, winX+20+tabW+10
 
-	// Tab 1: CONSTRUCTION
-	tab1Col := color.RGBA{100, 100, 100, 255}
-	if shipyardUI.CurrentTab == 0 {
-		tab1Col = color.RGBA{200, 180, 0, 255} // Yellow for active
-	}
-	drawButton(screen, float64(tab1X), float64(tabY), float64(tabW), float64(tabH), "Construction", kindFromColor(tab1Col))
-
-	// Tab 2: FLOTTES
-	tab2Col := color.RGBA{100, 100, 100, 255}
-	if shipyardUI.CurrentTab == 1 {
-		tab2Col = color.RGBA{200, 180, 0, 255}
-	}
-	drawButton(screen, float64(tab2X), float64(tabY), float64(tabW), float64(tabH), "Flottes", kindFromColor(tab2Col))
+	drawTab(screen, tab1X, tabY, tabW, tabH, "Construction", shipyardUI.CurrentTab == 0)
+	drawTab(screen, tab2X, tabY, tabW, tabH, "Flottes", shipyardUI.CurrentTab == 1)
 
 	// Handle tab clicks
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -147,171 +138,91 @@ func (g *Game) DrawConstructionTab(screen *ebiten.Image, x, y, w, h float64) {
 	g.DrawAvailableShips(screen, rightX, y, rightW, h)
 }
 
+// shipCardH : hauteur d'une carte de navire dans le chantier.
+const shipCardH = 150.0
+
 // DrawShipList renders scrollable list of ships that can be built
 // x, y, w, h define the exact viewport boundaries (y = top, y+h = bottom)
 func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
-	// Background with strict clipping box
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
-
-	// Visible border to show clipping area (optional, can be removed for production)
-	// uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 150, 50, 128}, vecAA)
+	drawInset(screen, x, y, w, h)
 
 	ships := g.getAvailableShipTypes()
-	itemH := 200.0
+	itemH := shipCardH
 	gap := 10.0
 	startY := y + 10 - shipyardUI.ConstructionScroll
+	clipTop, clipBottom := y, y+h
 
-	// Strict clipping bounds: exactly match the viewport passed to this function
-	// These are the absolute boundaries - nothing should render outside this range
-	clipTop := y
-	clipBottom := y + h
+	// Tout ce qui dépasse de la liste est coupé net.
+	view := screen.SubImage(image.Rect(int(x), int(y), int(x+w), int(y+h))).(*ebiten.Image)
+
+	var have map[domain.ResourceType]float64
+	if g.player != nil && len(g.player.Islands) > 0 {
+		have = g.player.Islands[0].Resources
+	}
+	shipyardLevel := g.getShipyardLevel()
 
 	for i, ship := range ships {
-		// Single source of truth for card geometry
 		cardTop := startY + float64(i)*(itemH+gap)
-		cardBottom := cardTop + itemH
-
-		// Check if card is visible (at least partially)
-		if cardBottom <= clipTop || cardTop >= clipBottom {
-			continue // Completely outside viewport
+		if cardTop+itemH <= clipTop || cardTop >= clipBottom {
+			continue
 		}
-
-		// Card is visible - draw complete card using cardTop as reference
 		itemX := x + 10
 		itemW := w - 20
+		drawCard(view, itemX, cardTop, itemW, itemH, false)
 
-		// Draw card background - but clip it to viewport if partially outside
-		// Calculate visible portion of card
-		drawCardTop := cardTop
-		drawCardH := itemH
-
-		// Clip top if card extends above viewport
-		if cardTop < clipTop {
-			drawCardH = itemH - (clipTop - cardTop)
-			drawCardTop = clipTop
+		textX := itemX + 16
+		drawText(view, ship.Name, titleFace(22), textX, cardTop+8, themeGold, alignLeft)
+		for j, line := range strings.Split(ship.Stats, "\n") {
+			clr := color.Color(themeText)
+			if j > 0 {
+				clr = themeMuted
+				line = strings.ReplaceAll(strings.ReplaceAll(line, " | ", " · "), "PV:", "PV")
+				line = strings.ReplaceAll(line, "Cargo:", "Cargaison")
+			}
+			drawText(view, line, bodyFace(13, false), textX, cardTop+40+float64(j)*18, clr, alignLeft)
 		}
-		// Clip bottom if card extends below viewport
-		if cardBottom > clipBottom {
-			drawCardH = clipBottom - drawCardTop
-		}
+		drawCost(view, ship.Cost, have, textX, cardTop+84)
+		drawText(view, "Durée "+ship.BuildTime, bodyFace(13, false), textX, cardTop+104, themeMuted, alignLeft)
 
-		// Only draw if there's a visible portion
-		if drawCardH > 0 && drawCardTop < clipBottom {
-			uiFillRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), color.RGBA{30, 40, 50, 255}, vecAA)
-		}
-
-		// Draw full border only if card is fully or mostly visible
-		// If card is partially clipped, draw border only for visible portion
-		if cardTop >= clipTop && cardBottom <= clipBottom {
-			// Fully visible - draw complete border
-			uiStrokeRect(screen, float32(itemX), float32(cardTop), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
-		} else if drawCardH > 0 {
-			// Partially visible - draw border for visible portion only
-			uiStrokeRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
-		}
-
-		// All text positions are relative to cardTop (single source of truth)
-		textX := int(itemX) + 10
-		textHeight := 12
-
-		// Fixed offsets from cardTop (all relative to cardTop, not cardBottom)
-		titleOffset := 10.0
-		statsOffset := 30.0
-		costLabelOffset := 60.0
-		costValueOffset := 75.0
-		timeOffset := 95.0
-		buttonOffset := itemH - 50.0 // Button is 40px high, 10px from bottom
-
-		// Ship name (relative to cardTop)
-		nameY := int(cardTop + titleOffset)
-		if float64(nameY+textHeight) <= clipBottom && float64(nameY) >= clipTop {
-			uiPrint(screen, ship.Name, textX, nameY)
-		}
-
-		// Stats (multiline, relative to cardTop)
-		statsY := int(cardTop + statsOffset)
-		if float64(statsY+textHeight*2) <= clipBottom && float64(statsY) >= clipTop {
-			uiPrint(screen, ship.Stats, textX, statsY)
-		}
-
-		// Cost label (relative to cardTop)
-		costLabelY := int(cardTop + costLabelOffset)
-		if float64(costLabelY+textHeight) <= clipBottom && float64(costLabelY) >= clipTop {
-			uiPrint(screen, "Cout:", textX, costLabelY)
-		}
-
-		// Cost values (relative to cardTop)
-		// Build cost string in fixed order to prevent flickering
-		costStr := buildCostString(ship.Cost, false, nil)
-		costValueY := int(cardTop + costValueOffset)
-		// Only draw if fully within visible bounds (prevent text bleeding)
-		if float64(costValueY+textHeight) <= clipBottom && float64(costValueY) >= clipTop {
-			// Draw cost text with opaque background to prevent ghosting
-			drawTextWithBackground(screen, costStr, textX, costValueY, color.RGBA{30, 40, 50, 255})
-		}
-
-		// Build time (relative to cardTop)
-		timeY := int(cardTop + timeOffset)
-		// Only draw if fully within visible bounds (prevent text bleeding)
-		if float64(timeY+textHeight) <= clipBottom && float64(timeY) >= clipTop {
-			uiPrint(screen, fmt.Sprintf("Temps: %s", ship.BuildTime), textX, timeY)
-		}
-
-		// Build button (relative to cardTop, not cardBottom for consistency)
-		btnW, btnH := 180.0, 40.0
-		btnX := itemX + (itemW-btnW)/2
-		btnY := cardTop + buttonOffset
-
-		// Check prerequisites
-		shipyardLevel := g.getShipyardLevel()
+		// Prérequis
 		canBuild := shipyardLevel >= ship.ReqLevel
-
-		// Check tech prerequisites
+		hasTech := true
 		if ship.RequiredTech != "" && g.player != nil {
-			hasTech := false
+			hasTech = false
 			for _, techID := range g.player.UnlockedTechs {
 				if techID == ship.RequiredTech {
 					hasTech = true
 					break
 				}
 			}
-			if !hasTech {
-				canBuild = false
-			}
 		}
+		canBuild = canBuild && hasTech
 
-		btnCol := color.RGBA{200, 180, 0, 255} // Yellow
-		btnText := "CONSTRUIRE"
-		if !canBuild {
-			btnCol = color.RGBA{80, 80, 80, 255} // Gray locked
-			if shipyardLevel < ship.ReqLevel {
-				btnText = fmt.Sprintf("NIV %d", ship.ReqLevel)
-			} else {
-				btnText = "TECH REQ"
-			}
+		btnW, btnH := 150.0, 38.0
+		btnX := itemX + itemW - btnW - 14
+		btnY := cardTop + itemH - btnH - 14
+		kind, label := btnPrimary, "Construire"
+		if shipyardLevel < ship.ReqLevel {
+			kind, label = btnDisabled, fmt.Sprintf("Chantier niv. %d", ship.ReqLevel)
+		} else if !hasTech {
+			kind, label = btnDisabled, "Technologie requise"
 		}
-
-		// Only draw button if fully within visible bounds (button is relative to cardTop)
-		if btnY+btnH <= clipBottom && btnY >= clipTop {
-			drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), btnText, kindFromColor(btnCol))
-		}
+		drawButton(view, btnX, btnY, btnW, btnH, label, kind)
 
 		// Handle button click
-		if canBuild && isMouseJustPressed(ebiten.MouseButtonLeft) {
+		btnVisible := btnY >= clipTop && btnY+btnH <= clipBottom
+		if canBuild && btnVisible && isMouseJustPressed(ebiten.MouseButtonLeft) {
 			mx, my := cursorPosition()
 			if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
-				// Build ship
 				g.Log("[SHIP BUILD] Button clicked: %s (Type: %s)", ship.Name, ship.ID)
 				go func(shipType, shipName string) {
 					g.Log("[SHIP BUILD] Sending request to server: %s", shipType)
 					err := g.api.BuildShip(shipType)
 					if err != nil {
 						g.Log("[SHIP BUILD ERROR] Server refused: %v", err)
-						// Try to handle as prerequisites error
 						if !g.handleAPIError(err, fmt.Sprintf("Construction %s", shipName)) {
-							// Not a prerequisites error - show standard error
 							g.showError = true
-							g.errorMessage = fmt.Sprintf("Construction refusée: %v", err)
+							g.errorMessage = fmt.Sprintf("Construction refusée : %v", err)
 							g.errorDebounce = 30
 						}
 					} else {
@@ -354,54 +265,37 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 
 // DrawAvailableShips shows ships already built or under construction
 func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
-	// Background
-	drawButton(screen, float64(x), float64(y), float64(w), float64(h), "Bateau(x) disponible(s)", kindFromColor(color.RGBA{20, 30, 40, 200}))
-
-	// Title
+	drawInset(screen, x, y, w, h)
+	uiSubtitle(screen, "Navires au port", int(x)+16, int(y)+14)
 
 	if g.player == nil || len(g.player.Islands) == 0 {
 		return
 	}
-
-	listY := y + 40
+	listY := y + 50
 	island := g.player.Islands[0]
 
-	if len(island.Ships) == 0 {
-		uiPrint(screen, "Aucun navire", int(x)+10, int(listY))
-		return
-	}
-
-	// List ships
 	idx := 0
 	for _, ship := range island.Ships {
-		// Skip destroyed ships AND ships already assigned to a fleet
+		// Ni les navires détruits, ni ceux déjà dans une flotte
 		if ship.State == "Destroyed" || ship.FleetID != nil {
 			continue
 		}
-
-		itemY := listY + float64(idx)*80
-		if itemY > y+h-80 {
-			break // Don't overflow
+		itemY := listY + float64(idx)*72
+		if itemY > y+h-72 {
+			break
 		}
-
-		// Ship box with golden border
-		itemX := x + 10
-		itemW := w - 20
-		itemH := 70.0
-		uiFillRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), color.RGBA{30, 40, 50, 255}, vecAA)
-		uiStrokeRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
-
-		// Ship name
-		uiPrint(screen, fmt.Sprintf("%s (%s)", ship.Name, ship.Type), int(itemX)+10, int(itemY)+10)
-
-		// Status
+		itemX, itemW, itemH := x+12, w-24, 62.0
+		drawCard(screen, itemX, itemY, itemW, itemH, false)
+		drawText(screen, ship.Name, titleFace(20), itemX+14, itemY+6, themeGold, alignLeft)
+		status, clr := "Prêt à prendre la mer", color.Color(themeGreen)
 		if ship.State == "UnderConstruction" {
-			uiPrint(screen, "En Construction...", int(itemX)+10, int(itemY)+30)
-		} else {
-			uiPrint(screen, "Disponible", int(itemX)+10, int(itemY)+30)
+			status, clr = "En construction…", themeOrange
 		}
-
+		drawText(screen, shipTypeLabel(ship.Type)+" · "+status, bodyFace(13, false), itemX+14, itemY+36, clr, alignLeft)
 		idx++
+	}
+	if idx == 0 {
+		drawText(screen, "Aucun navire au port. Construis-en un à gauche !", bodyFace(14, false), x+16, listY, themeMuted, alignLeft)
 	}
 }
 
@@ -425,35 +319,26 @@ func (g *Game) DrawFleetsTab(screen *ebiten.Image, x, y, w, h float64) {
 func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	barH := 90.0
 
-	// Background with golden border
-	uiFillRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), color.RGBA{30, 40, 50, 255}, vecAA)
-	uiStrokeRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
+	drawCard(screen, x+20, y, w-40, barH, false)
 
-	// Get current level
 	currentLevel := g.getShipyardLevel()
-
-	// Display current level
-	textX := int(x) + 30
-	textY := int(y) + 10
-	uiPrint(screen, fmt.Sprintf("Niveau Actuel: %d", currentLevel), textX, textY)
+	textX := x + 36
+	drawText(screen, fmt.Sprintf("Chantier naval · niveau %d", currentLevel), titleFace(22), textX, y+10, themeGold, alignLeft)
 
 	if currentLevel >= 30 {
-		uiPrint(screen, "NIVEAU MAX ATTEINT", textX, textY+20)
+		drawText(screen, "Niveau maximum atteint", bodyFace(14, true), textX, y+44, themeGreen, alignLeft)
 		return
 	}
 
-	// Get upgrade cost
 	upgradeCost := g.getBuildingCost("Chantier Naval", currentLevel)
-	costY := textY + 25
-	// Draw cost text with opaque background to prevent ghosting
-	// Use fixed order to prevent flickering
-	costStr := buildCostString(upgradeCost, false, nil)
-	costText := fmt.Sprintf("Cout Niv Suivant: %s", costStr)
-	drawTextWithBackground(screen, costText, textX, costY, color.RGBA{30, 40, 50, 255})
-
-	// Build time
+	var have map[domain.ResourceType]float64
+	if g.player != nil && len(g.player.Islands) > 0 {
+		have = g.player.Islands[0].Resources
+	}
+	drawText(screen, "Niveau suivant :", bodyFace(13, false), textX, y+44, themeMuted, alignLeft)
+	drawCost(screen, upgradeCost, have, textX+textWidth("Niveau suivant : ", bodyFace(13, false)), y+44)
 	buildTime := g.getBuildingDuration("Chantier Naval", currentLevel+1)
-	uiPrint(screen, fmt.Sprintf("Temps Construction: %ds", int(buildTime.Seconds())), textX, costY+15)
+	drawText(screen, "Durée "+formatDuration(int(buildTime.Seconds())), bodyFace(13, false), textX, y+64, themeMuted, alignLeft)
 
 	// Upgrade button
 	btnW, btnH := 150.0, 40.0
@@ -462,11 +347,11 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 
 	// Check if can afford
 	canAfford := true
-	if g.player != nil && len(g.player.Islands) == 0 {
+	if g.player == nil || len(g.player.Islands) == 0 {
 		canAfford = false
 	}
 	for res, amt := range upgradeCost {
-		if g.player.Islands[0].Resources[res] < amt {
+		if have[res] < amt {
 			canAfford = false
 		}
 	}
@@ -482,18 +367,14 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 		}
 	}
 
-	btnCol := color.RGBA{0, 150, 0, 255} // Green
-	btnText := "AMELIORER"
+	kind, btnText := btnPrimary, "Améliorer"
 	if isBusy {
-		btnCol = color.RGBA{80, 80, 80, 255}
-		btnText = "OCCUPE"
+		kind, btnText = btnDisabled, "Occupé"
 		canAfford = false
 	} else if !canAfford {
-		btnCol = color.RGBA{150, 50, 50, 255}
-		btnText = "MANQUE"
+		kind, btnText = btnDisabled, "Ressources"
 	}
-
-	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), btnText, kindFromColor(btnCol))
+	drawButton(screen, btnX, btnY, btnW, btnH, btnText, kind)
 
 	// Handle upgrade button click
 	if canAfford && !isBusy && isMouseJustPressed(ebiten.MouseButtonLeft) {
