@@ -73,8 +73,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 
 	// Draw dashboard background
 	dashH := float64(activeCount)*itemH + float64(activeCount-1)*gap + 20
-	vector.DrawFilledRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), color.RGBA{20, 20, 30, 220}, true)
-	vector.StrokeRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), 2, color.RGBA{100, 100, 150, 255}, true)
+	vector.DrawFilledRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), color.RGBA{20, 20, 30, 220}, vecAA)
+	vector.StrokeRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), 2, color.RGBA{100, 100, 150, 255}, vecAA)
 
 	currentY += 10
 
@@ -84,8 +84,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 			remaining := b.FinishTime.Sub(now)
 			if remaining > 0 {
 				// Item box
-				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, true)
-				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{80, 120, 200, 255}, true)
+				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
+				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{80, 120, 200, 255}, vecAA)
 
 				// Building name
 				ebitenutil.DebugPrintAt(screen, "🏗️ "+b.Type, int(dashX+20), int(currentY+10))
@@ -133,9 +133,9 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 				}
 
 				// Progress bar background
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, true)
+				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
 				// Progress bar fill
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{100, 200, 100, 255}, true)
+				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{100, 200, 100, 255}, vecAA)
 
 				currentY += itemH + gap
 			}
@@ -147,8 +147,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 		remaining := g.player.ResearchFinishTime.Sub(now)
 		if remaining > 0 {
 			// Item box
-			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, true)
-			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 120, 80, 255}, true)
+			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
+			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 120, 80, 255}, vecAA)
 
 			// Research name
 			ebitenutil.DebugPrintAt(screen, "🔬 "+g.player.ResearchingTechID, int(dashX+20), int(currentY+10))
@@ -164,7 +164,7 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 			barH := 8.0
 			barX := dashX + 30
 			barY := currentY + 45
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, true)
+			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
 
 			// Calculate actual progress using server-provided total duration
 			progress := 0.0
@@ -180,7 +180,7 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 					progress = 1
 				}
 			}
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 150, 100, 255}, true)
+			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 150, 100, 255}, vecAA)
 
 			currentY += itemH + gap
 		}
@@ -192,8 +192,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 			remaining := s.FinishTime.Sub(now)
 			if remaining > 0 {
 				// Item box
-				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, true)
-				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{120, 150, 200, 255}, true)
+				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
+				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{120, 150, 200, 255}, vecAA)
 
 				// Ship name
 				ebitenutil.DebugPrintAt(screen, "⛵ "+s.Type, int(dashX+20), int(currentY+10))
@@ -237,8 +237,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 					progress = 1
 				}
 
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, true)
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{120, 180, 220, 255}, true)
+				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
+				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{120, 180, 220, 255}, vecAA)
 
 				currentY += itemH + gap
 			}
@@ -250,8 +250,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 		remaining := island.MilitiaRecruitDoneAt.Sub(now)
 		if remaining > 0 {
 			// Item box
-			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, true)
-			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 100, 100, 255}, true)
+			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
+			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 100, 100, 255}, vecAA)
 
 			// Recruitment info
 			totalUnits := island.MilitiaRecruitWarriors + island.MilitiaRecruitArchers + island.MilitiaRecruitGunners
@@ -282,8 +282,8 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 				progress = 1
 			}
 
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, true)
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 120, 120, 255}, true)
+			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
+			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 120, 120, 255}, vecAA)
 
 			currentY += itemH + gap
 		}
@@ -297,7 +297,7 @@ func (g *Game) DrawDevMenu(screen *ebiten.Image) {
 	}
 	w := 400.0
 	h := 300.0
-	vector.DrawFilledRect(screen, 10, 100, float32(w), float32(h), color.RGBA{0, 0, 80, 200}, true)
+	vector.DrawFilledRect(screen, 10, 100, float32(w), float32(h), color.RGBA{0, 0, 80, 200}, vecAA)
 	ebitenutil.DebugPrintAt(screen, "--- DEV MENU ---", 20, 110)
 	ebitenutil.DebugPrintAt(screen, "FPS: "+fmt.Sprintf("%.1f", ebiten.ActualFPS()), 20, 130)
 	ebitenutil.DebugPrintAt(screen, "TPS: "+fmt.Sprintf("%.1f", ebiten.ActualTPS()), 20, 145)

@@ -26,9 +26,9 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
 	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "Tavern", int(x)+20, int(y)+20)
@@ -37,8 +37,8 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - 10
 	closeY := y + 10
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Get ticket balance from island resources
@@ -54,7 +54,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Tickets: %d", ticketBalance), int(x)+20, int(y)+50)
 
 	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+80, float32(x+w)-20, float32(y)+80, 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(x)+20, float32(y)+80, float32(x+w)-20, float32(y)+80, 1, color.Gray{100}, vecAA)
 
 	// Busy state indicator
 	if g.ui.TavernBusy {
@@ -125,8 +125,8 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	if g.ui.TavernBusy {
 		btn1Col = color.RGBA{80, 80, 80, 255}
 	}
-	vector.DrawFilledRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), btn1Col, true)
-	vector.StrokeRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), btn1Col, vecAA)
+	vector.StrokeRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "RECRUTER x1", int(btn1X)+40, int(btnY)+15)
 
 	// x10 button
@@ -138,8 +138,8 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	if g.ui.TavernBusy {
 		btn10Col = color.RGBA{80, 80, 80, 255}
 	}
-	vector.DrawFilledRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), btn10Col, true)
-	vector.StrokeRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), btn10Col, vecAA)
+	vector.StrokeRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "RECRUTER x10", int(btn10X)+35, int(btnY)+15)
 }
 

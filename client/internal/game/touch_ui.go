@@ -53,7 +53,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawTouchButtons(screen)
 	if showFPS() {
 		msg := fmt.Sprintf("FPS %.0f  TPS %.0f  %dx%d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.screenWidth, g.screenHeight)
-		vector.DrawFilledRect(screen, 8, 44, float32(len(msg)*6+12), 22, color.RGBA{0, 0, 0, 180}, true)
+		vector.DrawFilledRect(screen, 8, 44, float32(len(msg)*6+12), 22, color.RGBA{0, 0, 0, 180}, vecAA)
 		ebitenutil.DebugPrintAt(screen, msg, 14, 47)
 	}
 }
@@ -135,8 +135,8 @@ func (g *Game) touchButtonAt(x, y float64) (touchButton, bool) {
 func (g *Game) drawTouchButtons(screen *ebiten.Image) {
 	for _, b := range g.touchButtons() {
 		x, y, w, h := float32(b.x), float32(b.y), float32(b.w), float32(b.h)
-		vector.DrawFilledRect(screen, x, y, w, h, color.RGBA{60, 38, 18, 215}, true)
-		vector.StrokeRect(screen, x, y, w, h, 3, color.RGBA{218, 165, 32, 255}, true)
+		vector.DrawFilledRect(screen, x, y, w, h, color.RGBA{60, 38, 18, 215}, vecAA)
+		vector.StrokeRect(screen, x, y, w, h, 3, color.RGBA{218, 165, 32, 255}, vecAA)
 		tx := int(b.x+b.w/2) - len(b.label)*3
 		ebitenutil.DebugPrintAt(screen, b.label, tx, int(b.y+b.h/2)-8)
 	}
@@ -191,3 +191,9 @@ func textFieldByID(id string) (textField, bool) {
 	}
 	return textField{}, false
 }
+
+// vecAA : anticrénelage des formes (rectangles, cadres, cercles).
+// Dans le navigateur, Ebiten le fait en redessinant chaque forme dans une
+// image 2x plus grande puis en la réduisant : avec ~300 formes par écran,
+// ça écroulait les téléphones (7-9 images/s). Sur PC on le garde.
+var vecAA = !IsWebBuild

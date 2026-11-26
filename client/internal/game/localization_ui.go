@@ -29,8 +29,8 @@ func (g *Game) DrawLocalizationOverlay(screen *ebiten.Image) {
 	boxH := 100.0
 
 	// Background
-	vector.DrawFilledRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), color.RGBA{0, 0, 0, 200}, true)
-	vector.StrokeRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), 2, color.RGBA{100, 100, 200, 255}, true)
+	vector.DrawFilledRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), color.RGBA{0, 0, 0, 200}, vecAA)
+	vector.StrokeRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), 2, color.RGBA{100, 100, 200, 255}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "LOCALIZATION MODE", int(boxX)+10, int(boxY)+10)

@@ -27,8 +27,8 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	padding := 20.0
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Header
 	headerH := 50.0
@@ -38,12 +38,12 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - padding
 	closeY := y + padding
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Separator
-	vector.StrokeLine(screen, float32(x+padding), float32(y+headerH), float32(x+w-padding), float32(y+headerH), 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(x+padding), float32(y+headerH), float32(x+w-padding), float32(y+headerH), 1, color.Gray{100}, vecAA)
 
 	// Content area
 	contentY := y + headerH + padding
@@ -82,7 +82,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	textH := 30.0
 	textX := x + padding
 	textY := currentY
-	vector.DrawFilledRect(screen, float32(textX-5), float32(textY-5), float32(textW+10), float32(textH), color.RGBA{winnerColor.R / 4, winnerColor.G / 4, winnerColor.B / 4, 200}, true)
+	vector.DrawFilledRect(screen, float32(textX-5), float32(textY-5), float32(textW+10), float32(textH), color.RGBA{winnerColor.R / 4, winnerColor.G / 4, winnerColor.B / 4, 200}, vecAA)
 	ebitenutil.DebugPrintAt(screen, winnerText, int(textX), int(textY+5))
 	currentY += lineSpacing * 2
 

@@ -28,7 +28,7 @@ func (g *Game) DrawHUD(screen *ebiten.Image) {
 		shadowY := int(hudY+hudH) - 5
 		for i := 0; i < shadowH; i++ {
 			alpha := uint8(startAlpha * (1.0 - float64(i)/float64(shadowH)))
-			vector.DrawFilledRect(screen, 0, float32(shadowY+i), float32(screenW), 1, color.RGBA{0, 0, 0, alpha}, true)
+			vector.DrawFilledRect(screen, 0, float32(shadowY+i), float32(screenW), 1, color.RGBA{0, 0, 0, alpha}, vecAA)
 		}
 
 		draw9Slice(screen, g, 0, hudY, screenW, hudH, 16)
@@ -43,8 +43,8 @@ func (g *Game) DrawHUD(screen *ebiten.Image) {
 		infoW := 350.0
 		infoX := screenW - infoW
 		sepX := float32(infoX) - 20
-		vector.StrokeLine(screen, sepX, float32(hudY)+10, sepX, float32(hudY+hudH)-10, 2, color.RGBA{139, 69, 19, 150}, true)
-		vector.StrokeLine(screen, sepX+1, float32(hudY)+10, sepX+1, float32(hudY+hudH)-10, 1, color.RGBA{255, 215, 0, 100}, true)
+		vector.StrokeLine(screen, sepX, float32(hudY)+10, sepX, float32(hudY+hudH)-10, 2, color.RGBA{139, 69, 19, 150}, vecAA)
+		vector.StrokeLine(screen, sepX+1, float32(hudY)+10, sepX+1, float32(hudY+hudH)-10, 1, color.RGBA{255, 215, 0, 100}, vecAA)
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Captain: %s | Island: %s", g.player.Username, g.player.Islands[0].Name), int(infoX), int(hudY)+18)
 
 		// Resource Tooltips
@@ -121,11 +121,11 @@ func (g *Game) DrawHUD(screen *ebiten.Image) {
 			if img != nil {
 				drawImgScaled(screen, img, x-offsetX, y-offsetY, scaledSize, scaledSize)
 				// Small stroke for visibility on dark maps
-				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 1, color.RGBA{255, 215, 0, 100}, true)
+				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 1, color.RGBA{255, 215, 0, 100}, vecAA)
 			} else {
 				// Fallback
-				vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), colorFallback, true)
-				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 2, color.RGBA{255, 255, 255, 200}, true)
+				vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), colorFallback, vecAA)
+				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 2, color.RGBA{255, 255, 255, 200}, vecAA)
 			}
 
 			// Draw Label
@@ -212,7 +212,7 @@ func (g *Game) DrawBuildButton(screen *ebiten.Image) {
 		drawImgScaled(screen, img, x-offsetX, y-offsetY, scaledSize, scaledSize)
 	} else {
 		// Fallback if texture missing
-		vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), color.RGBA{139, 69, 19, 255}, true)
+		vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), color.RGBA{139, 69, 19, 255}, vecAA)
 	}
 
 	// Draw Build Icon (Hammer) on top

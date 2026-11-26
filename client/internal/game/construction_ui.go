@@ -122,15 +122,15 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 	winW, winH := 500.0, 600.0
 
 	// Semi-transparent BG
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 100}, true)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 100}, vecAA)
 
 	// Window
 	winX, winY := cx-winW/2, cy-winH/2
 	if g.sliceTopLeft != nil {
 		draw9Slice(screen, g, winX, winY, winW, winH, 24)
 	} else {
-		vector.DrawFilledRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), color.RGBA{40, 45, 60, 255}, true)
-		vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 180, 50, 255}, true)
+		vector.DrawFilledRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), color.RGBA{40, 45, 60, 255}, vecAA)
+		vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 180, 50, 255}, vecAA)
 	}
 
 	ebitenutil.DebugPrintAt(screen, "CONSTRUCTION", int(winX)+20, int(winY)+20)
@@ -159,8 +159,8 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		}
 
 		ix := winX + 20
-		vector.DrawFilledRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), color.RGBA{60, 65, 80, 255}, true)
-		vector.StrokeRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), 1, color.RGBA{150, 150, 150, 255}, true)
+		vector.DrawFilledRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), color.RGBA{60, 65, 80, 255}, vecAA)
+		vector.StrokeRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), 1, color.RGBA{150, 150, 150, 255}, vecAA)
 
 		// Icon
 		if item.Icon != nil {
@@ -250,7 +250,7 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 			btnText = "MANQUE"
 		}
 
-		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
+		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 		ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+5, int(btnY)+8)
 	}
 }

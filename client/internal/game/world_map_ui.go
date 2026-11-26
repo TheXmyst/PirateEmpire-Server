@@ -82,8 +82,8 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				targetColor = color.RGBA{255, 255, 255, 255} // White on hover
 			}
 
-			vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, true)
-			vector.StrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, true)
+			vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+			vector.StrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
 
 			// Draw name and tier above
 			nameY := ty - targetSize/2 - 20
@@ -117,9 +117,9 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 					textW := len(rating.Label) * 6
 					textX := int(tx) - textW/2
 
-					vector.DrawFilledRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, true)
+					vector.DrawFilledRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
 					ebitenutil.DebugPrintAt(screen, rating.Label, textX, ratingY)
-					vector.DrawFilledRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, true)
+					vector.DrawFilledRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
 				}
 			}
 		}
@@ -154,7 +154,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 			// Render Sprite
 			if target.IsFleet {
 				// Fleet Icon (Square or Ship Sprite)
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, true)
+				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 				// Small arrow if moving
 				if target.Speed > 0 && target.TargetX != nil && target.TargetY != nil {
 					// Draw simple dir line
@@ -163,7 +163,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 					dist := math.Sqrt(dx*dx + dy*dy)
 					if dist > 0 {
 						lineLen := 10.0
-						vector.StrokeLine(screen, float32(tx), float32(ty), float32(tx+(dx/dist)*lineLen), float32(ty+(dy/dist)*lineLen), 2, color.RGBA{255, 255, 255, 200}, true)
+						vector.StrokeLine(screen, float32(tx), float32(ty), float32(tx+(dx/dist)*lineLen), float32(ty+(dy/dist)*lineLen), 2, color.RGBA{255, 255, 255, 200}, vecAA)
 					}
 				}
 			} else if g.imgIsland != nil {
@@ -175,7 +175,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				op.GeoM.Translate(tx-(float64(iw)*scale)/2, ty-(float64(ih)*scale)/2)
 				screen.DrawImage(g.imgIsland, op)
 			} else {
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, true)
+				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 			}
 
 			// Show tooltip on hover instead of white border
@@ -192,8 +192,8 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				tooltipX := tx + targetSize/2 + 10
 				tooltipY := ty - tooltipH/2
 
-				vector.DrawFilledRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, true)
-				vector.StrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, true)
+				vector.DrawFilledRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
+				vector.StrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 				// Tooltip content
 				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Joueur: %s", target.Name), int(tooltipX)+10, int(tooltipY)+10)
@@ -251,7 +251,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 			nodeColor = color.RGBA{uint8(r>>8) + 50, uint8(gr>>8) + 50, uint8(b>>8) + 50, uint8(a >> 8)}
 		}
 
-		vector.DrawFilledCircle(screen, float32(tx), float32(ty), float32(nodeSize/2), nodeColor, true)
+		vector.DrawFilledCircle(screen, float32(tx), float32(ty), float32(nodeSize/2), nodeColor, vecAA)
 
 		if !isModalOpen && g.ui.HoverResourceNode == node.ID {
 			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%.1fx)", string(node.Type), node.Richness), int(tx)-20, int(ty)-20)
@@ -274,7 +274,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 
 				// Draw Square
 				col := color.RGBA{0, 200, 0, 255} // Green
-				vector.DrawFilledRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, true)
+				vector.DrawFilledRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
 
 				// Optional: Name
 				if g.camZoom > 0.5 {
@@ -355,7 +355,7 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 
 	// Close Button
 	closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
-	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), 30, 30, color.RGBA{200, 50, 50, 255}, true)
+	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), 30, 30, color.RGBA{200, 50, 50, 255}, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeBtnX)+10, int(closeBtnY)+8)
 
 	// List Idle Fleets
@@ -367,7 +367,7 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			// Fleet List Item
 			itemColor := color.RGBA{60, 60, 60, 255}
 
-			vector.DrawFilledRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, true)
+			vector.DrawFilledRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
 
 			state := f.State
 			if state == "" {
@@ -384,13 +384,13 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			if state == domain.FleetStateIdle && len(f.Ships) > 0 {
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{0, 150, 0, 255}, true)
+				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{0, 150, 0, 255}, vecAA)
 				ebitenutil.DebugPrintAt(screen, "SEND", int(btnX)+15, int(btnY)+8)
 			} else if state == domain.FleetStateStationed {
 				// RECALL Button
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, true) // Orange
+				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
 				ebitenutil.DebugPrintAt(screen, "RECALL", int(btnX)+10, int(btnY)+8)
 			}
 
@@ -1180,7 +1180,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), cancelCol, true)
+	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), cancelCol, vecAA)
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+25, int(cancelY)+12)
 
 	// Confirm (Green)
@@ -1195,7 +1195,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmCol, true)
+	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmCol, vecAA)
 	ebitenutil.DebugPrintAt(screen, "CONFIRMER", int(confirmX)+20, int(confirmY)+12)
 }
 
@@ -1408,8 +1408,8 @@ func (g *Game) DrawWindIndicator(screen *ebiten.Image) {
 	radius := 40.0
 
 	// Draw Circle Background
-	vector.DrawFilledCircle(screen, float32(centerX), float32(centerY), float32(radius), color.RGBA{0, 0, 0, 150}, true)
-	vector.StrokeCircle(screen, float32(centerX), float32(centerY), float32(radius), 2, color.White, true)
+	vector.DrawFilledCircle(screen, float32(centerX), float32(centerY), float32(radius), color.RGBA{0, 0, 0, 150}, vecAA)
+	vector.StrokeCircle(screen, float32(centerX), float32(centerY), float32(radius), 2, color.White, vecAA)
 
 	// Calculate Arrow Tip
 	// Wind Direction 0 = East? North?
@@ -1423,7 +1423,7 @@ func (g *Game) DrawWindIndicator(screen *ebiten.Image) {
 	tipY := centerY + math.Sin(rad)*radius*0.8
 
 	// Draw Line
-	vector.StrokeLine(screen, float32(centerX), float32(centerY), float32(tipX), float32(tipY), 3, color.RGBA{100, 200, 255, 255}, true)
+	vector.StrokeLine(screen, float32(centerX), float32(centerY), float32(tipX), float32(tipY), 3, color.RGBA{100, 200, 255, 255}, vecAA)
 
 	// Label
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("WIND %.0f", g.ui.WindDirection), int(centerX)-20, int(centerY)+45)

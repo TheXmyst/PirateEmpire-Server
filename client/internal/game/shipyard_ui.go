@@ -45,7 +45,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	winX, winY := cx-winW/2, cy-winH/2
 
 	// Semi-transparent overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, true)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, vecAA)
 
 	// Main window with 9-slice
 	draw9Slice(screen, g, winX, winY, winW, winH, 16)
@@ -90,7 +90,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	// Close button (X)
 	closeX, closeY := winX+winW-35, winY+10
 	closeSize := 25.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+8, int(closeY)+5)
 
 	// Handle close button click
@@ -111,7 +111,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	if shipyardUI.CurrentTab == 0 {
 		tab1Col = color.RGBA{200, 180, 0, 255} // Yellow for active
 	}
-	vector.DrawFilledRect(screen, float32(tab1X), float32(tabY), float32(tabW), float32(tabH), tab1Col, true)
+	vector.DrawFilledRect(screen, float32(tab1X), float32(tabY), float32(tabW), float32(tabH), tab1Col, vecAA)
 	ebitenutil.DebugPrintAt(screen, "CONSTRUCTION", int(tab1X)+40, int(tabY)+12)
 
 	// Tab 2: FLOTTES
@@ -119,7 +119,7 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	if shipyardUI.CurrentTab == 1 {
 		tab2Col = color.RGBA{200, 180, 0, 255}
 	}
-	vector.DrawFilledRect(screen, float32(tab2X), float32(tabY), float32(tabW), float32(tabH), tab2Col, true)
+	vector.DrawFilledRect(screen, float32(tab2X), float32(tabY), float32(tabW), float32(tabH), tab2Col, vecAA)
 	ebitenutil.DebugPrintAt(screen, "FLOTTES", int(tab2X)+60, int(tabY)+12)
 
 	// Handle tab clicks
@@ -156,10 +156,10 @@ func (g *Game) DrawConstructionTab(screen *ebiten.Image, x, y, w, h float64) {
 // x, y, w, h define the exact viewport boundaries (y = top, y+h = bottom)
 func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 	// Background with strict clipping box
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	// Visible border to show clipping area (optional, can be removed for production)
-	// vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 150, 50, 128}, true)
+	// vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 150, 50, 128}, vecAA)
 
 	ships := g.getAvailableShipTypes()
 	itemH := 200.0
@@ -202,17 +202,17 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 
 		// Only draw if there's a visible portion
 		if drawCardH > 0 && drawCardTop < clipBottom {
-			vector.DrawFilledRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), color.RGBA{30, 40, 50, 255}, true)
+			vector.DrawFilledRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), color.RGBA{30, 40, 50, 255}, vecAA)
 		}
 
 		// Draw full border only if card is fully or mostly visible
 		// If card is partially clipped, draw border only for visible portion
 		if cardTop >= clipTop && cardBottom <= clipBottom {
 			// Fully visible - draw complete border
-			vector.StrokeRect(screen, float32(itemX), float32(cardTop), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, true)
+			vector.StrokeRect(screen, float32(itemX), float32(cardTop), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 		} else if drawCardH > 0 {
 			// Partially visible - draw border for visible portion only
-			vector.StrokeRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), 2, color.RGBA{200, 150, 50, 255}, true)
+			vector.StrokeRect(screen, float32(itemX), float32(drawCardTop), float32(itemW), float32(drawCardH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 		}
 
 		// All text positions are relative to cardTop (single source of truth)
@@ -298,7 +298,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 
 		// Only draw button if fully within visible bounds (button is relative to cardTop)
 		if btnY+btnH <= clipBottom && btnY >= clipTop {
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
+			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 			ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+40, int(btnY)+12)
 		}
 
@@ -361,7 +361,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 // DrawAvailableShips shows ships already built or under construction
 func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "BATEAU(X) DISPONIBLE(S)", int(x)+10, int(y)+10)
@@ -395,8 +395,8 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 		itemX := x + 10
 		itemW := w - 20
 		itemH := 70.0
-		vector.DrawFilledRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), color.RGBA{30, 40, 50, 255}, true)
-		vector.StrokeRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, true)
+		vector.DrawFilledRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), color.RGBA{30, 40, 50, 255}, vecAA)
+		vector.StrokeRect(screen, float32(itemX), float32(itemY), float32(itemW), float32(itemH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 
 		// Ship name
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", ship.Name, ship.Type), int(itemX)+10, int(itemY)+10)
@@ -433,8 +433,8 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	barH := 90.0
 
 	// Background with golden border
-	vector.DrawFilledRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), color.RGBA{30, 40, 50, 255}, true)
-	vector.StrokeRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), 2, color.RGBA{200, 150, 50, 255}, true)
+	vector.DrawFilledRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), color.RGBA{30, 40, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 
 	// Get current level
 	currentLevel := g.getShipyardLevel()
@@ -500,7 +500,7 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 		btnText = "MANQUE"
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+30, int(btnY)+12)
 
 	// Handle upgrade button click

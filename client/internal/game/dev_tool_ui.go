@@ -29,8 +29,8 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 	panelY := 20.0
 
 	// Background
-	vector.DrawFilledRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), color.RGBA{20, 20, 40, 240}, true)
-	vector.StrokeRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), 3, color.RGBA{100, 150, 255, 255}, true)
+	vector.DrawFilledRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), color.RGBA{20, 20, 40, 240}, vecAA)
+	vector.StrokeRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), 3, color.RGBA{100, 150, 255, 255}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "=== DEV TOOL ===", int(panelX)+230, int(panelY)+10)
@@ -47,7 +47,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Separator
 	currentY += 30
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, true)
+	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
 
 	// Cheat Buttons Section
 	currentY += 20
@@ -63,8 +63,8 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		if hover {
 			btnColor = hoverColor
 		}
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), btnColor, true)
-		vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.White, true)
+		vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), btnColor, vecAA)
+		vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.White, vecAA)
 		ebitenutil.DebugPrintAt(screen, label, int(x)+10, int(y)+10)
 		return hover && isMouseJustPressed(ebiten.MouseButtonLeft)
 	}
@@ -123,7 +123,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Separator
 	currentY += 50
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, true)
+	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
 
 	// Combat Simulator Section
 	currentY += 20
@@ -166,7 +166,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Separator
 	currentY += 60
-	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, true)
+	vector.StrokeLine(screen, float32(panelX+20), float32(currentY), float32(panelX+panelW-20), float32(currentY), 1, color.RGBA{100, 150, 255, 150}, vecAA)
 
 	// Logs Section
 	currentY += 20
