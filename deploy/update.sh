@@ -21,6 +21,18 @@ main() {
 	rm -rf "$REPO_DIR/web.new"
 	./client/web/build.sh "$REPO_DIR/web.new"
 
+	echo "Compilation du client PC Windows (/download)..."
+	# La version = dernier commit qui touche client/ : le .exe ne change (et les
+	# joueurs ne téléchargent) que si le jeu lui-même a changé.
+	CLIENT_VERSION="$(git log -1 --format=%h -- client)"
+	rm -rf "$REPO_DIR/download.new"
+	mkdir -p "$REPO_DIR/download.new"
+	(cd client && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+		-ldflags "-s -w -H windowsgui -X github.com/TheXmyst/Sea-Dogs/client/internal/game.ClientVersion=$CLIENT_VERSION" \
+		-o "$REPO_DIR/download.new/SeaDogs.exe" ./cmd)
+	EXE_SHA="$(sha256sum "$REPO_DIR/download.new/SeaDogs.exe" | cut -d' ' -f1)"
+	printf '{"version":"%s","file":"SeaDogs.exe","sha256":"%s"}\n' "$CLIENT_VERSION" "$EXE_SHA" > "$REPO_DIR/download.new/version.json"
+
 	echo "Sauvegarde de la base avant mise à jour..."
 	mkdir -p "$APP_DIR/backups"
 	if [ -f "$APP_DIR/seadogs.db" ]; then
@@ -34,6 +46,8 @@ main() {
 	rm -f "$REPO_DIR/seadogs-server.new" "$REPO_DIR/admin_tool.new"
 	rm -rf "$APP_DIR/web"
 	mv "$REPO_DIR/web.new" "$APP_DIR/web"
+	rm -rf "$APP_DIR/download"
+	mv "$REPO_DIR/download.new" "$APP_DIR/download"
 	rm -rf "$APP_DIR/configs"
 	cp -r server/configs "$APP_DIR/configs"
 	chown -R seadogs:seadogs "$APP_DIR"

@@ -51,3 +51,7 @@ INDEX_AUDIT.md
 PROJECT_EVOLUTION_COMPLETE.md
 server/SECURITY_IMPROVEMENTS.md
 client/tools/colorfix/*.md
+
+# Dossiers temporaires de deploy/update.sh
+web.new/
+download.new/

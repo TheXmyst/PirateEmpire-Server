@@ -2,7 +2,9 @@ package game
 
 import (
 	"encoding/json"
+	"fmt"
 	"image/color"
+	"math"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
@@ -23,29 +25,27 @@ func (g *Game) UpdateLogin() error {
 	cx, cy := float64(w)/2, float64(h)/2
 	loginY := cy + 80
 
-	// Auto-Updater Hijack
+	// Mise à jour disponible : la fenêtre passe devant l'écran de connexion.
 	if g.ui.ShowUpdateModal {
-		cx, cy := float64(w)/2, float64(h)/2
-		// Update Button: cx-100, cy+20, 200, 50
-		btnX, btnY, btnW, btnH := cx-100, cy+20, 200.0, 50.0
-
-		// Hover Check
-		if cmx >= btnX && cmx <= btnX+btnW && cmy >= btnY && cmy <= btnY+btnH {
-			g.ui.HoverUpdateBtn = true
-			if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.UpdateInProgress {
+		install, later := g.updateModalButtons()
+		g.ui.HoverUpdateBtn = install.has(cmx, cmy)
+		if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.UpdateInProgress {
+			switch {
+			case install.has(cmx, cmy):
 				g.ui.UpdateInProgress = true
-				// Run update in goroutine to allow UI to render "Updating..."
+				g.ui.UpdateError = ""
+				g.ui.UpdateProgress = 0
+				info := g.ui.UpdateInfo
 				go func() {
-					err := PerformUpdate(g.ui.UpdateURL)
+					err := PerformUpdate(info, func(p float64) { g.ui.UpdateProgress = p })
 					if err != nil {
-						g.ui.LoginError = "Update Failed: " + err.Error()
-						g.ui.ShowUpdateModal = false
+						g.ui.UpdateError = err.Error()
 						g.ui.UpdateInProgress = false
 					}
 				}()
+			case later.has(cmx, cmy):
+				g.ui.ShowUpdateModal = false
 			}
-		} else {
-			g.ui.HoverUpdateBtn = false
 		}
 		return nil // Block other inputs
 	}
@@ -380,7 +380,11 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	}
 	ebitenutil.DebugPrintAt(screen, "Se souvenir de moi", int(checkboxX)+30, int(checkboxY)+2)
 
-	ebitenutil.DebugPrintAt(screen, "v0.9.0-alpha", 10, int(h)-40)
+	versionLabel := "v0.9.0-alpha"
+	if ClientVersion != "dev" && ClientVersion != "" {
+		versionLabel += " (" + ClientVersion + ")"
+	}
+	ebitenutil.DebugPrintAt(screen, versionLabel, 10, int(h)-40)
 	ebitenutil.DebugPrintAt(screen, "Developed by Masterkey Technologic", 10, int(h)-20)
 
 	if g.ui.LoginError != "" {
@@ -388,47 +392,58 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	}
 
 	if g.ui.ShowUpdateModal {
-		// Overlay
-		vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 220}, vecAA)
-
-		// Modal Box
-		cx, cy := w/2, h/2
-		boxW, boxH := float32(400), float32(200)
-		boxX, boxY := float32(cx)-boxW/2, float32(cy)-boxH/2
-
-		vector.DrawFilledRect(screen, boxX, boxY, boxW, boxH, color.RGBA{40, 45, 50, 255}, vecAA)
-		// Fancy Border
-		vector.StrokeRect(screen, boxX, boxY, boxW, boxH, 2, color.RGBA{218, 165, 32, 255}, vecAA) // Gold Border
-
-		// Text
-		ebitenutil.DebugPrintAt(screen, "MISE A JOUR DISPONIBLE !", int(cx)-80, int(cy)-60)
-		ebitenutil.DebugPrintAt(screen, "Une nouvelle version est disponible.", int(cx)-100, int(cy)-30)
-
-		// Button
-		btnW, btnH := float32(200), float32(50)
-		btnX, btnY := float32(cx)-btnW/2, float32(cy)+20
-
-		btnCol := color.RGBA{50, 150, 50, 255} // Green
-		btnText := "INSTALLER"
-
-		if g.ui.UpdateInProgress {
-			btnCol = color.RGBA{100, 100, 100, 255} // Grey
-			btnText = "INSTALLATION..."
-		} else if g.ui.HoverUpdateBtn {
-			btnCol = color.RGBA{70, 180, 70, 255} // Brighter Green
-			ebiten.SetCursorShape(ebiten.CursorShapePointer)
-		} else {
-			ebiten.SetCursorShape(ebiten.CursorShapeDefault)
-		}
-
-		vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, btnCol, vecAA)
-		vector.StrokeRect(screen, btnX, btnY, btnW, btnH, 2, color.White, vecAA)
-
-		// Center text approx
-		textX := int(btnX) + 60
-		if g.ui.UpdateInProgress {
-			textX = int(btnX) + 50
-		}
-		ebitenutil.DebugPrintAt(screen, btnText, textX, int(btnY)+18)
+		g.drawUpdateModal(screen)
 	}
+}
+
+// updateModalButtons : boutons « Installer » et « Plus tard ».
+func (g *Game) updateModalButtons() (install, later hudRect) {
+	cx, cy := float64(g.screenWidth)/2, float64(g.screenHeight)/2
+	install = hudRect{cx - 110, cy + 30, 220, 52}
+	later = hudRect{cx - 80, cy + 92, 160, 32}
+	return
+}
+
+func (g *Game) drawUpdateModal(screen *ebiten.Image) {
+	w, h := float64(g.screenWidth), float64(g.screenHeight)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 180}, vecAA)
+	cx, cy := w/2, h/2
+	bw, bh := 480.0, 270.0
+	drawThemePanel(screen, cx-bw/2, cy-bh/2, bw, bh, 18)
+	drawText(screen, "Mise à jour disponible", titleFace(34), cx, cy-bh/2+22, themeGold, alignCenter)
+	drawText(screen, "Une nouvelle version de SeaDogs est prête.", bodyFace(15, false), cx, cy-50, themeText, alignCenter)
+	if g.ui.UpdateError != "" {
+		drawText(screen, ellipsize(g.ui.UpdateError, bodyFace(13, false), bw-40), bodyFace(13, false), cx, cy-20, themeOrange, alignCenter)
+	}
+
+	install, later := g.updateModalButtons()
+	if g.ui.UpdateInProgress {
+		bar := hudRect{cx - 170, install.y + 14, 340, 14}
+		fillRoundRect(screen, bar.x, bar.y, bar.w, bar.h, 7, color.NRGBA{255, 255, 255, 30})
+		if p := g.ui.UpdateProgress; p > 0 {
+			fillRoundRect(screen, bar.x, bar.y, math.Max(14, bar.w*math.Min(p, 1)), bar.h, 7, themeGold)
+		}
+		label := "Téléchargement…"
+		if p := g.ui.UpdateProgress; p > 0 {
+			label = fmt.Sprintf("Téléchargement… %d %%", int(math.Min(p, 1)*100))
+			if p >= 1 {
+				label = "Installation, le jeu va redémarrer…"
+			}
+		}
+		drawText(screen, label, bodyFace(14, false), cx, bar.y+26, themeText, alignCenter)
+		return
+	}
+
+	top := themeGold
+	if g.ui.HoverUpdateBtn {
+		top = color.RGBA{243, 207, 122, 255}
+	}
+	fillRoundRect(screen, install.x, install.y, install.w, install.h, 14, themeGoldDark)
+	fillRoundRect(screen, install.x, install.y, install.w, install.h-6, 14, top)
+	label := "Installer"
+	if g.ui.UpdateError != "" {
+		label = "Réessayer"
+	}
+	drawText(screen, label, titleFace(26), cx, install.y+9, themeInk, alignCenter)
+	drawText(screen, "Plus tard", bodyFace(14, false), cx, later.y+7, themeMuted, alignCenter)
 }
