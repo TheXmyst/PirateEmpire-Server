@@ -8,7 +8,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -24,23 +23,19 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Draw dark overlay
 	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
+	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
+	drawButton(screen, float64(x), float64(y), float64(w), float64(h), "Milice", kindFromColor(color.RGBA{10, 15, 25, 240}))
 	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "MILICE", int(x)+20, int(y)+20)
 
 	// Close button (X) - top right
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - 10
 	closeY := y + 10
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
+	drawCloseButton(screen, float64(closeX)+float64(closeBtnSize)/2, float64(closeY)+float64(closeBtnSize)/2, 15)
 
 	// Get island data
 	var island *domain.Island
@@ -59,7 +54,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Militia level display
 	levelY := int(y) + 50
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Niveau Milice: %d", militiaLevel), int(x)+20, levelY)
+	uiPrint(screen, fmt.Sprintf("Niveau Milice: %d", militiaLevel), int(x)+20, levelY)
 
 	// Upgrade button (if building exists and not constructing)
 	if militiaBuilding != nil && !militiaBuilding.Constructing {
@@ -67,15 +62,14 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		upgradeBtnY := y + 45
 		upgradeBtnW := 100.0
 		upgradeBtnH := 30.0
-		vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(upgradeBtnY), float32(upgradeBtnW), float32(upgradeBtnH), color.RGBA{200, 150, 0, 255}, vecAA)
-		ebitenutil.DebugPrintAt(screen, "UPGRADE", int(upgradeBtnX)+20, int(upgradeBtnY)+8)
+		drawButton(screen, float64(upgradeBtnX), float64(upgradeBtnY), float64(upgradeBtnW), float64(upgradeBtnH), "Upgrade", kindFromColor(color.RGBA{200, 150, 0, 255}))
 	}
 
 	// Stock actuel display
 	stockY := int(y) + 80
 	if island != nil {
-		ebitenutil.DebugPrintAt(screen, "Stock actuel:", int(x)+20, stockY)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d",
+		uiPrint(screen, "Stock actuel:", int(x)+20, stockY)
+		uiPrint(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d",
 			island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(x)+20, stockY+20)
 	}
 
@@ -84,7 +78,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Recruitment section
 	recruitY := int(y) + 140
-	ebitenutil.DebugPrintAt(screen, "Recrutement:", int(x)+20, recruitY)
+	uiPrint(screen, "Recrutement:", int(x)+20, recruitY)
 
 	// Sliders
 	sliderX := x + 20
@@ -94,17 +88,17 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Warrior slider
 	warriorY := sliderY
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d", g.ui.MilitiaWarriors), int(sliderX), int(warriorY))
+	uiPrint(screen, fmt.Sprintf("Guerriers: %d", g.ui.MilitiaWarriors), int(sliderX), int(warriorY))
 	drawSlider(screen, sliderX, warriorY+20, sliderW, sliderH, g.ui.MilitiaWarriors, 0, 200)
 
 	// Archer slider
 	archerY := warriorY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Archers: %d", g.ui.MilitiaArchers), int(sliderX), int(archerY))
+	uiPrint(screen, fmt.Sprintf("Archers: %d", g.ui.MilitiaArchers), int(sliderX), int(archerY))
 	drawSlider(screen, sliderX, archerY+20, sliderW, sliderH, g.ui.MilitiaArchers, 0, 200)
 
 	// Gunner slider
 	gunnerY := archerY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Artilleurs: %d", g.ui.MilitiaGunners), int(sliderX), int(gunnerY))
+	uiPrint(screen, fmt.Sprintf("Artilleurs: %d", g.ui.MilitiaGunners), int(sliderX), int(gunnerY))
 	drawSlider(screen, sliderX, gunnerY+20, sliderW, sliderH, g.ui.MilitiaGunners, 0, 200)
 
 	// Calculate costs and duration
@@ -129,8 +123,8 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 
 	// Cost and duration display
 	infoY := int(gunnerY) + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Coût: %d Or, %d Rhum", goldCost, rumCost), int(x)+20, infoY)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Temps estimé: %.1f s (bonus: %.1f%%)", duration, bonusPct*100), int(x)+20, infoY+20)
+	uiPrint(screen, fmt.Sprintf("Coût: %d Or, %d Rhum", goldCost, rumCost), int(x)+20, infoY)
+	uiPrint(screen, fmt.Sprintf("Temps estimé: %.1f s (bonus: %.1f%%)", duration, bonusPct*100), int(x)+20, infoY+20)
 
 	// Check if can afford
 	canAfford := true
@@ -156,29 +150,27 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		recruitBlockX := x + 20
 
 		// Background block (distinct color)
-		vector.DrawFilledRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), color.RGBA{20, 40, 60, 240}, vecAA)
-		vector.StrokeRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), 2, color.RGBA{100, 150, 200, 255}, vecAA)
+		drawButton(screen, float64(recruitBlockX), float64(recruitBlockY), float64(recruitBlockW), float64(recruitBlockH), "🔄 recrutement en cours", kindFromColor(color.RGBA{20, 40, 60, 240}))
 
 		// Title
-		ebitenutil.DebugPrintAt(screen, "🔄 RECRUTEMENT EN COURS", int(recruitBlockX)+10, int(recruitBlockY)+10)
 
 		// Countdown (formatted)
 		if now.Before(*island.MilitiaRecruitDoneAt) {
 			remaining := island.MilitiaRecruitDoneAt.Sub(now)
 			timeStr := formatRecruitDuration(remaining)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Fin dans: %s", timeStr), int(recruitBlockX)+10, int(recruitBlockY)+30)
+			uiPrint(screen, fmt.Sprintf("Fin dans: %s", timeStr), int(recruitBlockX)+10, int(recruitBlockY)+30)
 		} else {
-			ebitenutil.DebugPrintAt(screen, "Fin dans: 00:00 (en attente mise à jour)", int(recruitBlockX)+10, int(recruitBlockY)+30)
+			uiPrint(screen, "Fin dans: 00:00 (en attente mise à jour)", int(recruitBlockX)+10, int(recruitBlockY)+30)
 		}
 
 		// Quantities
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("→ %d Guerriers | %d Archers | %d Artilleurs",
+		uiPrint(screen, fmt.Sprintf("→ %d Guerriers | %d Archers | %d Artilleurs",
 			island.MilitiaRecruitWarriors, island.MilitiaRecruitArchers, island.MilitiaRecruitGunners),
 			int(recruitBlockX)+10, int(recruitBlockY)+50)
 	} else if island != nil && !island.MilitiaRecruiting {
 		// Show "no recruitment" status
 		recruitBlockY := stockY + 60
-		ebitenutil.DebugPrintAt(screen, "Aucun recrutement en cours", int(x)+20, int(recruitBlockY)+10)
+		uiPrint(screen, "Aucun recrutement en cours", int(x)+20, int(recruitBlockY)+10)
 	}
 
 	// Recruit button
@@ -193,14 +185,14 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		btnColor = color.RGBA{100, 100, 100, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
+	uiFillRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
+	uiStrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
 
 	btnText := "RECRUTER"
 	if g.ui.MilitiaBusy {
 		btnText = "EN COURS..."
 	}
-	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+40, int(btnY)+12)
+	uiPrint(screen, btnText, int(btnX)+40, int(btnY)+12)
 
 	// Error display
 	if g.ui.MilitiaError != "" {
@@ -210,11 +202,11 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		for len(errorText) > maxLen {
 			line := errorText[:maxLen]
 			errorText = errorText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, errorY)
+			uiPrint(screen, line, int(x)+20, errorY)
 			errorY += 15
 		}
 		if errorText != "" {
-			ebitenutil.DebugPrintAt(screen, errorText, int(x)+20, errorY)
+			uiPrint(screen, errorText, int(x)+20, errorY)
 		}
 	}
 }
@@ -236,8 +228,8 @@ func formatRecruitDuration(d time.Duration) string {
 // drawSlider draws a slider control
 func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 50, 50, 255}, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
 
 	// Fill (value indicator)
 	if max > min {
@@ -249,7 +241,7 @@ func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 			fillRatio = 0.0
 		}
 		fillW := w * fillRatio
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), color.RGBA{0, 150, 0, 255}, vecAA)
+		uiFillRect(screen, float32(x), float32(y), float32(fillW), float32(h), color.RGBA{0, 150, 0, 255}, vecAA)
 	}
 
 	// Handle (draggable thumb)
@@ -262,8 +254,8 @@ func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 		if handleX > x+w-handleW {
 			handleX = x + w - handleW
 		}
-		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), color.RGBA{200, 200, 200, 255}, vecAA)
-		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
+		uiFillRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), color.RGBA{200, 200, 200, 255}, vecAA)
+		uiStrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
 	}
 }
 

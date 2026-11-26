@@ -50,7 +50,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 		} else {
 			ebitenutil.DrawRect(screen, sx-10, sy-10, 20, 20, color.RGBA{0, 255, 0, 255})
 		}
-		ebitenutil.DebugPrintAt(screen, myIsland.Name, int(sx)-20, int(sy)-40)
+		uiPrint(screen, myIsland.Name, int(sx)-20, int(sy)-40)
 	}
 
 	// Draw PVE targets
@@ -82,14 +82,14 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				targetColor = color.RGBA{255, 255, 255, 255} // White on hover
 			}
 
-			vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
-			vector.StrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
+			uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+			uiStrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
 
 			// Draw name and tier above
 			nameY := ty - targetSize/2 - 20
 			if nameY > 20 {
-				ebitenutil.DebugPrintAt(screen, target.Name, int(tx)-40, int(nameY))
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Tier %d", target.Tier), int(tx)-20, int(nameY)+15)
+				uiPrint(screen, target.Name, int(tx)-40, int(nameY))
+				uiPrint(screen, fmt.Sprintf("Tier %d", target.Tier), int(tx)-20, int(nameY)+15)
 
 				// DANGER RATING (Hover only)
 				if !isModalOpen && g.ui.HoverPveTarget == target.ID {
@@ -117,9 +117,9 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 					textW := len(rating.Label) * 6
 					textX := int(tx) - textW/2
 
-					vector.DrawFilledRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
-					ebitenutil.DebugPrintAt(screen, rating.Label, textX, ratingY)
-					vector.DrawFilledRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
+					uiFillRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
+					uiPrint(screen, rating.Label, textX, ratingY)
+					uiFillRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
 				}
 			}
 		}
@@ -128,7 +128,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 	// Draw PVP targets (RED)
 	if len(g.ui.PvpTargets) > 0 {
 		// Debug print count on screen (top left or near center)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("PvP Targets: %d", len(g.ui.PvpTargets)), 10, 50)
+		uiPrint(screen, fmt.Sprintf("PvP Targets: %d", len(g.ui.PvpTargets)), 10, 50)
 
 		for _, target := range g.ui.PvpTargets {
 			tx := (float64(target.X)-g.camX)*g.camZoom + w/2
@@ -154,7 +154,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 			// Render Sprite
 			if target.IsFleet {
 				// Fleet Icon (Square or Ship Sprite)
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 				// Small arrow if moving
 				if target.Speed > 0 && target.TargetX != nil && target.TargetY != nil {
 					// Draw simple dir line
@@ -175,7 +175,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				op.GeoM.Translate(tx-(float64(iw)*scale)/2, ty-(float64(ih)*scale)/2)
 				screen.DrawImage(g.imgIsland, op)
 			} else {
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 			}
 
 			// Show tooltip on hover instead of white border
@@ -192,14 +192,14 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				tooltipX := tx + targetSize/2 + 10
 				tooltipY := ty - tooltipH/2
 
-				vector.DrawFilledRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
-				vector.StrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+				uiFillRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
+				uiStrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 				// Tooltip content
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Joueur: %s", target.Name), int(tooltipX)+10, int(tooltipY)+10)
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("TH Niveau: %d", target.Tier), int(tooltipX)+10, int(tooltipY)+25)
+				uiPrint(screen, fmt.Sprintf("Joueur: %s", target.Name), int(tooltipX)+10, int(tooltipY)+10)
+				uiPrint(screen, fmt.Sprintf("TH Niveau: %d", target.Tier), int(tooltipX)+10, int(tooltipY)+25)
 				lootClass := g.computeLootClass(target.Tier)
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Butin: %s", lootClass), int(tooltipX)+10, int(tooltipY)+40)
+				uiPrint(screen, fmt.Sprintf("Butin: %s", lootClass), int(tooltipX)+10, int(tooltipY)+40)
 				// Note: Scouting info will be added later
 			}
 
@@ -209,11 +209,11 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				if displayName == "" {
 					displayName = "Unknown"
 				}
-				ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (Lvl %d)", displayName, target.Tier), int(tx)-40, int(nameY))
+				uiPrint(screen, fmt.Sprintf("%s (Lvl %d)", displayName, target.Tier), int(tx)-40, int(nameY))
 			}
 		}
 	} else {
-		ebitenutil.DebugPrintAt(screen, "No PvP Targets Loaded", 10, 50)
+		uiPrint(screen, "No PvP Targets Loaded", 10, 50)
 	}
 
 	// Draw Resource Nodes
@@ -254,7 +254,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 		vector.DrawFilledCircle(screen, float32(tx), float32(ty), float32(nodeSize/2), nodeColor, vecAA)
 
 		if !isModalOpen && g.ui.HoverResourceNode == node.ID {
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%.1fx)", string(node.Type), node.Richness), int(tx)-20, int(ty)-20)
+			uiPrint(screen, fmt.Sprintf("%s (%.1fx)", string(node.Type), node.Richness), int(tx)-20, int(ty)-20)
 		}
 	}
 	g.ui.ResourceNodesMutex.RUnlock()
@@ -274,11 +274,11 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 
 				// Draw Square
 				col := color.RGBA{0, 200, 0, 255} // Green
-				vector.DrawFilledRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
+				uiFillRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
 
 				// Optional: Name
 				if g.camZoom > 0.5 {
-					ebitenutil.DebugPrintAt(screen, f.Name, int(tx), int(ty)-20)
+					uiPrint(screen, f.Name, int(tx), int(ty)-20)
 				}
 			}
 		}
@@ -343,7 +343,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	overlayColor := color.RGBA{0, 0, 0, 200}
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
 
 	panelW, panelH := 400.0, 500.0
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
@@ -351,12 +351,11 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 	// Panel Background
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
 
-	ebitenutil.DebugPrintAt(screen, "STATION FLEET", int(panelX)+20, int(panelY)+20)
+	uiTitle(screen, "Stationner la flotte", int(panelX)+20, int(panelY)+20)
 
 	// Close Button
 	closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
-	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), 30, 30, color.RGBA{200, 50, 50, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeBtnX)+10, int(closeBtnY)+8)
+	drawCloseButton(screen, float64(closeBtnX)+float64(30)/2, float64(closeBtnY)+float64(30)/2, 15)
 
 	// List Idle Fleets
 	yOffset := panelY + 60
@@ -367,7 +366,7 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			// Fleet List Item
 			itemColor := color.RGBA{60, 60, 60, 255}
 
-			vector.DrawFilledRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
+			uiFillRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
 
 			state := f.State
 			if state == "" {
@@ -378,27 +377,26 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			}
 
 			label := fmt.Sprintf("%s (%d ships) [%s]", f.Name, len(f.Ships), state)
-			ebitenutil.DebugPrintAt(screen, label, int(panelX)+30, int(yOffset)+12)
+			uiPrint(screen, label, int(panelX)+30, int(yOffset)+12)
 
 			// Send Button (Only if Idle)
 			if state == domain.FleetStateIdle && len(f.Ships) > 0 {
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{0, 150, 0, 255}, vecAA)
-				ebitenutil.DebugPrintAt(screen, "SEND", int(btnX)+15, int(btnY)+8)
+				drawButton(screen, float64(btnX), float64(btnY), 70, 30, "Send", kindFromColor(color.RGBA{0, 150, 0, 255}))
 			} else if state == domain.FleetStateStationed {
 				// RECALL Button
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
-				ebitenutil.DebugPrintAt(screen, "RECALL", int(btnX)+10, int(btnY)+8)
+				uiFillRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
+				uiPrint(screen, "RECALL", int(btnX)+10, int(btnY)+8)
 			}
 
 			yOffset += 50
 			available = true
 		}
 		if !available {
-			ebitenutil.DebugPrintAt(screen, "No fleets created", int(panelX)+30, int(yOffset))
+			uiPrint(screen, "No fleets created", int(panelX)+30, int(yOffset))
 		}
 	}
 }
@@ -1139,7 +1137,7 @@ func (g *Game) engagePveTarget(targetID string) {
 func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	overlayColor := color.RGBA{0, 0, 0, 200}
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
 
 	panelW, panelH := 450.0, 250.0
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
@@ -1148,17 +1146,17 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "CONFIRMATION D'ATTAQUE", int(panelX)+20, int(panelY)+20)
+	uiTitle(screen, "Confirmer l'attaque", int(panelX)+20, int(panelY)+20)
 
 	// Content
 	msg1 := fmt.Sprintf("Lancer l'attaque contre %s (Niveau %d)", g.ui.PveConfirmTargetName, g.ui.PveConfirmTier)
 	msg2 := fmt.Sprintf("avec la flotte %s ?", g.ui.PveConfirmFleetName)
 
-	ebitenutil.DebugPrintAt(screen, msg1, int(panelX)+30, int(panelY)+70)
-	ebitenutil.DebugPrintAt(screen, msg2, int(panelX)+30, int(panelY)+90)
+	uiPrint(screen, msg1, int(panelX)+30, int(panelY)+70)
+	uiPrint(screen, msg2, int(panelX)+30, int(panelY)+90)
 
 	// Infos
-	ebitenutil.DebugPrintAt(screen, "La flotte poursuivra sa cible jusqu'à l'engagement.", int(panelX)+30, int(panelY)+120)
+	uiPrint(screen, "La flotte poursuivra sa cible jusqu'à l'engagement.", int(panelX)+30, int(panelY)+120)
 
 	// Inputs
 	mx, my := cursorPosition()
@@ -1180,8 +1178,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), cancelCol, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+25, int(cancelY)+12)
+	drawButton(screen, float64(cancelX), float64(cancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(cancelCol))
 
 	// Confirm (Green)
 	confirmX, confirmY := panelX+panelW-50-btnW, panelY+panelH-60
@@ -1195,8 +1192,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmCol, vecAA)
-	ebitenutil.DebugPrintAt(screen, "CONFIRMER", int(confirmX)+20, int(confirmY)+12)
+	drawButton(screen, float64(confirmX), float64(confirmY), float64(btnW), float64(btnH), "Confirmer", kindFromColor(confirmCol))
 }
 
 // DrawNavFreeConfirmModal renders the Free Navigation confirmation dialog
@@ -1229,9 +1225,9 @@ func (g *Game) DrawNavFreeConfirmModal(screen *ebiten.Image) {
 		msg = "Souhaitez-vous abandonner la cible pour ce nouveau cap ?"
 	}
 
-	ebitenutil.DebugPrintAt(screen, title, int(px+20), int(py+20))
-	ebitenutil.DebugPrintAt(screen, msg, int(px+20), int(py+60))
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Coordonnées : (%d, %d)", g.ui.NavFreeConfirmTargetX, g.ui.NavFreeConfirmTargetY), int(px+20), int(py+90))
+	uiPrint(screen, title, int(px+20), int(py+20))
+	uiPrint(screen, msg, int(px+20), int(py+60))
+	uiPrint(screen, fmt.Sprintf("Coordonnées : (%d, %d)", g.ui.NavFreeConfirmTargetX, g.ui.NavFreeConfirmTargetY), int(px+20), int(py+90))
 
 	// Buttons
 	btnW, btnH := 120.0, 40.0
@@ -1240,13 +1236,13 @@ func (g *Game) DrawNavFreeConfirmModal(screen *ebiten.Image) {
 	confX, confY := px+panelW/2-btnW-20, py+panelH-60
 	confColor := color.RGBA{50, 150, 50, 255}
 	ebitenutil.DrawRect(screen, confX, confY, btnW, btnH, confColor)
-	ebitenutil.DebugPrintAt(screen, "CONFIRMER", int(confX+25), int(confY+12))
+	uiPrint(screen, "CONFIRMER", int(confX+25), int(confY+12))
 
 	// CANCEL
 	canX, canY := px+panelW/2+20, py+panelH-60
 	canColor := color.RGBA{150, 50, 50, 255}
 	ebitenutil.DrawRect(screen, canX, canY, btnW, btnH, canColor)
-	ebitenutil.DebugPrintAt(screen, "ANNULER", int(canX+35), int(canY+12))
+	uiPrint(screen, "ANNULER", int(canX+35), int(canY+12))
 
 	// Click Handling
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1426,7 +1422,7 @@ func (g *Game) DrawWindIndicator(screen *ebiten.Image) {
 	vector.StrokeLine(screen, float32(centerX), float32(centerY), float32(tipX), float32(tipY), 3, color.RGBA{100, 200, 255, 255}, vecAA)
 
 	// Label
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("WIND %.0f", g.ui.WindDirection), int(centerX)-20, int(centerY)+45)
+	uiPrint(screen, fmt.Sprintf("WIND %.0f", g.ui.WindDirection), int(centerX)-20, int(centerY)+45)
 }
 
 // DrawRecallButton draws a "Retour à l'île" button below the wind indicator
@@ -1462,7 +1458,7 @@ func (g *Game) DrawRecallButton(screen *ebiten.Image) {
 		col = color.RGBA{60, 90, 130, 255}
 	}
 	ebitenutil.DrawRect(screen, btnX, btnY, btnW, btnH, col)
-	ebitenutil.DebugPrintAt(screen, "RETOUR ILE", int(btnX+15), int(btnY+8))
+	uiPrint(screen, "RETOUR ILE", int(btnX+15), int(btnY+8))
 }
 
 func (g *Game) isMovingToReturn(x, y, w, h float64) bool {

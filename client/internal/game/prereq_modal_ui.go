@@ -6,7 +6,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -23,11 +22,11 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	padding := 20.0
 
 	// Draw dark overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
+	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
 
 	// Draw modal background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 25, 35, 250}, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 25, 35, 250}, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
 	titleY := y + padding
@@ -35,12 +34,12 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	if title == "" {
 		title = "PRÉREQUIS MANQUANTS"
 	}
-	ebitenutil.DebugPrintAt(screen, title, int(x+padding), int(titleY))
+	uiPrint(screen, title, int(x+padding), int(titleY))
 
 	// Subtitle (optional)
 	if g.ui.PrereqModalSubtitle != "" {
 		subtitleY := titleY + 25
-		ebitenutil.DebugPrintAt(screen, g.ui.PrereqModalSubtitle, int(x+padding), int(subtitleY))
+		uiPrint(screen, g.ui.PrereqModalSubtitle, int(x+padding), int(subtitleY))
 	}
 
 	// Separator
@@ -78,7 +77,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	}
 
 	if totalItems == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun prérequis spécifié", int(x+padding), int(currentY))
+		uiPrint(screen, "Aucun prérequis spécifié", int(x+padding), int(currentY))
 	} else {
 		for i := startIdx; i < endIdx; i++ {
 			if i >= len(g.ui.PrereqModalReqs) {
@@ -86,7 +85,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			}
 			req := g.ui.PrereqModalReqs[i]
 			reqText := formatRequirement(req)
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("• %s", reqText), int(x+padding+10), int(currentY))
+			uiPrint(screen, fmt.Sprintf("• %s", reqText), int(x+padding+10), int(currentY))
 			currentY += 25
 		}
 
@@ -98,7 +97,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			scrollBarW := 5.0
 
 			// Background
-			vector.DrawFilledRect(screen, float32(scrollBarX), float32(scrollBarY), float32(scrollBarW), float32(scrollBarH), color.Gray{60}, vecAA)
+			uiFillRect(screen, float32(scrollBarX), float32(scrollBarY), float32(scrollBarW), float32(scrollBarH), color.Gray{60}, vecAA)
 
 			// Thumb
 			thumbHeight := float64(maxVisibleItems) / float64(totalItems) * scrollBarH
@@ -106,7 +105,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			if maxScroll == 0 {
 				thumbY = scrollBarY
 			}
-			vector.DrawFilledRect(screen, float32(scrollBarX), float32(thumbY), float32(scrollBarW), float32(thumbHeight), color.Gray{150}, vecAA)
+			uiFillRect(screen, float32(scrollBarX), float32(thumbY), float32(scrollBarW), float32(thumbHeight), color.Gray{150}, vecAA)
 		}
 	}
 
@@ -116,17 +115,13 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	btnH := 35.0
 	btnX := x + w/2 - btnW/2
 	btnCol := color.RGBA{0, 150, 0, 255}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+45, int(btnY)+10)
+	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Ok", kindFromColor(btnCol))
 
 	// Close button (X) in top right
 	closeBtnSize := 25.0
 	closeBtnX := x + w - padding - closeBtnSize
 	closeBtnY := y + padding
-	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{100, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeBtnX)+8, int(closeBtnY)+5)
+	drawCloseButton(screen, float64(closeBtnX)+float64(closeBtnSize)/2, float64(closeBtnY)+float64(closeBtnSize)/2, 15)
 }
 
 // formatRequirement formats a requirement for display

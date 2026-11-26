@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawPveEngageErrorModal draws the engagement error modal
@@ -22,15 +20,15 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	padding := 20.0
 
 	// Draw dark overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
+	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
 
 	// Draw modal background (red tint)
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 10, 10, 240}, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 50, 50, 255}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 10, 10, 240}, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
 	titleY := y + padding
-	ebitenutil.DebugPrintAt(screen, "ENGAGEMENT IMPOSSIBLE", int(x+padding), int(titleY))
+	uiTitle(screen, "Engagement impossible", int(x+padding), int(titleY))
 
 	// Error message
 	msgY := titleY + 40
@@ -68,7 +66,7 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 			// Limit to 5 lines
 			break
 		}
-		ebitenutil.DebugPrintAt(screen, line, int(x+padding), int(msgY+float64(i)*lineHeight))
+		uiPrint(screen, line, int(x+padding), int(msgY+float64(i)*lineHeight))
 	}
 
 	// OK button
@@ -77,9 +75,7 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	btnH := 30.0
 	btnX := x + w/2 - btnW/2
 	btnCol := color.RGBA{150, 50, 50, 255}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+35, int(btnY)+8)
+	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Ok", kindFromColor(btnCol))
 }
 
 // UpdatePveEngageErrorModal handles input for the engagement error modal

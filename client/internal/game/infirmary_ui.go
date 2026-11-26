@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -20,19 +19,17 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Semi-transparent overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, false)
 
 	// Modal Window
 	winW, winH := 500.0, 600.0
 	winX, winY := (w-winW)/2, (h-winH)/2
 
 	// Draw Background (Pinkish/Red theme for Infirmary)
-	vector.DrawFilledRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), color.RGBA{40, 20, 25, 255}, false)
-	vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 100, 100, 255}, false)
+	drawButton(screen, float64(winX), float64(winY), float64(winW), float64(winH), "Infirmerie", kindFromColor(color.RGBA{40, 20, 25, 255}))
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "INFIRMERIE", int(winX)+20, int(winY)+20)
-	ebitenutil.DebugPrintAt(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
+	uiPrint(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
 
 	vector.StrokeLine(screen, float32(winX)+20, float32(winY)+50, float32(winX+winW)-20, float32(winY)+50, 1, color.RGBA{150, 100, 100, 255}, false)
 
@@ -82,7 +79,7 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 	gap := 10.0
 	// No items message
 	if len(injuredList) == 0 {
-		ebitenutil.DebugPrintAt(screen, "Aucun capitaine blessé.", int(winX)+20, int(currentY))
+		uiPrint(screen, "Aucun capitaine blessé.", int(winX)+20, int(currentY))
 		return
 	}
 
@@ -97,12 +94,12 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 		}
 
 		// Item Box
-		vector.DrawFilledRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), color.RGBA{60, 30, 35, 255}, false)
-		vector.StrokeRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), 1, color.RGBA{150, 100, 100, 255}, false)
+		uiFillRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), color.RGBA{60, 30, 35, 255}, false)
+		uiStrokeRect(screen, float32(winX)+20, float32(currentY), float32(winW)-40, float32(itemH), 1, color.RGBA{150, 100, 100, 255}, false)
 
 		// Content
 		// Name & Rarity
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", cap.Name, cap.Rarity), int(winX)+30, int(currentY)+10)
+		uiPrint(screen, fmt.Sprintf("%s (%s)", cap.Name, cap.Rarity), int(winX)+30, int(currentY)+10)
 
 		// Stars
 		starStr := ""
@@ -112,13 +109,13 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 		for i := cap.Stars; i < cap.MaxStars; i++ {
 			starStr += "☆"
 		}
-		ebitenutil.DebugPrintAt(screen, starStr, int(winX)+30, int(currentY)+30)
+		uiPrint(screen, starStr, int(winX)+30, int(currentY)+30)
 
 		// Timer (Large & Red)
 		mins := int(cap.Remaining.Minutes())
 		secs := int(cap.Remaining.Seconds()) % 60
 		timeStr := fmt.Sprintf("Soins: %02dm %02ds", mins, secs)
-		ebitenutil.DebugPrintAt(screen, timeStr, int(winX)+300, int(currentY)+30)
+		uiPrint(screen, timeStr, int(winX)+300, int(currentY)+30)
 
 		// Progress Bar (Visual fluff)
 		// Assuming max injury times: Common=30m, Rare=2h, Leg=5h

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -102,7 +101,7 @@ func (g *Game) drawDiag(screen *ebiten.Image) {
 	}
 	vector.DrawFilledRect(screen, 8, 300, float32(maxLen*6+12), float32(len(lines)*16+8), color.RGBA{0, 0, 0, 200}, false)
 	for i, l := range lines {
-		ebitenutil.DebugPrintAt(screen, l, 14, 304+i*16)
+		uiPrint(screen, l, 14, 304+i*16)
 	}
 }
 

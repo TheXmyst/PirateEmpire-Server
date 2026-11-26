@@ -8,7 +8,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -24,21 +23,18 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	modalX, modalY := cx-modalW/2, cy-modalH/2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 30, 20, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Assignation de milice", kindFromColor(color.RGBA{40, 30, 20, 255}))
 
 	// Title
-	ebitenutil.DebugPrintAt(screen, "ASSIGNATION DE MILICE", int(modalX)+20, int(modalY)+20)
 
 	// Close button (X)
 	closeX := modalX + modalW - 30
 	closeY := modalY + 10
 	closeSize := 20.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+6, int(closeY)+3)
+	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
 
 	// Get ship and island data
 	var ship *domain.Ship
@@ -55,14 +51,14 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	}
 
 	if ship == nil {
-		ebitenutil.DebugPrintAt(screen, "Navire introuvable", int(modalX)+20, int(modalY)+50)
+		uiPrint(screen, "Navire introuvable", int(modalX)+20, int(modalY)+50)
 		return
 	}
 
 	// Ship info
 	contentY := modalY + 50
 	contentX := modalX + 20
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Navire: %s (%s)", ship.Name, ship.Type), int(contentX), int(contentY))
+	uiPrint(screen, fmt.Sprintf("Navire: %s (%s)", ship.Name, ship.Type), int(contentX), int(contentY))
 
 	// Current crew on ship
 	currentTotal := ship.MilitiaWarriors + ship.MilitiaArchers + ship.MilitiaGunners
@@ -79,13 +75,13 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	case "manowar":
 		maxCrew = 250
 	}
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Milice actuelle: %d/%d (G:%d A:%d Ar:%d)", currentTotal, maxCrew, ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(contentX), int(contentY)+20)
+	uiPrint(screen, fmt.Sprintf("Milice actuelle: %d/%d (G:%d A:%d Ar:%d)", currentTotal, maxCrew, ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(contentX), int(contentY)+20)
 
 	// Stock global disponible
 	stockY := contentY + 50
 	if island != nil {
-		ebitenutil.DebugPrintAt(screen, "Stock global disponible:", int(contentX), int(stockY))
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d", island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(contentX), int(stockY)+20)
+		uiPrint(screen, "Stock global disponible:", int(contentX), int(stockY))
+		uiPrint(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d", island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(contentX), int(stockY)+20)
 	}
 
 	// Separator
@@ -93,7 +89,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 
 	// Sliders section
 	slidersY := stockY + 60
-	ebitenutil.DebugPrintAt(screen, "Assignation:", int(contentX), int(slidersY))
+	uiPrint(screen, "Assignation:", int(contentX), int(slidersY))
 
 	sliderX := contentX
 	sliderW := modalW - 40
@@ -106,21 +102,21 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 
 	// Warrior slider
 	warriorY := slidersY + 30
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guerriers: %d", g.ui.CrewModalWarriors), int(sliderX), int(warriorY))
+	uiPrint(screen, fmt.Sprintf("Guerriers: %d", g.ui.CrewModalWarriors), int(sliderX), int(warriorY))
 	warriorSliderY := warriorY + 20
 	isWarriorHovered := fmy >= warriorSliderY-sliderCaptureH/2 && fmy <= warriorSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
 	drawCrewSlider(screen, sliderX, warriorSliderY, sliderW, sliderH, g.ui.CrewModalWarriors, 0, maxCrew, isWarriorHovered, g.ui.DraggingCrewWarrior)
 
 	// Archer slider
 	archerY := warriorY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Archers: %d", g.ui.CrewModalArchers), int(sliderX), int(archerY))
+	uiPrint(screen, fmt.Sprintf("Archers: %d", g.ui.CrewModalArchers), int(sliderX), int(archerY))
 	archerSliderY := archerY + 20
 	isArcherHovered := fmy >= archerSliderY-sliderCaptureH/2 && fmy <= archerSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
 	drawCrewSlider(screen, sliderX, archerSliderY, sliderW, sliderH, g.ui.CrewModalArchers, 0, maxCrew, isArcherHovered, g.ui.DraggingCrewArcher)
 
 	// Gunner slider
 	gunnerY := archerY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Artilleurs: %d", g.ui.CrewModalGunners), int(sliderX), int(gunnerY))
+	uiPrint(screen, fmt.Sprintf("Artilleurs: %d", g.ui.CrewModalGunners), int(sliderX), int(gunnerY))
 	gunnerSliderY := gunnerY + 20
 	isGunnerHovered := fmy >= gunnerSliderY-sliderCaptureH/2 && fmy <= gunnerSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
 	drawCrewSlider(screen, sliderX, gunnerSliderY, sliderW, sliderH, g.ui.CrewModalGunners, 0, maxCrew, isGunnerHovered, g.ui.DraggingCrewGunner)
@@ -132,7 +128,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 
 	// Info section
 	infoY := gunnerY + 60
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Différence: G:%+d A:%+d Ar:%+d", warriorDiff, archerDiff, gunnerDiff), int(contentX), int(infoY))
+	uiPrint(screen, fmt.Sprintf("Différence: G:%+d A:%+d Ar:%+d", warriorDiff, archerDiff, gunnerDiff), int(contentX), int(infoY))
 
 	// Calculate stock after (for display)
 	stockAfterW := island.Crew[domain.Warrior]
@@ -153,7 +149,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	} else {
 		stockAfterG -= gunnerDiff
 	}
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Stock après: G:%d A:%d Ar:%d", stockAfterW, stockAfterA, stockAfterG), int(contentX), int(infoY)+20)
+	uiPrint(screen, fmt.Sprintf("Stock après: G:%d A:%d Ar:%d", stockAfterW, stockAfterA, stockAfterG), int(contentX), int(infoY)+20)
 
 	// Buttons
 	btnY := modalY + modalH - 80
@@ -168,9 +164,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasAssign || g.ui.CrewModalBusy {
 		assignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), assignBtnCol, vecAA)
-	vector.StrokeRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(assignBtnX)+25, int(btnY)+10)
+	drawButton(screen, float64(assignBtnX), float64(btnY), float64(btnW), float64(btnH), "Assigner", kindFromColor(assignBtnCol))
 
 	// Unassign button (if negative diff)
 	hasUnassign := warriorDiff < 0 || archerDiff < 0 || gunnerDiff < 0
@@ -179,9 +173,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasUnassign || g.ui.CrewModalBusy {
 		unassignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), unassignBtnCol, vecAA)
-	vector.StrokeRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "RETIRER", int(unassignBtnX)+30, int(btnY)+10)
+	drawButton(screen, float64(unassignBtnX), float64(btnY), float64(btnW), float64(btnH), "Retirer", kindFromColor(unassignBtnCol))
 
 	// Error display
 	if g.ui.CrewModalError != "" {
@@ -191,17 +183,17 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 		for len(errorText) > maxLen {
 			line := errorText[:maxLen]
 			errorText = errorText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(contentX), errorY)
+			uiPrint(screen, line, int(contentX), errorY)
 			errorY += 15
 		}
 		if errorText != "" {
-			ebitenutil.DebugPrintAt(screen, errorText, int(contentX), errorY)
+			uiPrint(screen, errorText, int(contentX), errorY)
 		}
 	}
 
 	// Busy indicator
 	if g.ui.CrewModalBusy {
-		ebitenutil.DebugPrintAt(screen, "Assignation en cours...", int(contentX), int(btnY)-15)
+		uiPrint(screen, "Assignation en cours...", int(contentX), int(btnY)-15)
 	}
 }
 
@@ -214,8 +206,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 	} else if isHovered {
 		bgColor = color.RGBA{60, 60, 60, 255} // Slightly lighter when hovered
 	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
 
 	// Fill (value indicator) with glow effect when dragging
 	if max > min {
@@ -231,7 +223,7 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 		if isDragging {
 			fillColor = color.RGBA{0, 180, 0, 255} // Brighter green when dragging
 		}
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
+		uiFillRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
 	}
 
 	// Handle (draggable thumb) with enhanced visuals
@@ -253,8 +245,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 			handleColor = color.RGBA{230, 230, 230, 255} // Lighter when hovered
 		}
 
-		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
-		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
+		uiFillRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
+		uiStrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
 	}
 }
 

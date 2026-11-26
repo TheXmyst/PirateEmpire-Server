@@ -7,8 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawTavernUI draws the dedicated Tavern/Gacha modal
@@ -21,27 +19,11 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	w, h := 600.0, 500.0 // Increased size for x10 results
 	x, y := cx-w/2, cy-h/2
 
-	// Draw dark overlay
-	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
+	drawDimBackground(screen, 180)
+	drawWindowFrame(screen, x, y, w, h, "Taverne")
+	drawCloseButton(screen, x+w-25, y+25, 16)
 
-	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
-	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
-
-	// Title
-	ebitenutil.DebugPrintAt(screen, "Tavern", int(x)+20, int(y)+20)
-
-	// Close button (X) - top right
-	closeBtnSize := 30.0
-	closeX := x + w - closeBtnSize - 10
-	closeY := y + 10
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
-
-	// Get ticket balance from island resources
+	// Tickets de recrutement
 	ticketBalance := 0
 	if g.player != nil && len(g.player.Islands) > 0 {
 		island := g.player.Islands[0]
@@ -49,98 +31,65 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 			ticketBalance = int(island.Resources[domain.CaptainTicket])
 		}
 	}
-
-	// Ticket balance display
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Tickets: %d", ticketBalance), int(x)+20, int(y)+50)
-
-	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+80, float32(x+w)-20, float32(y)+80, 1, color.Gray{100}, vecAA)
-
-	// Busy state indicator
-	if g.ui.TavernBusy {
-		ebitenutil.DebugPrintAt(screen, "Recrutement...", int(x)+20, int(y)+100)
+	tix := fmt.Sprintf("%d ticket", ticketBalance)
+	if ticketBalance > 1 {
+		tix += "s"
 	}
+	tf := bodyFace(14, true)
+	tw := textWidth(tix, tf)
+	fillRoundRect(screen, x+w-70-tw-24, y+14, tw+24, 26, 13, color.NRGBA{224, 176, 74, 40})
+	strokeRoundRect(screen, x+w-70-tw-24, y+14, tw+24, 26, 13, 1, themeGoldDim)
+	drawText(screen, tix, tf, x+w-70-tw-12, y+19, themeGold, alignLeft)
 
-	// Error display
-	if g.ui.TavernError != "" {
-		errorY := int(y) + 100
-		if g.ui.TavernBusy {
-			errorY += 20
-		}
-		errorText := fmt.Sprintf("Erreur: %s", g.ui.TavernError)
-		// Split long error messages
-		maxLen := 55
-		for len(errorText) > maxLen {
-			line := errorText[:maxLen]
-			errorText = errorText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, errorY)
-			errorY += 15
-		}
-		if errorText != "" {
-			ebitenutil.DebugPrintAt(screen, errorText, int(x)+20, errorY)
+	drawLabel(screen, "Recrute de nouveaux capitaines pour tes flottes.", x+24, y+64, 13, false, themeMuted)
+
+	// Zone des résultats
+	area := hudRect{x + 20, y + 92, w - 40, h - 92 - 120}
+	drawInset(screen, area.x, area.y, area.w, area.h)
+	ty := area.y + 14
+	lineF := bodyFace(13, false)
+	wrap := func(txt string, clr color.Color) {
+		for _, line := range wrapText(txt, lineF, area.w-32) {
+			if ty > area.y+area.h-20 {
+				return
+			}
+			drawText(screen, line, lineF, area.x+16, ty, clr, alignLeft)
+			ty += 18
 		}
 	}
-
-	// Result area
-	resultStartY := int(y) + 120
-	if g.ui.TavernBusy {
-		resultStartY += 20
-	}
-	if g.ui.TavernError != "" {
-		resultStartY += 20
-	}
-
-	// Display results based on last summon
-	if g.ui.TavernLastResult != "" && !g.ui.TavernBusy {
-		resultY := resultStartY
-		ebitenutil.DebugPrintAt(screen, "Dernier recrutement:", int(x)+20, resultY)
-		resultY += 20
-		// Split long messages
-		resultText := g.ui.TavernLastResult
-		maxLen := 55
-		for len(resultText) > maxLen {
-			line := resultText[:maxLen]
-			resultText = resultText[maxLen:]
-			ebitenutil.DebugPrintAt(screen, line, int(x)+20, resultY)
-			resultY += 15
+	switch {
+	case g.ui.TavernBusy:
+		drawText(screen, "Recrutement en cours…", titleFace(24), area.x+area.w/2, area.y+area.h/2-16, themeGold, alignCenter)
+	case g.ui.TavernError != "":
+		wrap("Erreur : "+g.ui.TavernError, themeOrange)
+	case g.ui.TavernLastResult != "":
+		drawText(screen, "Dernier recrutement", titleFace(20), area.x+16, ty, themeGold, alignLeft)
+		ty += 30
+		for _, part := range strings.Split(g.ui.TavernLastResult, "\n") {
+			wrap(part, themeText)
 		}
-		if resultText != "" {
-			ebitenutil.DebugPrintAt(screen, resultText, int(x)+20, resultY)
-		}
+	default:
+		drawText(screen, "Les meilleurs loups de mer t'attendent ici.", bodyFace(14, false), area.x+area.w/2, area.y+area.h/2-10, themeMuted, alignCenter)
 	}
 
-	// Summon buttons (x1 and x10)
+	// Boutons x1 et x10 (mêmes zones de clic qu'avant)
 	btnW, btnH := 180.0, 45.0
 	btnSpacing := 10.0
 	totalBtnWidth := btnW*2 + btnSpacing
 	btnStartX := x + w/2 - totalBtnWidth/2
 	btnY := y + h - 100
 
-	// x1 button
-	btn1X := btnStartX
-	btn1Col := color.RGBA{100, 100, 100, 255}
-	if !g.ui.TavernBusy && ticketBalance >= 1 {
-		btn1Col = color.RGBA{0, 150, 0, 255}
+	k1, k10 := btnPrimary, btnSecondary
+	if g.ui.TavernBusy || ticketBalance < 1 {
+		k1 = btnDisabled
 	}
-	if g.ui.TavernBusy {
-		btn1Col = color.RGBA{80, 80, 80, 255}
+	if g.ui.TavernBusy || ticketBalance < 10 {
+		k10 = btnDisabled
 	}
-	vector.DrawFilledRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), btn1Col, vecAA)
-	vector.StrokeRect(screen, float32(btn1X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "RECRUTER x1", int(btn1X)+40, int(btnY)+15)
-
-	// x10 button
-	btn10X := btnStartX + btnW + btnSpacing
-	btn10Col := color.RGBA{100, 100, 100, 255}
-	if !g.ui.TavernBusy && ticketBalance >= 10 {
-		btn10Col = color.RGBA{0, 100, 200, 255}
-	}
-	if g.ui.TavernBusy {
-		btn10Col = color.RGBA{80, 80, 80, 255}
-	}
-	vector.DrawFilledRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), btn10Col, vecAA)
-	vector.StrokeRect(screen, float32(btn10X), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-	ebitenutil.DebugPrintAt(screen, "RECRUTER x10", int(btn10X)+35, int(btnY)+15)
+	drawButton(screen, btnStartX, btnY, btnW, btnH, "Recruter x1", k1)
+	drawButton(screen, btnStartX+btnW+btnSpacing, btnY, btnW, btnH, "Recruter x10", k10)
+	drawLabel(screen, "1 ticket", btnStartX+btnW/2-22, btnY+btnH+8, 12, false, themeMuted)
+	drawLabel(screen, "10 tickets", btnStartX+btnW+btnSpacing+btnW/2-28, btnY+btnH+8, 12, false, themeMuted)
 }
 
 // UpdateTavernUI handles input for the Tavern UI
