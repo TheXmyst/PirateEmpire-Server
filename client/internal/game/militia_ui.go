@@ -27,9 +27,9 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 180}, false)
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
 	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "MILICE", int(x)+20, int(y)+20)
@@ -38,8 +38,8 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - 10
 	closeY := y + 10
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Get island data
@@ -67,7 +67,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		upgradeBtnY := y + 45
 		upgradeBtnW := 100.0
 		upgradeBtnH := 30.0
-		vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(upgradeBtnY), float32(upgradeBtnW), float32(upgradeBtnH), color.RGBA{200, 150, 0, 255}, true)
+		vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(upgradeBtnY), float32(upgradeBtnW), float32(upgradeBtnH), color.RGBA{200, 150, 0, 255}, vecAA)
 		ebitenutil.DebugPrintAt(screen, "UPGRADE", int(upgradeBtnX)+20, int(upgradeBtnY)+8)
 	}
 
@@ -80,7 +80,7 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 	}
 
 	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+120, float32(x+w)-20, float32(y)+120, 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(x)+20, float32(y)+120, float32(x+w)-20, float32(y)+120, 1, color.Gray{100}, vecAA)
 
 	// Recruitment section
 	recruitY := int(y) + 140
@@ -156,8 +156,8 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		recruitBlockX := x + 20
 
 		// Background block (distinct color)
-		vector.DrawFilledRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), color.RGBA{20, 40, 60, 240}, true)
-		vector.StrokeRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), 2, color.RGBA{100, 150, 200, 255}, true)
+		vector.DrawFilledRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), color.RGBA{20, 40, 60, 240}, vecAA)
+		vector.StrokeRect(screen, float32(recruitBlockX), float32(recruitBlockY), float32(recruitBlockW), float32(recruitBlockH), 2, color.RGBA{100, 150, 200, 255}, vecAA)
 
 		// Title
 		ebitenutil.DebugPrintAt(screen, "🔄 RECRUTEMENT EN COURS", int(recruitBlockX)+10, int(recruitBlockY)+10)
@@ -193,8 +193,8 @@ func (g *Game) DrawMilitiaUI(screen *ebiten.Image) {
 		btnColor = color.RGBA{100, 100, 100, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, true)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
+	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
 
 	btnText := "RECRUTER"
 	if g.ui.MilitiaBusy {
@@ -236,8 +236,8 @@ func formatRecruitDuration(d time.Duration) string {
 // drawSlider draws a slider control
 func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
 
 	// Fill (value indicator)
 	if max > min {
@@ -249,7 +249,7 @@ func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 			fillRatio = 0.0
 		}
 		fillW := w * fillRatio
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), color.RGBA{0, 150, 0, 255}, true)
+		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), color.RGBA{0, 150, 0, 255}, vecAA)
 	}
 
 	// Handle (draggable thumb)
@@ -262,8 +262,8 @@ func drawSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int) {
 		if handleX > x+w-handleW {
 			handleX = x + w - handleW
 		}
-		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), color.RGBA{200, 200, 200, 255}, true)
-		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, true)
+		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), color.RGBA{200, 200, 200, 255}, vecAA)
+		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
 	}
 }
 

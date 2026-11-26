@@ -30,17 +30,17 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 	x, y := cx-w/2, cy-h/2
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
 	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Closing button (X)
 	padding := 20.0
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - padding
 	closeY := y + padding
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	// Tabs
@@ -53,7 +53,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 	if g.ui.CaptainUITab == "list" || g.ui.CaptainUITab == "" {
 		listColor = color.RGBA{80, 80, 150, 255}
 	}
-	vector.DrawFilledRect(screen, float32(x+padding), float32(tabY), float32(tabW), float32(tabH), listColor, true)
+	vector.DrawFilledRect(screen, float32(x+padding), float32(tabY), float32(tabW), float32(tabH), listColor, vecAA)
 	ebitenutil.DebugPrintAt(screen, "LISTE", int(x+padding+50), int(tabY+8))
 
 	// Tab Upgrade
@@ -61,7 +61,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 	if g.ui.CaptainUITab == "upgrade" {
 		upgradeColor = color.RGBA{80, 80, 150, 255}
 	}
-	vector.DrawFilledRect(screen, float32(x+padding+tabW+10), float32(tabY), float32(tabW), float32(tabH), upgradeColor, true)
+	vector.DrawFilledRect(screen, float32(x+padding+tabW+10), float32(tabY), float32(tabW), float32(tabH), upgradeColor, vecAA)
 	ebitenutil.DebugPrintAt(screen, "AMÉLIORER", int(x+padding+tabW+10+30), int(tabY+8))
 
 	// Content bounds
@@ -215,11 +215,11 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 	rightH := h
 
 	// Draw columns background
-	vector.DrawFilledRect(screen, float32(leftX), float32(y), float32(leftW), float32(leftH), color.RGBA{20, 25, 35, 240}, true)
-	vector.DrawFilledRect(screen, float32(rightX), float32(y), float32(rightW), float32(rightH), color.RGBA{20, 25, 35, 240}, true)
+	vector.DrawFilledRect(screen, float32(leftX), float32(y), float32(leftW), float32(leftH), color.RGBA{20, 25, 35, 240}, vecAA)
+	vector.DrawFilledRect(screen, float32(rightX), float32(y), float32(rightW), float32(rightH), color.RGBA{20, 25, 35, 240}, vecAA)
 
 	// Column separator
-	vector.StrokeLine(screen, float32(rightX-padding/2), float32(y), float32(rightX-padding/2), float32(y+rightH), 1, color.Gray{80}, true)
+	vector.StrokeLine(screen, float32(rightX-padding/2), float32(y), float32(rightX-padding/2), float32(y+rightH), 1, color.Gray{80}, vecAA)
 
 	// Draw captain list (left column)
 	if len(g.captains) == 0 {
@@ -252,7 +252,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 
 			// Background for selected item
 			if isSelected {
-				vector.DrawFilledRect(screen, float32(leftX+5), float32(itemY), float32(leftW-10), float32(lineHeight-5), color.RGBA{50, 100, 150, 200}, true)
+				vector.DrawFilledRect(screen, float32(leftX+5), float32(itemY), float32(leftW-10), float32(lineHeight-5), color.RGBA{50, 100, 150, 200}, vecAA)
 			}
 
 			// Captain name
@@ -381,7 +381,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 	listW := w - padding*2
 	listH := h
 
-	vector.DrawFilledRect(screen, float32(listX), float32(y), float32(listW), float32(listH), color.RGBA{20, 25, 35, 240}, true)
+	vector.DrawFilledRect(screen, float32(listX), float32(y), float32(listW), float32(listH), color.RGBA{20, 25, 35, 240}, vecAA)
 
 	if len(g.captains) == 0 {
 		ebitenutil.DebugPrintAt(screen, "Aucun capitaine", int(listX+padding), int(y+padding))
@@ -410,7 +410,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 
 		// Alternating background
 		if i%2 == 0 {
-			vector.DrawFilledRect(screen, float32(listX), float32(itemY), float32(listW), float32(lineHeight), color.RGBA{30, 35, 45, 100}, true)
+			vector.DrawFilledRect(screen, float32(listX), float32(itemY), float32(listW), float32(lineHeight), color.RGBA{30, 35, 45, 100}, vecAA)
 		}
 
 		// Icon (Placeholder) - Color by rarity
@@ -421,7 +421,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 		if captain.Rarity == "legendary" {
 			rarityColor = color.RGBA{255, 215, 0, 255}
 		}
-		vector.DrawFilledRect(screen, float32(listX+10), float32(itemY+10), 60, 60, rarityColor, true)
+		vector.DrawFilledRect(screen, float32(listX+10), float32(itemY+10), 60, 60, rarityColor, vecAA)
 
 		// Name & Rarity
 		ebitenutil.DebugPrintAt(screen, captain.Name, int(listX+80), int(itemY+15))
@@ -462,8 +462,8 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 				btnColor = color.RGBA{0, 200, 100, 255} // Green
 				// Hover effect? Need mouse pos. Handled in Update generally, here simplify.
 			}
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, true)
-			vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
+			vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 			ebitenutil.DebugPrintAt(screen, "UPGRADE", int(btnX+10), int(btnY+12))
 		}
 	}

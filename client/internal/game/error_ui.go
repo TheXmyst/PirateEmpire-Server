@@ -26,8 +26,8 @@ func (g *Game) DrawError(screen *ebiten.Image) {
 	y := (sh - h) / 2
 
 	// Draw Background (Semi-transparent dark red)
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{150, 0, 0, 200}, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.White, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{150, 0, 0, 200}, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.White, vecAA)
 
 	// Draw Message (Centered)
 	ebitenutil.DebugPrintAt(screen, g.errorMessage, int(x)+20, int(y)+40)

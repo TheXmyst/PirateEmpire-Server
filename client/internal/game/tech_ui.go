@@ -222,9 +222,9 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 	// Defensive guard: check if player/islands/buildings are ready
 	if g.player == nil {
 		// Draw UI skeleton but skip building-dependent parts
-		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, true)
-		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, true)
-		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, true)
+		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, vecAA)
+		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, vecAA)
+		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 		ebitenutil.DebugPrintAt(screen, "Chargement données joueur…", int(ui.X)+20, int(ui.Y)+40)
 		g.Log("[TECH UI] skip draw: player=nil")
 		return
@@ -232,9 +232,9 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 
 	if len(g.player.Islands) == 0 {
 		// Draw UI skeleton but skip building-dependent parts
-		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, true)
-		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, true)
-		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, true)
+		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, vecAA)
+		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, vecAA)
+		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 		ebitenutil.DebugPrintAt(screen, "Chargement île…", int(ui.X)+20, int(ui.Y)+40)
 		g.Log("[TECH UI] skip draw: islands=0")
 		return
@@ -251,21 +251,21 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 
 	if !hasAcademy {
 		// Draw UI skeleton but skip building-dependent parts
-		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, true)
-		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, true)
-		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, true)
+		vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, vecAA)
+		vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, vecAA)
+		vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 		ebitenutil.DebugPrintAt(screen, "Académie indisponible", int(ui.X)+20, int(ui.Y)+40)
 		g.Log("[TECH UI] skip draw: academy missing")
 		return
 	}
 
 	// 1. Overlay (Dim Background)
-	vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, true)
+	vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{0, 0, 0, 150}, vecAA)
 
 	// 2. Window Background
-	vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, true)
+	vector.DrawFilledRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), color.RGBA{40, 30, 20, 255}, vecAA)
 	// Border
-	vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, true)
+	vector.StrokeRect(screen, float32(ui.X), float32(ui.Y), float32(ui.W), float32(ui.H), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 
 	// 3. Tabs
 	tabs := []string{"economy", "naval", "combat", "logistics"}
@@ -277,8 +277,8 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 		if ui.SelectedTab == t {
 			col = color.RGBA{80, 70, 60, 255}
 		}
-		vector.DrawFilledRect(screen, tx, ty, float32(tabW), 30, col, true)
-		vector.StrokeRect(screen, tx, ty, float32(tabW), 30, 1, color.White, true)
+		vector.DrawFilledRect(screen, tx, ty, float32(tabW), 30, col, vecAA)
+		vector.StrokeRect(screen, tx, ty, float32(tabW), 30, 1, color.White, vecAA)
 		ebitenutil.DebugPrintAt(screen, strings.ToUpper(t), int(tx)+10, int(ty)+5)
 	}
 
@@ -343,8 +343,8 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 			status = "Avail"
 		}
 
-		vector.DrawFilledRect(screen, float32(nx), float32(ny), 160, 80, statusColor, true)
-		vector.StrokeRect(screen, float32(nx), float32(ny), 160, 80, 2, color.White, true)
+		vector.DrawFilledRect(screen, float32(nx), float32(ny), 160, 80, statusColor, vecAA)
+		vector.StrokeRect(screen, float32(nx), float32(ny), 160, 80, 2, color.White, vecAA)
 
 		ebitenutil.DebugPrintAt(screen, tech.Name, int(nx)+5, int(ny)+5)
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Tier %d", tech.Tier), int(nx)+5, int(ny)+25)
@@ -357,7 +357,7 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 
 		// Tooltip / Selection Overlay
 		if ui.HoverID == tech.ID {
-			vector.StrokeRect(screen, float32(nx), float32(ny), 160, 80, 4, color.RGBA{255, 255, 0, 255}, true)
+			vector.StrokeRect(screen, float32(nx), float32(ny), 160, 80, 4, color.RGBA{255, 255, 0, 255}, vecAA)
 		}
 	}
 
@@ -365,7 +365,7 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 	if ui.SelectedID != "" {
 		detailX := ui.X + ui.W - 300
 		detailY := ui.Y
-		vector.DrawFilledRect(screen, float32(detailX), float32(detailY), 300, float32(ui.H), color.RGBA{20, 20, 20, 250}, true)
+		vector.DrawFilledRect(screen, float32(detailX), float32(detailY), 300, float32(ui.H), color.RGBA{20, 20, 20, 250}, vecAA)
 
 		// Find Tech Data
 		var selTech CTechnology
@@ -477,20 +477,20 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 						prog = 1
 					}
 
-					vector.DrawFilledRect(screen, btnX, btnY, 200, 50, color.RGBA{50, 50, 50, 255}, true)
-					vector.DrawFilledRect(screen, btnX, btnY, 200*float32(prog), 50, color.RGBA{0, 150, 255, 255}, true)
+					vector.DrawFilledRect(screen, btnX, btnY, 200, 50, color.RGBA{50, 50, 50, 255}, vecAA)
+					vector.DrawFilledRect(screen, btnX, btnY, 200*float32(prog), 50, color.RGBA{0, 150, 255, 255}, vecAA)
 					ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%.0f%%)", label, prog*100), int(btnX)+40, int(btnY)+15)
 
 				} else {
 					label = "OCCUPE"
 					btnColor = color.RGBA{100, 100, 100, 255}
-					vector.DrawFilledRect(screen, btnX, btnY, 200, 50, btnColor, true)
+					vector.DrawFilledRect(screen, btnX, btnY, 200, 50, btnColor, vecAA)
 					ebitenutil.DebugPrintAt(screen, label, int(btnX)+50, int(btnY)+15)
 				}
 			} else if isUnlocked {
 				label = "APPRIS !"
 				btnColor = color.RGBA{100, 100, 100, 255} // Grey
-				vector.DrawFilledRect(screen, btnX, btnY, 200, 50, btnColor, true)
+				vector.DrawFilledRect(screen, btnX, btnY, 200, 50, btnColor, vecAA)
 				ebitenutil.DebugPrintAt(screen, label, int(btnX)+50, int(btnY)+15)
 			} else {
 				// Standard Button (Animated)
@@ -499,8 +499,8 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 				effW := 200.0 + float32(pulse)
 				effH := 50.0 + float32(pulse)
 
-				vector.DrawFilledRect(screen, effX, effY, effW, effH, btnColor, true)
-				vector.StrokeRect(screen, effX, effY, effW, effH, 2, color.White, true)
+				vector.DrawFilledRect(screen, effX, effY, effW, effH, btnColor, vecAA)
+				vector.StrokeRect(screen, effX, effY, effW, effH, 2, color.White, vecAA)
 				ebitenutil.DebugPrintAt(screen, label, int(btnX)+50, int(btnY)+15)
 			}
 
@@ -572,8 +572,8 @@ func (g *Game) DrawAcademyUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	barH := 90.0
 
 	// Background with golden border
-	vector.DrawFilledRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), color.RGBA{30, 40, 50, 255}, true)
-	vector.StrokeRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), 2, color.RGBA{200, 150, 50, 255}, true)
+	vector.DrawFilledRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), color.RGBA{30, 40, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(x+20), float32(y), float32(w-40), float32(barH), 2, color.RGBA{200, 150, 50, 255}, vecAA)
 
 	// Defensive guards - panic-proof
 	if g.player == nil {
@@ -672,7 +672,7 @@ func (g *Game) DrawAcademyUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 		btnText = "MANQUE"
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+30, int(btnY)+12)
 
 	// Handle upgrade button click

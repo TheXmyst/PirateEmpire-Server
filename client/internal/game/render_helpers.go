@@ -25,7 +25,7 @@ func drawTextWithBackground(screen *ebiten.Image, text string, x, y int, bgColor
 	textHeight := 14
 
 	// Draw opaque background rectangle to clear any previous text
-	vector.DrawFilledRect(screen, float32(x-2), float32(y-2), float32(textWidth+4), float32(textHeight+4), bgColor, true)
+	vector.DrawFilledRect(screen, float32(x-2), float32(y-2), float32(textWidth+4), float32(textHeight+4), bgColor, vecAA)
 
 	// Draw text on top
 	ebitenutil.DebugPrintAt(screen, text, x, y)
@@ -121,7 +121,7 @@ func drawTooltip(screen *ebiten.Image, x, y int, lines []string) {
 			boxW = len(l) * 7
 		}
 	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(boxW+10), float32(boxH), color.RGBA{0, 0, 0, 200}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(boxW+10), float32(boxH), color.RGBA{0, 0, 0, 200}, vecAA)
 	for i, l := range lines {
 		ebitenutil.DebugPrintAt(screen, l, x+5, y+5+i*textHeight)
 	}

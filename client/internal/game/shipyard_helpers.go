@@ -24,7 +24,7 @@ func GetActiveFleetShips(fleet *domain.Fleet) []domain.Ship {
 // DrawFleetList renders list of 3 fleets on the left
 func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	// Calculate limits
 	shipyardLevel := g.getShipyardLevel()
@@ -65,7 +65,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 
 		if locked {
 			// Locked state
-			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, true)
+			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, vecAA)
 			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Flotte %d (Verrouillée)", i), int(x)+10, int(slotY)+10)
 			req := 10
 			if i == 3 {
@@ -81,7 +81,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 				col = color.RGBA{50, 60, 70, 255}
 			}
 
-			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), col, true)
+			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), col, vecAA)
 
 			// Get ship count - find fleet by name to get accurate count (filter destroyed ships)
 			shipCount := 0
@@ -110,7 +110,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 // DrawFleetDetails renders details of selected fleet on the right
 func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	if shipyardUI.SelectedFleetIndex == 0 {
 		ebitenutil.DebugPrintAt(screen, "Sélectionnez une flotte.", int(x)+10, int(y)+10)
@@ -207,7 +207,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 		btnText = "Flotte Complète"
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+20, int(btnY)+12)
 
 	// Handle click (shielded by modal)

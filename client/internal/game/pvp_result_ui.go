@@ -24,11 +24,11 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	modalY := (h - modalH) / 2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, true)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal box
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, true)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, true)
+	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, vecAA)
+	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
 	result := g.ui.PvpCombatResult
@@ -40,7 +40,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	}
 
 	// Title background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), 50, titleColor, true)
+	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), 50, titleColor, vecAA)
 	ebitenutil.DebugPrintAt(screen, title, int(modalX)+280, int(modalY)+18)
 
 	// Close button
@@ -54,7 +54,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	if hoverClose {
 		closeColor = color.RGBA{220, 50, 50, 255}
 	}
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
@@ -98,7 +98,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	if hoverOK {
 		okColor = color.RGBA{70, 180, 70, 255}
 	}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 150, 40, okColor, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 150, 40, okColor, vecAA)
 	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+65, int(btnY)+15)
 
 	if hoverOK && isMousePressed(ebiten.MouseButtonLeft) {

@@ -24,11 +24,11 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	modalX, modalY := cx-modalW/2, cy-modalH/2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, true)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 30, 20, 255}, true)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, true)
+	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 30, 20, 255}, vecAA)
+	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, vecAA)
 
 	// Title
 	ebitenutil.DebugPrintAt(screen, "ASSIGNATION DE MILICE", int(modalX)+20, int(modalY)+20)
@@ -37,7 +37,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	closeX := modalX + modalW - 30
 	closeY := modalY + 10
 	closeSize := 20.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+6, int(closeY)+3)
 
 	// Get ship and island data
@@ -89,7 +89,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	}
 
 	// Separator
-	vector.StrokeLine(screen, float32(contentX), float32(stockY)+45, float32(modalX+modalW-20), float32(stockY)+45, 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(contentX), float32(stockY)+45, float32(modalX+modalW-20), float32(stockY)+45, 1, color.Gray{100}, vecAA)
 
 	// Sliders section
 	slidersY := stockY + 60
@@ -168,8 +168,8 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasAssign || g.ui.CrewModalBusy {
 		assignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), assignBtnCol, true)
-	vector.StrokeRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, true)
+	vector.DrawFilledRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), assignBtnCol, vecAA)
+	vector.StrokeRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(assignBtnX)+25, int(btnY)+10)
 
 	// Unassign button (if negative diff)
@@ -179,8 +179,8 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasUnassign || g.ui.CrewModalBusy {
 		unassignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), unassignBtnCol, true)
-	vector.StrokeRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, true)
+	vector.DrawFilledRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), unassignBtnCol, vecAA)
+	vector.StrokeRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "RETIRER", int(unassignBtnX)+30, int(btnY)+10)
 
 	// Error display
@@ -214,8 +214,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 	} else if isHovered {
 		bgColor = color.RGBA{60, 60, 60, 255} // Slightly lighter when hovered
 	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
 
 	// Fill (value indicator) with glow effect when dragging
 	if max > min {
@@ -231,7 +231,7 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 		if isDragging {
 			fillColor = color.RGBA{0, 180, 0, 255} // Brighter green when dragging
 		}
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, true)
+		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
 	}
 
 	// Handle (draggable thumb) with enhanced visuals
@@ -253,8 +253,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 			handleColor = color.RGBA{230, 230, 230, 255} // Lighter when hovered
 		}
 
-		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, true)
-		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, true)
+		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
+		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
 	}
 }
 

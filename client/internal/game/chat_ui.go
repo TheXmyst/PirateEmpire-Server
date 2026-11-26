@@ -174,8 +174,8 @@ func (g *Game) DrawChat(screen *ebiten.Image) {
 	showPanel := g.ui.ShowChat || g.ui.ChatSlideProgress > 0.02
 
 	// Side toggle tab
-	vector.DrawFilledRect(screen, tabX, tabY, tabW, tabH, alpha(30, 30, 50, 220), true)
-	vector.StrokeRect(screen, tabX, tabY, tabW, tabH, 2, alpha(200, 180, 120, 220), true)
+	vector.DrawFilledRect(screen, tabX, tabY, tabW, tabH, alpha(30, 30, 50, 220), vecAA)
+	vector.StrokeRect(screen, tabX, tabY, tabW, tabH, 2, alpha(200, 180, 120, 220), vecAA)
 	tabLabel := ">"
 	if g.ui.ShowChat {
 		tabLabel = "<"
@@ -188,8 +188,8 @@ func (g *Game) DrawChat(screen *ebiten.Image) {
 	}
 
 	// Background
-	vector.DrawFilledRect(screen, x, y, width, height, alpha(30, 30, 40, 200), true)
-	vector.StrokeRect(screen, x, y, width, height, 2, alpha(200, 180, 120, 200), true)
+	vector.DrawFilledRect(screen, x, y, width, height, alpha(30, 30, 40, 200), vecAA)
+	vector.StrokeRect(screen, x, y, width, height, 2, alpha(200, 180, 120, 200), vecAA)
 
 	header := "CHAT (C ou bouton latéral, M minimiser, Entrée saisir, Molette défiler)"
 	ebitenutil.DebugPrintAt(screen, header, int(x)+8, int(y)+6)
@@ -228,7 +228,7 @@ func (g *Game) DrawChat(screen *ebiten.Image) {
 
 	// Input box
 	boxY := y + height - 28
-	vector.DrawFilledRect(screen, x+8, boxY, width-16, 20, alpha(10, 10, 10, 180), true)
+	vector.DrawFilledRect(screen, x+8, boxY, width-16, 20, alpha(10, 10, 10, 180), vecAA)
 	registerTextField(textField{id: "chat", x: float64(x + 8), y: float64(boxY - 10), w: float64(width - 16), h: 40,
 		value: &g.ui.ChatInput, focused: g.ui.ChatInputFocus, label: "Message"})
 	prompt := g.ui.ChatInput

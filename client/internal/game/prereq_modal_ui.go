@@ -26,8 +26,8 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
 
 	// Draw modal background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 25, 35, 250}, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 25, 35, 250}, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
 	titleY := y + padding
@@ -48,7 +48,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	if g.ui.PrereqModalSubtitle != "" {
 		separatorY = titleY + 70
 	}
-	vector.StrokeLine(screen, float32(x+padding), float32(separatorY), float32(x+w-padding), float32(separatorY), 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(x+padding), float32(separatorY), float32(x+w-padding), float32(separatorY), 1, color.Gray{100}, vecAA)
 
 	// Requirements list (scrollable area)
 	listStartY := separatorY + 15
@@ -98,7 +98,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			scrollBarW := 5.0
 
 			// Background
-			vector.DrawFilledRect(screen, float32(scrollBarX), float32(scrollBarY), float32(scrollBarW), float32(scrollBarH), color.Gray{60}, true)
+			vector.DrawFilledRect(screen, float32(scrollBarX), float32(scrollBarY), float32(scrollBarW), float32(scrollBarH), color.Gray{60}, vecAA)
 
 			// Thumb
 			thumbHeight := float64(maxVisibleItems) / float64(totalItems) * scrollBarH
@@ -106,7 +106,7 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			if maxScroll == 0 {
 				thumbY = scrollBarY
 			}
-			vector.DrawFilledRect(screen, float32(scrollBarX), float32(thumbY), float32(scrollBarW), float32(thumbHeight), color.Gray{150}, true)
+			vector.DrawFilledRect(screen, float32(scrollBarX), float32(thumbY), float32(scrollBarW), float32(thumbHeight), color.Gray{150}, vecAA)
 		}
 	}
 
@@ -116,16 +116,16 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	btnH := 35.0
 	btnX := x + w/2 - btnW/2
 	btnCol := color.RGBA{0, 150, 0, 255}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
+	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+45, int(btnY)+10)
 
 	// Close button (X) in top right
 	closeBtnSize := 25.0
 	closeBtnX := x + w - padding - closeBtnSize
 	closeBtnY := y + padding
-	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{100, 50, 50, 255}, true)
-	vector.StrokeRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{100, 50, 50, 255}, vecAA)
+	vector.StrokeRect(screen, float32(closeBtnX), float32(closeBtnY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeBtnX)+8, int(closeBtnY)+5)
 }
 

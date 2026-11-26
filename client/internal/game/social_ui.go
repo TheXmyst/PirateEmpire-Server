@@ -324,7 +324,7 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), alpha(10, 10, 20, 180), true)
+	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), alpha(10, 10, 20, 180), vecAA)
 
 	// Panel
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
@@ -339,7 +339,7 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 
 	// Close button
 	closeX, closeY := panelX+panelW-40, panelY+10
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, alpha(120, 40, 40, 230), true)
+	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, alpha(120, 40, 40, 230), vecAA)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+8)
 
 	switch g.ui.SocialActiveTab {
@@ -357,8 +357,8 @@ func (g *Game) drawSocialTab(screen *ebiten.Image, x, y, w, h float64, label str
 	if active {
 		bg = alpha(30, 90, 140, 230)
 	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bg, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, alpha(200, 180, 120, 220), true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bg, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, alpha(200, 180, 120, 220), vecAA)
 	ebitenutil.DebugPrintAt(screen, label, int(x)+12, int(y)+8)
 }
 
@@ -370,8 +370,8 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	searchW, searchH := panelW-200, 32.0
 	registerTextField(textField{id: "social-search", x: searchX, y: searchY, w: searchW, h: searchH,
 		value: &g.ui.SocialSearchQuery, focused: g.ui.SocialSearchFocus, label: "Chercher un joueur"})
-	vector.DrawFilledRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), alpha(15, 15, 20, 210), true)
-	vector.StrokeRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), 2, alpha(180, 160, 100, 200), true)
+	vector.DrawFilledRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), alpha(15, 15, 20, 210), vecAA)
+	vector.StrokeRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), 2, alpha(180, 160, 100, 200), vecAA)
 	ebitenutil.DebugPrintAt(screen, g.ui.SocialSearchQuery, int(searchX)+8, int(searchY)+8)
 	if g.ui.SocialSearchFocus {
 		ebitenutil.DebugPrintAt(screen, "|", int(searchX)+8+len(g.ui.SocialSearchQuery)*7, int(searchY)+8)
@@ -379,7 +379,7 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 
 	btnX := searchX + searchW + 10
 	btnY := searchY
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 120, float32(searchH), alpha(40, 120, 60, 230), true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 120, float32(searchH), alpha(40, 120, 60, 230), vecAA)
 	ebitenutil.DebugPrintAt(screen, "Recherche", int(btnX)+8, int(btnY)+8)
 
 	statusY := searchY + searchH + 6
@@ -398,8 +398,8 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	ebitenutil.DebugPrintAt(screen, "Résultats (cliquer pour ajouter)", int(rowX), int(rowY)-18)
 	for i, entry := range g.ui.SocialSearchResult {
 		y := rowY + float64(i)*(rowH+6)
-		vector.DrawFilledRect(screen, float32(rowX), float32(y), float32(rowW), float32(rowH), alpha(20, 30, 40, 200), true)
-		vector.StrokeRect(screen, float32(rowX), float32(y), float32(rowW), float32(rowH), 1, alpha(120, 120, 90, 180), true)
+		vector.DrawFilledRect(screen, float32(rowX), float32(y), float32(rowW), float32(rowH), alpha(20, 30, 40, 200), vecAA)
+		vector.StrokeRect(screen, float32(rowX), float32(y), float32(rowW), float32(rowH), 1, alpha(120, 120, 90, 180), vecAA)
 		line := fmt.Sprintf("%s  | Réputation %d  | Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
 		ebitenutil.DebugPrintAt(screen, line, int(rowX)+8, int(y)+8)
 	}
@@ -415,7 +415,7 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	for i, entry := range g.ui.SocialFriends {
 		y := listY + float64(i)*(rowH+4)
 		entryW := rowW - 90.0
-		vector.DrawFilledRect(screen, float32(listX), float32(y), float32(entryW), float32(rowH), alpha(25, 35, 50, 200), true)
+		vector.DrawFilledRect(screen, float32(listX), float32(y), float32(entryW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
 		line := fmt.Sprintf("%s  | Réputation %d  | Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
 		ebitenutil.DebugPrintAt(screen, line, int(listX)+8, int(y)+8)
 
@@ -423,7 +423,7 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 		removeX := listX + entryW + 4
 		removeY := y
 		removeW := 80.0
-		vector.DrawFilledRect(screen, float32(removeX), float32(removeY), float32(removeW), float32(rowH), alpha(180, 60, 60, 220), true)
+		vector.DrawFilledRect(screen, float32(removeX), float32(removeY), float32(removeW), float32(rowH), alpha(180, 60, 60, 220), vecAA)
 		ebitenutil.DebugPrintAt(screen, "Retirer", int(removeX)+6, int(removeY)+8)
 	}
 }
@@ -438,8 +438,8 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 		nameW, nameH := panelW-200, 32.0
 		registerTextField(textField{id: "guild-name", x: nameX, y: nameY, w: nameW, h: nameH,
 			value: &g.ui.SocialGuildNameInput, focused: g.ui.SocialGuildNameFocus, label: "Nom de guilde"})
-		vector.DrawFilledRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), alpha(15, 15, 20, 210), true)
-		vector.StrokeRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), 2, alpha(180, 160, 100, 200), true)
+		vector.DrawFilledRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), alpha(15, 15, 20, 210), vecAA)
+		vector.StrokeRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), 2, alpha(180, 160, 100, 200), vecAA)
 		placeholder := "Nom de guilde"
 		text := g.ui.SocialGuildNameInput
 		if text == "" {
@@ -456,7 +456,7 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 		if !g.ui.SocialGuildHasTicket {
 			bg = alpha(80, 80, 80, 200)
 		}
-		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 120, float32(nameH), bg, true)
+		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 120, float32(nameH), bg, vecAA)
 		label := "Créer (-ticket)"
 		if !g.ui.SocialGuildHasTicket {
 			label = "Ticket requis"
@@ -484,7 +484,7 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 	// Leave Guild button
 	leaveX := panelX + 20
 	leaveY := infoY + 80
-	vector.DrawFilledRect(screen, float32(leaveX), float32(leaveY), 120, 32, alpha(180, 100, 40, 220), true)
+	vector.DrawFilledRect(screen, float32(leaveX), float32(leaveY), 120, 32, alpha(180, 100, 40, 220), vecAA)
 	ebitenutil.DebugPrintAt(screen, "Quitter", int(leaveX)+10, int(leaveY)+8)
 
 	listY := leaveY + 40
@@ -493,7 +493,7 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 	rowW := panelW - 40
 	for i, m := range g.ui.SocialGuildMembers {
 		y := listY + float64(i)*(rowH+4)
-		vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), true)
+		vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
 			line := fmt.Sprintf("%s | Réputation %d", m.Name, m.Reputation)
 		ebitenutil.DebugPrintAt(screen, line, int(panelX)+28, int(y)+8)
 	}
@@ -517,7 +517,7 @@ func (g *Game) drawLeaderboardTab(screen *ebiten.Image, panelX, panelY, panelW f
 		ebitenutil.DebugPrintAt(screen, "Classement Guildes", int(panelX)+20, int(listY)-18)
 		for i, gentry := range g.ui.SocialLeaderboardGuilds {
 			y := listY + float64(i)*(rowH+4)
-			vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), true)
+			vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
 			line := fmt.Sprintf("#%d | %s | Membres %d | Réputation %d", gentry.Rank, gentry.Name, gentry.MemberCount, gentry.Reputation)
 			ebitenutil.DebugPrintAt(screen, line, int(panelX)+28, int(y)+8)
 		}
@@ -525,7 +525,7 @@ func (g *Game) drawLeaderboardTab(screen *ebiten.Image, panelX, panelY, panelW f
 		ebitenutil.DebugPrintAt(screen, "Classement Joueurs", int(panelX)+20, int(listY)-18)
 		for i, p := range g.ui.SocialLeaderboardPlayers {
 			y := listY + float64(i)*(rowH+4)
-			vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), true)
+			vector.DrawFilledRect(screen, float32(panelX+20), float32(y), float32(rowW), float32(rowH), alpha(25, 35, 50, 200), vecAA)
 			line := fmt.Sprintf("#%d | %s | Réputation %d | Guilde %s", i+1, p.Name, p.Reputation, p.GuildName)
 			ebitenutil.DebugPrintAt(screen, line, int(panelX)+28, int(y)+8)
 		}

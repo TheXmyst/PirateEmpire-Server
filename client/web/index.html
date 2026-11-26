@@ -81,6 +81,17 @@
   const loader = document.getElementById('loader');
   const fail = (msg) => { status.textContent = msg; status.className = 'error'; };
 
+  // Téléphones : au-delà de 2 pixels par point, on ne gagne aucun détail
+  // (l'interface est déjà dessinée plus grand que l'écran) mais la carte
+  // graphique travaille beaucoup plus. On plafonne donc à 2 avant de lancer
+  // le jeu.
+  try {
+    const realDPR = window.devicePixelRatio || 1;
+    if (realDPR > 2) {
+      Object.defineProperty(window, 'devicePixelRatio', { get: () => 2, configurable: true });
+    }
+  } catch (_) {}
+
   if (typeof WebAssembly !== 'object') {
     fail("Ton navigateur est trop ancien pour lancer le jeu. Essaie Chrome, Firefox ou Edge à jour.");
     return;

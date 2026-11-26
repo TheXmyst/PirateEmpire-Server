@@ -25,8 +25,8 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 200}, false)
 
 	// Draw modal background (red tint)
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 10, 10, 240}, true)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 50, 50, 255}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{50, 10, 10, 240}, vecAA)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
 	titleY := y + padding
@@ -77,8 +77,8 @@ func (g *Game) DrawPveEngageErrorModal(screen *ebiten.Image) {
 	btnH := 30.0
 	btnX := x + w/2 - btnW/2
 	btnCol := color.RGBA{150, 50, 50, 255}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
+	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+35, int(btnY)+8)
 }
 

@@ -68,9 +68,9 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	x, y := cx-w/2, cy-h/2
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, true)
+	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
 	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, true)
+	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Title
 	title := fmt.Sprintf("%s (Lvl %d)", sb.Type, sb.Level)
@@ -89,7 +89,7 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	}
 
 	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+70, float32(x+w)-20, float32(y)+70, 1, color.Gray{100}, true)
+	vector.StrokeLine(screen, float32(x)+20, float32(y)+70, float32(x+w)-20, float32(y)+70, 1, color.Gray{100}, vecAA)
 
 	// Next Level Info
 	ebitenutil.DebugPrintAt(screen, "Next Level:", int(x)+20, int(y)+90)
@@ -114,8 +114,8 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 		btnCol = color.RGBA{0, 150, 0, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, true)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, true)
+	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
+	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
 
 	label := "UPGRADE"
 	if sb.Constructing {

@@ -286,7 +286,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 		draw9Slice(screen, g, cx-150, loginY-60, 300, 50, 16)
 	} else {
 		// Fallback dark box if assets somehow still fail
-		vector.DrawFilledRect(screen, float32(cx-150), float32(loginY-60), 300, 50, color.RGBA{20, 30, 40, 200}, true)
+		vector.DrawFilledRect(screen, float32(cx-150), float32(loginY-60), 300, 50, color.RGBA{20, 30, 40, 200}, vecAA)
 	}
 
 	registerTextField(textField{id: "login-user", x: cx - 150, y: loginY - 60, w: 300, h: 50,
@@ -305,7 +305,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	if g.sliceTopLeft != nil {
 		draw9Slice(screen, g, cx-150, loginY+20, 300, 50, 16)
 	} else {
-		vector.DrawFilledRect(screen, float32(cx-150), float32(loginY+20), 300, 50, color.RGBA{20, 30, 40, 200}, true)
+		vector.DrawFilledRect(screen, float32(cx-150), float32(loginY+20), 300, 50, color.RGBA{20, 30, 40, 200}, vecAA)
 	}
 
 	ptxt := ""
@@ -335,20 +335,20 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	}
 
 	// Fill
-	vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, btnCol, true)
+	vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, btnCol, vecAA)
 	// Inner Gradient-ish highlight?
-	vector.DrawFilledRect(screen, btnX+2, btnY+2, btnW-4, btnH/2, color.RGBA{50, 45, 10, 255}, true)
+	vector.DrawFilledRect(screen, btnX+2, btnY+2, btnW-4, btnH/2, color.RGBA{50, 45, 10, 255}, vecAA)
 
 	// Simple Hover Effect
 	btnBorderCol := color.RGBA{218, 165, 32, 255} // Gold
 	if g.ui.HoverButton {
 		btnBorderCol = color.RGBA{255, 215, 0, 255} // Brighter Gold
-		vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, color.RGBA{40, 40, 20, 255}, true)
+		vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, color.RGBA{40, 40, 20, 255}, vecAA)
 	}
 
 	// Double Border for "Fancy" look
-	vector.StrokeRect(screen, btnX, btnY, btnW, btnH, 2, btnBorderCol, true)
-	vector.StrokeRect(screen, btnX+4, btnY+4, btnW-8, btnH-8, 1, btnBorderCol, true)
+	vector.StrokeRect(screen, btnX, btnY, btnW, btnH, 2, btnBorderCol, vecAA)
+	vector.StrokeRect(screen, btnX+4, btnY+4, btnW-8, btnH-8, 1, btnBorderCol, vecAA)
 
 	// Text
 	txtX := int(btnX) + 60
@@ -366,8 +366,8 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	}
 
 	// Draw minimal text button/link style
-	// vector.DrawFilledRect(screen, btnX, regBtnY, btnW, 30, color.RGBA{10, 30, 40, 255}, true)
-	// vector.StrokeRect(screen, btnX, regBtnY, btnW, 30, 1, color.RGBA{100, 150, 200, 255}, true)
+	// vector.DrawFilledRect(screen, btnX, regBtnY, btnW, 30, color.RGBA{10, 30, 40, 255}, vecAA)
+	// vector.StrokeRect(screen, btnX, regBtnY, btnW, 30, 1, color.RGBA{100, 150, 200, 255}, vecAA)
 
 	// Just text with underline effect if hovered (simulated)
 	// We'll just draw centered text for now
@@ -376,7 +376,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	checkboxX, checkboxY := cx-150, float64(regBtnY)+60
 	ebitenutil.DrawRect(screen, checkboxX, checkboxY, 20, 20, color.RGBA{200, 200, 200, 255})
 	if g.ui.RememberMe {
-		vector.DrawFilledRect(screen, float32(checkboxX+4), float32(checkboxY+4), 12, 12, color.RGBA{0, 200, 0, 255}, true)
+		vector.DrawFilledRect(screen, float32(checkboxX+4), float32(checkboxY+4), 12, 12, color.RGBA{0, 200, 0, 255}, vecAA)
 	}
 	ebitenutil.DebugPrintAt(screen, "Se souvenir de moi", int(checkboxX)+30, int(checkboxY)+2)
 
@@ -389,16 +389,16 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 
 	if g.ui.ShowUpdateModal {
 		// Overlay
-		vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 220}, true)
+		vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 220}, vecAA)
 
 		// Modal Box
 		cx, cy := w/2, h/2
 		boxW, boxH := float32(400), float32(200)
 		boxX, boxY := float32(cx)-boxW/2, float32(cy)-boxH/2
 
-		vector.DrawFilledRect(screen, boxX, boxY, boxW, boxH, color.RGBA{40, 45, 50, 255}, true)
+		vector.DrawFilledRect(screen, boxX, boxY, boxW, boxH, color.RGBA{40, 45, 50, 255}, vecAA)
 		// Fancy Border
-		vector.StrokeRect(screen, boxX, boxY, boxW, boxH, 2, color.RGBA{218, 165, 32, 255}, true) // Gold Border
+		vector.StrokeRect(screen, boxX, boxY, boxW, boxH, 2, color.RGBA{218, 165, 32, 255}, vecAA) // Gold Border
 
 		// Text
 		ebitenutil.DebugPrintAt(screen, "MISE A JOUR DISPONIBLE !", int(cx)-80, int(cy)-60)
@@ -421,8 +421,8 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 			ebiten.SetCursorShape(ebiten.CursorShapeDefault)
 		}
 
-		vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, btnCol, true)
-		vector.StrokeRect(screen, btnX, btnY, btnW, btnH, 2, color.White, true)
+		vector.DrawFilledRect(screen, btnX, btnY, btnW, btnH, btnCol, vecAA)
+		vector.StrokeRect(screen, btnX, btnY, btnW, btnH, 2, color.White, vecAA)
 
 		// Center text approx
 		textX := int(btnX) + 60
