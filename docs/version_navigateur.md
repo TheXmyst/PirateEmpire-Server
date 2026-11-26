@@ -58,3 +58,17 @@ WEB_DIR=../client/web/dist DEV_MODE=1 go run ./cmd
   entièrement : les textes sont petits.
 - Les navigateurs bloquent le son tant que le joueur n'a pas cliqué : la
   musique démarre au premier clic.
+
+## Client PC (Windows) et mises à jour automatiques
+
+`deploy/update.sh` compile aussi le jeu pour Windows depuis le VPS et le publie :
+
+- `https://seadogs.duckdns.org/download/SeaDogs.exe` : le lien à donner aux joueurs ;
+- `https://seadogs.duckdns.org/version` : la dernière version (commit du dossier `client/`), l'adresse du fichier et son empreinte SHA-256.
+
+Le fichier est rangé dans `/opt/seadogs/download` (variable `DOWNLOAD_DIR` pour changer de dossier).
+La version ne change que si un commit touche `client/` : un déploiement du serveur seul ne fait rien retélécharger.
+
+Au lancement, le client PC compare sa version à `/version`. S'il est en retard, il propose « Installer » :
+il télécharge le nouveau .exe, vérifie l'empreinte, renomme l'ancien en `.old` (effacé au lancement suivant),
+met le nouveau à sa place et se relance. Un client compilé à la main (version `dev`) ne se met jamais à jour tout seul.

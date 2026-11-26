@@ -109,7 +109,9 @@ type UIState struct {
 
 	// Auto-Updater
 	ShowUpdateModal  bool
-	UpdateURL        string
+	UpdateInfo       UpdateInfo
+	UpdateProgress   float64 // 0 à 1 pendant le téléchargement
+	UpdateError      string
 	UpdateVersion    string
 	HoverUpdateBtn   bool
 	UpdateInProgress bool

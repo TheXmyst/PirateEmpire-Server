@@ -99,6 +99,15 @@ func main() {
 		fmt.Printf("[WEB] Pas de version navigateur dans %s (/play désactivé)\n", webDir)
 	}
 
+	// Client PC : /version (mises à jour automatiques) et /download/SeaDogs.exe.
+	downloadDir := webclient.DownloadDir()
+	webclient.RegisterDownloads(e, downloadDir)
+	if r, err := webclient.ReadRelease(downloadDir); err == nil {
+		fmt.Printf("[WEB] Client PC version %s servi sur /download/%s\n", r.Version, r.File)
+	} else {
+		fmt.Printf("[WEB] Pas de client PC dans %s (/version désactivé)\n", downloadDir)
+	}
+
 	e.GET("/", func(c echo.Context) error {
 		// Si la version navigateur est installée, l'adresse du site mène
 		// directement au jeu.

@@ -85,15 +85,16 @@ func NewGame() *Game {
 		g.Log("Failed to load Tech UI: %v", err)
 	}
 
-	// Auto-Updater Check (Async)
+	// Mises à jour automatiques du client PC (voir updater.go).
+	CleanupOldUpdate()
 	go func() {
-		// Wait a bit for initialization, not strictly necessary but safer
 		time.Sleep(500 * time.Millisecond)
-		available, url, err := CheckForUpdates(config.APIURL)
+		available, info, err := CheckForUpdates(config.APIURL)
 		if err == nil && available {
-			g.Log("[UPDATER] New version available: %s", url)
+			g.Log("[UPDATER] Nouvelle version %s (actuelle %s)", info.Version, ClientVersion)
+			g.ui.UpdateInfo = info
+			g.ui.UpdateVersion = info.Version
 			g.ui.ShowUpdateModal = true
-			g.ui.UpdateURL = url
 		} else if err != nil {
 			g.Log("[UPDATER] Check failed: %v", err)
 		}

@@ -6,7 +6,10 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 )
 
-const ClientVersion = "1.0.0" // Manually increment this for each release
+// ClientVersion : version du jeu. Les builds publiés la reçoivent à la
+// compilation (deploy/update.sh : -ldflags "-X ...ClientVersion=<commit>").
+// "dev" = compilé à la main : pas de mise à jour automatique.
+var ClientVersion = "dev"
 
 // DefaultAPIURL is the fallback URL if config is missing
 const DefaultAPIURL = "http://localhost:8080"
