@@ -33,4 +33,9 @@ type FleetDTO struct {
 	StationedNodeID         *string                `json:"stationed_node_id,omitempty"`
 	StoredAmount            float64                `json:"stored_amount"`
 	StoredResource          string                 `json:"stored_resource"`
+	// Récolte sur un spot de ressources (remplis seulement si la flotte est stationnée).
+	NodeRichness        float64 `json:"node_richness,omitempty"`          // multiplicateur du spot (1.0 à 1.5)
+	HarvestDurationMult float64 `json:"harvest_duration_mult,omitempty"`  // bonus de durée actuel (1.0 à 2.0)
+	HarvestRatePerHour  float64 `json:"harvest_rate_per_hour,omitempty"`  // débit actuel, par heure
+	HarvestFullInSec    float64 `json:"harvest_full_in_sec,omitempty"`    // temps estimé avant cale pleine
 }

@@ -716,6 +716,15 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	} else {
 		uiPrint(screen, cargoLine, int(startX)+20, int(currentY))
 	}
+	// Récolte en cours sur un spot (même ligne, pour ne pas décaler la fenêtre).
+	if hl := fleetHarvestLine(fleet); hl != "" {
+		lineStart := "Cargaison vide"
+		if hasCargo {
+			lineStart = cargoLine
+		}
+		hx := startX + 20 + textWidth(lineStart, bodyFace(uiTextSize, false)) + 20
+		drawText(screen, hl, bodyFace(uiTextSize, false), hx, currentY, themeGold, alignLeft)
+	}
 	currentY += 25
 
 	// 3. Debug Log (Client-side console)

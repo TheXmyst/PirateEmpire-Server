@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/TheXmyst/Sea-Dogs/server/internal/api/dto"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
 )
 
@@ -59,6 +60,11 @@ var PveTicketDropChance = map[int]float64{1: 0.10, 2: 0.20, 3: 0.35}
 // NodeHarvestRatePerSec renvoie le débit de récolte d'un nœud de ressources :
 // débit de base de la ressource x richesse du nœud x bonus de durée.
 func NodeHarvestRatePerSec(res domain.ResourceType, richness, minutesStationed float64) float64 {
+	return nodeBaseRate(res) * normRichness(richness) * NodeDurationMultiplier(minutesStationed)
+}
+
+// nodeBaseRate : débit de base (par seconde) d'une ressource sur un nœud.
+func nodeBaseRate(res domain.ResourceType) float64 {
 	base := NodeRateWoodStone
 	switch res {
 	case domain.Rum:
@@ -66,9 +72,18 @@ func NodeHarvestRatePerSec(res domain.ResourceType, richness, minutesStationed f
 	case domain.Gold:
 		base = NodeRateGold
 	}
+	return base
+}
+
+func normRichness(richness float64) float64 {
 	if richness <= 0 {
-		richness = 1.0
+		return 1.0
 	}
+	return richness
+}
+
+// NodeDurationMultiplier : bonus de durée (x1 à l'arrivée, +1 %/min, plafonné à x2).
+func NodeDurationMultiplier(minutesStationed float64) float64 {
 	bonus := 1.0 + minutesStationed*NodeDurationBonusPerMinute
 	if bonus > NodeMaxDurationBonus {
 		bonus = NodeMaxDurationBonus
@@ -76,7 +91,45 @@ func NodeHarvestRatePerSec(res domain.ResourceType, richness, minutesStationed f
 	if bonus < 1.0 {
 		bonus = 1.0
 	}
-	return base * richness * bonus
+	return bonus
+}
+
+// FillHarvestInfo complète le DTO d'une flotte stationnée sur un spot avec le
+// débit de récolte actuel et le temps estimé avant que la cale soit pleine,
+// pour que le client puisse l'afficher (même calcul que la boucle de jeu).
+func FillHarvestInfo(f *domain.Fleet, d *dto.FleetDTO) {
+	if f == nil || d == nil || f.State != domain.FleetStateStationed || f.StationedAt == nil {
+		return
+	}
+	res := domain.ResourceType(f.StoredResource)
+	if res == "" {
+		res = domain.Wood
+	}
+	minutes := time.Since(*f.StationedAt).Minutes()
+	d.NodeRichness = normRichness(f.NodeRichness)
+	d.HarvestDurationMult = NodeDurationMultiplier(minutes)
+	ratePerSec := NodeHarvestRatePerSec(res, f.NodeRichness, minutes)
+	d.HarvestRatePerHour = ratePerSec * 3600
+
+	// Temps avant cale pleine : on simule la montée du bonus de durée minute par minute.
+	free := FleetCargoCapacity(f)
+	for _, v := range f.Cargo {
+		free -= v
+	}
+	if free <= 0 || ratePerSec <= 0 {
+		return
+	}
+	secs := 0.0
+	for free > 0 && secs < 48*3600 {
+		r := NodeHarvestRatePerSec(res, f.NodeRichness, minutes+secs/60)
+		step := 60.0
+		if r*step >= free {
+			step = free / r
+		}
+		free -= r * step
+		secs += step
+	}
+	d.HarvestFullInSec = secs
 }
 
 // FleetCargoCapacity renvoie la capacité totale de cale d'une flotte.

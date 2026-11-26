@@ -254,7 +254,11 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 		vector.DrawFilledCircle(screen, float32(tx), float32(ty), float32(nodeSize/2), nodeColor, vecAA)
 
 		if !isModalOpen && g.ui.HoverResourceNode == node.ID {
-			uiPrint(screen, fmt.Sprintf("%s (%.1fx)", string(node.Type), node.Richness), int(tx)-20, int(ty)-20)
+			label := fmt.Sprintf("%s %s", harvestResName(node.Type), fmtMult(node.Richness))
+			if node.RatePerHour > 0 {
+				label += fmt.Sprintf(" · ~%s/h", formatThousands(node.RatePerHour))
+			}
+			uiPrint(screen, label, int(tx)-20, int(ty)-20)
 		}
 	}
 	g.ui.ResourceNodesMutex.RUnlock()
@@ -377,6 +381,9 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			}
 
 			label := fmt.Sprintf("%s (%d ships) [%s]", f.Name, len(f.Ships), state)
+			if f.HarvestRatePerHour > 0 {
+				label += fmt.Sprintf(" +%s %s/h", formatThousands(f.HarvestRatePerHour), harvestResName(domain.ResourceType(f.StoredResource)))
+			}
 			uiPrint(screen, label, int(panelX)+30, int(yOffset)+12)
 
 			// Send Button (Only if Idle)

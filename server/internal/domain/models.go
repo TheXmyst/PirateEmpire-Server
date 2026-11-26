@@ -61,6 +61,8 @@ type ResourceNode struct {
 	Amount       float64      `json:"amount"`
 	Regeneration float64      `json:"regeneration"`
 	Richness     float64      `json:"richness"` // Quality/multiplier of the node
+	// RatePerHour : débit de récolte à l'arrivée (base x richesse), avant le bonus de durée.
+	RatePerHour float64 `json:"rate_per_hour,omitempty"`
 }
 
 // Player represents a user in the game

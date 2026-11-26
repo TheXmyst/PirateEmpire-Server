@@ -9,6 +9,7 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/server/internal/api/dto"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/engine"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/google/uuid"
@@ -107,6 +108,14 @@ func GetStatus(c echo.Context) error {
 		//    des copies : une fois le verrou rendu, le tick peut modifier l'île
 		//    sans risque pour la réponse en cours d'envoi.
 		islandDTO := island.ToDTO()
+		for fi := range islandDTO.Fleets {
+			for fj := range island.Fleets {
+				if island.Fleets[fj].ID.String() == islandDTO.Fleets[fi].ID {
+					economy.FillHarvestInfo(&island.Fleets[fj], &islandDTO.Fleets[fi])
+					break
+				}
+			}
+		}
 		captainDTOs := make([]dto.CaptainDTO, len(island.Player.Captains))
 		for i, captain := range island.Player.Captains {
 			captainDTOs[i] = captain.ToDTO()
