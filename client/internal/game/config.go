@@ -11,8 +11,9 @@ import (
 // "dev" = compilé à la main : pas de mise à jour automatique.
 var ClientVersion = "dev"
 
-// DefaultAPIURL is the fallback URL if config is missing
-const DefaultAPIURL = "http://localhost:8080"
+// DefaultAPIURL est l'adresse utilisée si config.json est absent : le serveur en ligne.
+// Pour développer en local, mettre "http://localhost:8080" dans config.json.
+const DefaultAPIURL = "https://seadogs.duckdns.org"
 
 // Config holds the client configuration
 type Config struct {

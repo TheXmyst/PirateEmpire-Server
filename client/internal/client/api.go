@@ -68,12 +68,12 @@ func (c *APIClient) Register(username, password string) error {
 
 	resp, err := http.Post(c.BaseURL+"/register", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return err
+		return c.unreachable(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("register failed: %s", resp.Status)
+		return accountError(resp)
 	}
 
 	var res struct {
@@ -87,6 +87,38 @@ func (c *APIClient) Register(username, password string) error {
 	c.PlayerID = res.PlayerID
 	c.IslandID = res.IslandID
 	return nil
+}
+
+// unreachable : le serveur ne répond pas du tout (mauvaise adresse, pas
+// d'internet, serveur arrêté).
+func (c *APIClient) unreachable(err error) error {
+	return fmt.Errorf("serveur injoignable (%s) : %w", c.BaseURL, err)
+}
+
+// accountError traduit les refus du serveur à la connexion / l'inscription
+// en un message lisible par le joueur.
+func accountError(resp *http.Response) error {
+	body, _ := io.ReadAll(resp.Body)
+	var e struct {
+		Error string `json:"error"`
+	}
+	_ = json.Unmarshal(body, &e)
+	switch e.Error {
+	case "Invalid credentials":
+		return fmt.Errorf("pseudo ou mot de passe incorrect")
+	case "Username already exists":
+		return fmt.Errorf("ce pseudo est déjà pris")
+	case "Password must be at least 6 characters":
+		return fmt.Errorf("le mot de passe doit faire au moins 6 caractères")
+	case "Username is required", "Password is required":
+		return fmt.Errorf("remplis le pseudo et le mot de passe")
+	case "":
+		if resp.StatusCode == http.StatusUnauthorized {
+			return fmt.Errorf("pseudo ou mot de passe incorrect")
+		}
+		return fmt.Errorf("le serveur a refusé (%s)", resp.Status)
+	}
+	return fmt.Errorf("%s", e.Error)
 }
 
 type LoginResponse struct {
@@ -105,12 +137,12 @@ func (c *APIClient) Login(username, password string) (*LoginResponse, error) {
 
 	resp, err := http.Post(c.BaseURL+"/login", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return nil, err
+		return nil, c.unreachable(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("login failed: %s", resp.Status)
+		return nil, accountError(resp)
 	}
 
 	var res LoginResponse
