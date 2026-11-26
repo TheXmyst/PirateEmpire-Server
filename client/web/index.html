@@ -85,12 +85,26 @@
   // (l'interface est déjà dessinée plus grand que l'écran) mais la carte
   // graphique travaille beaucoup plus. On plafonne donc à 2 avant de lancer
   // le jeu.
+  // « &res=1 » (ou 1.5...) dans l'adresse force une autre limite : test.
+  const params = new URLSearchParams(location.search);
+  const realDPR = window.devicePixelRatio || 1;
+  const maxDPR = parseFloat(params.get('res')) || 2;
   try {
-    const realDPR = window.devicePixelRatio || 1;
-    if (realDPR > 2) {
-      Object.defineProperty(window, 'devicePixelRatio', { get: () => 2, configurable: true });
+    if (realDPR > maxDPR) {
+      Object.defineProperty(window, 'devicePixelRatio', { get: () => maxDPR, configurable: true });
     }
   } catch (_) {}
+
+  // Infos affichées par le compteur de diagnostic (?fps).
+  window.seadogsDiag = { realDPR, version: '', gpu: '' };
+  if (params.has('fps')) {
+    try {
+      const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      window.seadogsDiag.gpu = (gl instanceof WebGL2RenderingContext ? 'WebGL2 ' : 'WebGL1 ') +
+        (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : (gl ? gl.getParameter(gl.RENDERER) : 'pas de WebGL'));
+    } catch (_) {}
+  }
 
   if (typeof WebAssembly !== 'object') {
     fail("Ton navigateur est trop ancien pour lancer le jeu. Essaie Chrome, Firefox ou Edge à jour.");
@@ -110,6 +124,7 @@
     try {
       const r = await fetch('build-info.json', { cache: 'no-store' });
       if (r.ok) info = await r.json();
+      window.seadogsDiag.version = info.version;
     } catch (_) {}
 
     const resp = await fetch('game.wasm?v=' + encodeURIComponent(info.version));

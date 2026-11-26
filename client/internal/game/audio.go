@@ -88,6 +88,9 @@ func (am *AudioManager) LoadMusic(name, path string) error {
 
 // PlayMusic plays the specified track (stops current if different)
 func (am *AudioManager) PlayMusic(name string) {
+	if audioMuted() {
+		return
+	}
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	am.wantedTrack = name

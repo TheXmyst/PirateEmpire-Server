@@ -126,6 +126,9 @@ func (m *SeaDMSMusic) loadStems() [6]*audio.Player {
 }
 
 func (m *SeaDMSMusic) Start() {
+	if audioMuted() {
+		return
+	}
 	// 1. Strict Idempotency Guard
 	if m.isPlaying && !m.isStopping {
 		if !IsWebBuild { // appelé à chaque image : trop coûteux dans le navigateur

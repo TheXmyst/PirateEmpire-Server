@@ -3,6 +3,7 @@
 package game
 
 import (
+	"fmt"
 	"strings"
 	"syscall/js"
 
@@ -289,15 +290,58 @@ func enterFullscreen() {
 	}
 }
 
+// urlFlag : vrai si l'adresse de la page contient ce paramètre
+// (ex. /play/?fps&mute). Sert aux réglages de diagnostic.
+func urlFlag(name string) bool {
+	q := js.Global().Get("URLSearchParams").New(js.Global().Get("location").Get("search"))
+	return q.Call("has", name).Bool()
+}
+
 var fpsFlag = -1
 
-// showFPS : compteur d'images par seconde quand l'adresse contient « ?fps ».
+// showFPS : compteur de diagnostic quand l'adresse contient « ?fps ».
 func showFPS() bool {
 	if fpsFlag < 0 {
 		fpsFlag = 0
-		if strings.Contains(js.Global().Get("location").Get("search").String(), "fps") {
+		if urlFlag("fps") {
 			fpsFlag = 1
 		}
 	}
 	return fpsFlag == 1
+}
+
+var muteFlag = -1
+
+// audioMuted : « &mute » dans l'adresse coupe toute la musique (test).
+func audioMuted() bool {
+	if muteFlag < 0 {
+		muteFlag = 0
+		if urlFlag("mute") {
+			muteFlag = 1
+		}
+	}
+	return muteFlag == 1
+}
+
+// browserDiag : infos de la page pour le compteur de diagnostic
+// (version du jeu, taille réelle du canvas, puce graphique).
+func browserDiag() string {
+	w := js.Global()
+	d := w.Get("seadogsDiag")
+	if !d.Truthy() {
+		return ""
+	}
+	parts := []string{}
+	if v := d.Get("version"); v.Truthy() {
+		parts = append(parts, "v"+v.String())
+	}
+	if c := w.Get("document").Call("querySelector", "canvas"); c.Truthy() {
+		parts = append(parts, fmt.Sprintf("canvas %dx%d dpr %.2f/%.2f",
+			c.Get("width").Int(), c.Get("height").Int(),
+			w.Get("devicePixelRatio").Float(), d.Get("realDPR").Float()))
+	}
+	if g := d.Get("gpu"); g.Truthy() {
+		parts = append(parts, g.String())
+	}
+	return strings.Join(parts, " | ")
 }
