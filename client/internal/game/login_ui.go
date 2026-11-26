@@ -3,7 +3,6 @@ package game
 import (
 	"encoding/json"
 	"image/color"
-	"os"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
@@ -173,13 +172,16 @@ func (g *Game) attemptLogin() {
 
 // saveCredentials saves username and password to a local file.
 func saveCredentials(u, p string) {
-	creds := Credentials{Username: u, Password: p}
-	file, err := os.Create("credentials.json")
+	if IsWebBuild {
+		// Dans le navigateur, on ne garde jamais le mot de passe : seulement
+		// le pseudo, pour le préremplir.
+		p = ""
+	}
+	data, err := json.Marshal(Credentials{Username: u, Password: p})
 	if err != nil {
 		return
 	}
-	defer file.Close()
-	json.NewEncoder(file).Encode(creds)
+	_ = writeUserFile("credentials.json", data)
 }
 
 func (g *Game) attemptRegister() {

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sea Dogs - Pirate Empire</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1420; overflow: hidden; }
+  #loader {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px;
+    font-family: Georgia, "Times New Roman", serif; color: #f3d9a4;
+    background: radial-gradient(ellipse at center, #1d3550 0%, #0b1420 70%);
+    z-index: 10; transition: opacity .4s;
+  }
+  #loader h1 { margin: 0; font-size: 42px; letter-spacing: 2px; text-shadow: 0 3px 0 #5a3a12; }
+  #bar { width: min(420px, 80vw); height: 22px; border: 3px solid #8a5a22; border-radius: 12px;
+         background: #2a1a0b; overflow: hidden; box-shadow: 0 0 12px #000a; }
+  #fill { height: 100%; width: 0%; background: linear-gradient(#f0c35a, #b8822a); transition: width .2s; }
+  #status { font-size: 16px; opacity: .85; text-align: center; padding: 0 16px; }
+  #status.error { color: #ff9a8a; }
+</style>
+</head>
+<body>
+<div id="loader">
+  <h1>Sea Dogs</h1>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="status">Hissez les voiles... chargement du jeu</div>
+</div>
+<noscript><p style="color:#fff;text-align:center">JavaScript doit être activé pour jouer à Sea Dogs.</p></noscript>
+<script src="wasm_exec.js"></script>
+<script>
+(async () => {
+  const fill = document.getElementById('fill');
+  const status = document.getElementById('status');
+  const loader = document.getElementById('loader');
+  const fail = (msg) => { status.textContent = msg; status.className = 'error'; };
+
+  if (typeof WebAssembly !== 'object') {
+    fail("Ton navigateur est trop ancien pour lancer le jeu. Essaie Chrome, Firefox ou Edge à jour.");
+    return;
+  }
+
+  // F1 (panneau dev), F9/F10 (musique) : on empêche le navigateur d'ouvrir
+  // son aide ou ses menus. F5, F11 et F12 restent au navigateur.
+  window.addEventListener('keydown', (e) => {
+    if (/^F([1-46-9]|10)$/.test(e.key) || e.key === 'Tab') e.preventDefault();
+  }, true);
+
+  try {
+    // build-info.json donne la taille du jeu (pour la barre) et sa version
+    // (pour que le navigateur ne garde pas une ancienne version en cache).
+    let info = { wasmSize: 0, version: Date.now().toString() };
+    try {
+      const r = await fetch('build-info.json', { cache: 'no-store' });
+      if (r.ok) info = await r.json();
+    } catch (_) {}
+
+    const resp = await fetch('game.wasm?v=' + encodeURIComponent(info.version));
+    if (!resp.ok) throw new Error('le serveur a répondu ' + resp.status);
+
+    const total = info.wasmSize || 0;
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total) {
+        const pct = Math.min(100, Math.round(received * 100 / total));
+        fill.style.width = pct + '%';
+        status.textContent = 'Chargement du navire... ' + pct + ' % (' +
+          (received / 1048576).toFixed(1) + ' Mo / ' + (total / 1048576).toFixed(1) + ' Mo)';
+      } else {
+        status.textContent = 'Chargement du navire... ' + (received / 1048576).toFixed(1) + ' Mo';
+      }
+    }
+    const bytes = new Uint8Array(received);
+    let off = 0;
+    for (const c of chunks) { bytes.set(c, off); off += c.length; }
+
+    fill.style.width = '100%';
+    status.textContent = "Mise à l'eau...";
+
+    const go = new Go();
+    const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+
+    // Le jeu crée son propre canvas : dès qu'il apparaît, on retire l'écran
+    // de chargement.
+    const hide = () => { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 450); };
+    new MutationObserver((_, obs) => {
+      if (document.querySelector('canvas')) { obs.disconnect(); setTimeout(hide, 300); }
+    }).observe(document.body, { childList: true, subtree: true });
+
+    await go.run(instance);
+    fail("Le jeu s'est arrêté. Recharge la page pour reprendre la mer.");
+    loader.style.opacity = '1';
+    document.body.appendChild(loader);
+  } catch (err) {
+    console.error(err);
+    fail('Impossible de lancer le jeu (' + err.message + '). Recharge la page, ou réessaie plus tard.');
+  }
+})();
+</script>
+</body>
+</html>

@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/color"
-	"io"
 	"math"
-	"os"
 	"strings"
 	"time"
 
@@ -78,13 +76,10 @@ func NewTechUI() *TechUI {
 }
 
 func (ui *TechUI) Load() error {
-	file, err := os.Open("assets/tech.json")
+	bytes, err := readAsset("resources/data/tech.json")
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-
-	bytes, _ := io.ReadAll(file)
 	if err := json.Unmarshal(bytes, &ui.Data); err != nil {
 		return err
 	}

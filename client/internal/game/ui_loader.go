@@ -1,9 +1,9 @@
 package game
 
 import (
+	"bytes"
 	"image"
 	"image/color"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -15,27 +15,17 @@ var uiAtlas *ebiten.Image
 
 // loadUIAtlas loads the pirate theme button pack and slices it.
 func (g *Game) loadUIAtlas() {
-	// Try loading the button pack file
-	// Note: We try both "assets/..." and "client/assets/..." to be safe with CWD
-	paths := []string{
-		"assets/ui/button_wood_pack.png",
-		"client/assets/ui/button_wood_pack.png",
-		"../assets/ui/button_wood_pack.png",
-	}
-	var f *os.File
-	var err error
-
-	for _, p := range paths {
-		f, err = os.Open(p)
-		if err == nil {
-			g.Log("UI Button Pack loaded from: %s", p)
-			break
-		}
+	// Le pack de boutons est maintenant intégré au jeu (avant, il était lu
+	// sur le disque et manquait si le jeu était lancé depuis un autre dossier).
+	const path = "resources/ui/button_wood_pack.png"
+	data, err := readAsset(path)
+	if err != nil {
+		data = nil
 	}
 
 	// Fallback if file not found
-	if f == nil {
-		g.Log("UI Button Pack NOT FOUND. Checked paths: %v. Using Fallback Placeholders.", paths)
+	if data == nil {
+		g.Log("UI Button Pack NOT FOUND (%s): %v. Using Fallback Placeholders.", path, err)
 
 		// Create Placeholder textures (Hot Pink to be obvious)
 		g.btnNormal = ebiten.NewImage(32, 32)
@@ -46,9 +36,7 @@ func (g *Game) loadUIAtlas() {
 		g.btnPressed.Fill(color.RGBA{200, 50, 150, 255}) // Dark Pink
 		return
 	}
-	defer f.Close()
-
-	img, _, err := image.Decode(f)
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		g.Log("Failed to decode UI Button Pack: %v. Using Fallback (Cyan).", err)
 		// Fallback Cyan
