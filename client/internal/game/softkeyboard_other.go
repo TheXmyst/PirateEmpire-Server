@@ -11,3 +11,5 @@ func syncSoftKeyboard(g *Game) {}
 func fullscreenAvailable() bool { return true }
 
 func isFullscreenNow() bool { return ebiten.IsFullscreen() }
+
+func showFPS() bool { return false }

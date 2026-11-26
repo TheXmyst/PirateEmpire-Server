@@ -20,6 +20,11 @@ func (g *Game) DevLog(lType, format string, a ...interface{}) {
 	case g.logChan <- entry:
 	default:
 	}
+	// Dans le navigateur, les messages INFO restent dans le panneau dev (F1)
+	// mais ne vont pas dans la console, qui ralentit les téléphones.
+	if IsWebBuild && lType == "INFO" {
+		return
+	}
 	fmt.Printf("[%s] [%s] %s\n", entry.Timestamp.Format("15:04:05"), lType, msg)
 }
 
@@ -188,8 +193,9 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterLinear
 		bounds := g.bgImage.Bounds()
-		w, h := bounds.Dx(), bounds.Dy()
-		op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
+		w, h := float64(bounds.Dx())*g.bgScale, float64(bounds.Dy())*g.bgScale
+		op.GeoM.Scale(g.bgScale, g.bgScale)
+		op.GeoM.Translate(-w/2, -h/2)
 		op.GeoM.Translate(-g.camX, -g.camY)
 		op.GeoM.Scale(g.camZoom, g.camZoom)
 		op.GeoM.Translate(screenW/2, screenH/2)

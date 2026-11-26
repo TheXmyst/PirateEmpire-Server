@@ -3,6 +3,7 @@
 package game
 
 import (
+	"strings"
 	"syscall/js"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -286,4 +287,17 @@ func enterFullscreen() {
 		})
 		p.Call("then", then).Call("catch", js.FuncOf(func(this js.Value, args []js.Value) any { return nil }))
 	}
+}
+
+var fpsFlag = -1
+
+// showFPS : compteur d'images par seconde quand l'adresse contient « ?fps ».
+func showFPS() bool {
+	if fpsFlag < 0 {
+		fpsFlag = 0
+		if strings.Contains(js.Global().Get("location").Get("search").String(), "fps") {
+			fpsFlag = 1
+		}
+	}
+	return fpsFlag == 1
 }
