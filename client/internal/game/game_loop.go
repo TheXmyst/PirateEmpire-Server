@@ -336,6 +336,9 @@ func (g *Game) updateVisualResources(dt float64) {
 
 func (g *Game) handleBuildingClick() {
 	mx, my := cursorPosition()
+	if g.hudHit(float64(mx), float64(my)) {
+		return // clic sur l'interface, pas sur l'île
+	}
 	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
 	if g.player != nil && len(g.player.Islands) > 0 {
 		for _, b := range g.player.Islands[0].Buildings {

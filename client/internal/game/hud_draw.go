@@ -3,228 +3,292 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-// hud_draw.go contains all HUD rendering/drawing code.
-// This file was extracted from main.go during Phase 1.2 refactoring to reduce file size.
-// No logic or behavior changes were made - only code organization.
+// hud_draw.go : l'interface posée sur l'île et sur la mer.
+//   - en haut à gauche : la carte du capitaine ;
+//   - en haut au centre : les ressources (stock et production par heure) ;
+//   - en haut à droite : petits boutons ronds (voir touch_ui.go) ;
+//   - en bas au centre : la barre de navigation (Construire au milieu) ;
+//   - en bas à gauche : la bulle du chat (voir chat_ui.go).
 
-// DrawHUD renders the top HUD bar with resources, player info, and the Fleet button.
+type hudRect struct{ x, y, w, h float64 }
+
+func (r hudRect) has(x, y float64) bool {
+	return x >= r.x && x <= r.x+r.w && y >= r.y && y <= r.y+r.h
+}
+
+type dockButton struct {
+	id, label, icon string
+	r               hudRect
+	big, active     bool
+}
+
+const (
+	hudMargin   = 12.0
+	dockBtnW    = 92.0
+	dockBtnH    = 76.0
+	dockBigW    = 116.0
+	dockBigH    = 96.0
+	dockGap     = 10.0
+	dockPad     = 10.0
+	resChipW    = 146.0
+	resChipH    = 46.0
+	resBarPad   = 6.0
+	topBarH     = resChipH + 2*resBarPad
+	captainCard = topBarH
+)
+
+func (g *Game) hudVisible() bool {
+	return g.player != nil && len(g.player.Islands) > 0 && (g.state == StatePlaying || g.state == StateWorldMap)
+}
+
+// dockButtons : les boutons de la barre du bas, avec leur position.
+func (g *Game) dockButtons() []dockButton {
+	onSea := g.state == StateWorldMap
+	btns := []dockButton{
+		{id: "fleet", label: "Flotte", icon: "anchor", active: g.ui.ShowFleetUI},
+		{id: "sea", label: "Mer", icon: "map"},
+		{id: "build", label: "Construire", icon: "hammer", big: true, active: g.ui.ShowConstruction},
+		{id: "captain", label: "Capitaines", icon: "hat", active: g.ui.ShowCaptainUI},
+		{id: "social", label: "Social", icon: "people", active: g.ui.ShowSocialUI},
+	}
+	if onSea {
+		btns[1].label, btns[1].icon = "Île", "island"
+		// Pas de construction en mer.
+		btns = append(btns[:2], btns[3:]...)
+	}
+	total := 2 * dockPad
+	for i, b := range btns {
+		if i > 0 {
+			total += dockGap
+		}
+		if b.big {
+			total += dockBigW
+		} else {
+			total += dockBtnW
+		}
+	}
+	dock := g.dockRect()
+	x := float64(g.screenWidth)/2 - total/2 + dockPad
+	for i := range btns {
+		if btns[i].big {
+			btns[i].r = hudRect{x, dock.y + dock.h - dockPad - dockBigH, dockBigW, dockBigH}
+			x += dockBigW + dockGap
+		} else {
+			btns[i].r = hudRect{x, dock.y + dockPad, dockBtnW, dockBtnH}
+			x += dockBtnW + dockGap
+		}
+	}
+	return btns
+}
+
+// dockRect : le fond de la barre du bas.
+func (g *Game) dockRect() hudRect {
+	n := 4
+	wide := 0.0
+	if g.state != StateWorldMap {
+		wide = dockBigW + dockGap
+	}
+	w := 2*dockPad + float64(n)*dockBtnW + float64(n-1)*dockGap + wide
+	h := dockBtnH + 2*dockPad
+	return hudRect{float64(g.screenWidth)/2 - w/2, float64(g.screenHeight) - hudMargin - h, w, h}
+}
+
+// resourceRects : la barre des ressources et ses 4 cases.
+func (g *Game) resourceRects() (bar hudRect, chips [4]hudRect) {
+	w := 4*resChipW + 3*6 + 2*resBarPad
+	bar = hudRect{float64(g.screenWidth)/2 - w/2, hudMargin, w, topBarH}
+	for i := range chips {
+		chips[i] = hudRect{bar.x + resBarPad + float64(i)*(resChipW+6), bar.y + resBarPad, resChipW, resChipH}
+	}
+	return
+}
+
+func (g *Game) captainCardRect() hudRect {
+	name := ellipsize(g.player.Username, titleFace(22), 200)
+	sub := g.captainCardSubtitle()
+	w := math.Max(textWidth(name, titleFace(22)), textWidth(sub, bodyFace(12, false)))
+	return hudRect{hudMargin, hudMargin, math.Min(captainCard+8+w+18, 300), captainCard}
+}
+
+func (g *Game) captainCardSubtitle() string {
+	isl := g.player.Islands[0]
+	lvl := 0
+	for _, b := range isl.Buildings {
+		if b.Type == "Hôtel de Ville" {
+			lvl = b.Level
+		}
+	}
+	name := isl.Name
+	if name == "" {
+		name = "Mon île"
+	}
+	if lvl > 0 {
+		return fmt.Sprintf("%s · Niv. %d", name, lvl)
+	}
+	return name
+}
+
+// hudHit : le point (x, y) tombe-t-il sur l'interface (pour ne pas cliquer
+// l'île ou la mer à travers) ?
+func (g *Game) hudHit(x, y float64) bool {
+	if !g.hudVisible() {
+		return false
+	}
+	if g.dockRect().has(x, y) {
+		return true
+	}
+	for _, b := range g.dockButtons() {
+		if b.r.has(x, y) {
+			return true
+		}
+	}
+	if bar, _ := g.resourceRects(); bar.has(x, y) {
+		return true
+	}
+	if g.captainCardRect().has(x, y) {
+		return true
+	}
+	if _, ok := g.touchButtonAt(x, y); ok {
+		return true
+	}
+	return g.chatHit(x, y)
+}
+
+// DrawHUD dessine le haut de l'écran et la barre du bas.
 func (g *Game) DrawHUD(screen *ebiten.Image) {
-	if g.player != nil && len(g.player.Islands) > 0 {
-		screenW := float64(g.screenWidth)
-		hudH := 50.0
-		hudY := 5.0
-
-		// Drop Shadow
-		shadowH := 20
-		startAlpha := 90.0
-		shadowY := int(hudY+hudH) - 5
-		for i := 0; i < shadowH; i++ {
-			alpha := uint8(startAlpha * (1.0 - float64(i)/float64(shadowH)))
-			vector.DrawFilledRect(screen, 0, float32(shadowY+i), float32(screenW), 1, color.RGBA{0, 0, 0, alpha}, vecAA)
-		}
-
-		draw9Slice(screen, g, 0, hudY, screenW, hudH, 16)
-		limits := g.player.Islands[0].StorageLimits
-		resY := hudY + 10.0
-
-		drawResource(screen, g.iconWood, g.visualResources[domain.Wood], limits[domain.Wood], 20, resY)
-		drawResource(screen, g.iconStone, g.visualResources[domain.Stone], limits[domain.Stone], 190, resY)
-		drawResource(screen, g.iconRum, g.visualResources[domain.Rum], limits[domain.Rum], 360, resY)
-		drawResource(screen, g.iconGold, g.visualResources[domain.Gold], limits[domain.Gold], 530, resY)
-
-		infoW := 350.0
-		infoX := screenW - infoW
-		sepX := float32(infoX) - 20
-		vector.StrokeLine(screen, sepX, float32(hudY)+10, sepX, float32(hudY+hudH)-10, 2, color.RGBA{139, 69, 19, 150}, vecAA)
-		vector.StrokeLine(screen, sepX+1, float32(hudY)+10, sepX+1, float32(hudY+hudH)-10, 1, color.RGBA{255, 215, 0, 100}, vecAA)
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Captain: %s | Island: %s", g.player.Username, g.player.Islands[0].Name), int(infoX), int(hudY)+18)
-
-		// Resource Tooltips
-		mx, my := cursorPosition()
-		cmx, cmy := float64(mx), float64(my)
-		if cmy >= hudY && cmy <= hudY+hudH {
-			var tooltipRes domain.ResourceType
-			if cmx >= 20 && cmx < 170 {
-				tooltipRes = domain.Wood
-			} else if cmx >= 190 && cmx < 340 {
-				tooltipRes = domain.Stone
-			} else if cmx >= 360 && cmx < 510 {
-				tooltipRes = domain.Rum
-			} else if cmx >= 530 && cmx < 680 {
-				tooltipRes = domain.Gold
-			}
-
-			if tooltipRes != "" {
-				total, _, _, details := g.calculateProduction(tooltipRes)
-				var lines []string
-				lines = append(lines, fmt.Sprintf("%s Generation", strings.ToUpper(string(tooltipRes)[:1])+string(tooltipRes)[1:]))
-				lines = append(lines, fmt.Sprintf("Stock: %.0f / %.0f", g.visualResources[tooltipRes], limits[tooltipRes]))
-				lines = append(lines, "----------------")
-				lines = append(lines, fmt.Sprintf("Total: %.2f / h", total))
-				if len(details) > 0 {
-					lines = append(lines, "----------------")
-					lines = append(lines, details...)
-				}
-				drawTooltip(screen, mx+10, my+20, lines)
-			}
-		}
-
-		// Sea and Fleet Buttons - positioned to the left of the build button (bottom right)
-		// Build button is at: x = screenW - 100 - 20, y = h - 100 - 20
-		screenH := float64(g.screenHeight)
-		btnSize := 100.0
-		btnGap := 10.0
-		margin := 20.0
-		buildBtnX := screenW - btnSize - margin
-		buildBtnY := screenH - btnSize - margin
-
-		// Fleet button is to the left of the build button
-		fleetBtnX := buildBtnX - btnSize - btnGap
-		fleetBtnY := buildBtnY
-
-		// Sea button is to the left of the fleet button
-		seaBtnX := fleetBtnX - btnSize - btnGap
-		seaBtnY := buildBtnY
-
-		// Captain button is to the left of the sea button
-		captainBtnX := seaBtnX - btnSize - btnGap
-		captainBtnY := buildBtnY
-
-		// Social button is to the left of the captain button
-		socialBtnX := captainBtnX - btnSize - btnGap
-		socialBtnY := buildBtnY
-
-		// Helper for drawing textured buttons
-		drawBtn := func(x, y, size, scale float64, label string, hover, pressed bool, colorFallback color.Color) {
-			scaledSize := size * scale
-			offsetX := (scaledSize - size) / 2
-			offsetY := (scaledSize - size) / 2
-
-			// Select Texture
-			var img *ebiten.Image
-			if pressed {
-				img = g.btnPressed
-			} else if hover {
-				img = g.btnHover
-			} else {
-				img = g.btnNormal
-			}
-
-			if img != nil {
-				drawImgScaled(screen, img, x-offsetX, y-offsetY, scaledSize, scaledSize)
-				// Small stroke for visibility on dark maps
-				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 1, color.RGBA{255, 215, 0, 100}, vecAA)
-			} else {
-				// Fallback
-				vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), colorFallback, vecAA)
-				vector.StrokeRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), 2, color.RGBA{255, 255, 255, 200}, vecAA)
-			}
-
-			// Draw Label
-			ebitenutil.DebugPrintAt(screen, label, int(x+20), int(y+40))
-		}
-
-		// Draw Social Button (teal fallback)
-		socialCol := color.RGBA{0, 160, 160, 255}
-		if g.ui.ShowSocialUI {
-			socialCol = color.RGBA{0, 190, 190, 255}
-		}
-		drawBtn(socialBtnX, socialBtnY, btnSize, g.ui.SocialButtonScale, "SOC", g.ui.HoverSocialButton, false, socialCol)
-
-		// Draw Captain Button (purple/violet fallback)
-		captainCol := color.RGBA{150, 100, 200, 255}
-		drawBtn(captainBtnX, captainBtnY, btnSize, g.ui.CaptainButtonScale, "CAP", g.ui.HoverCaptainButton, false, captainCol)
-
-		// Draw Sea Button (blue fallback)
-		seaCol := color.RGBA{0, 100, 200, 255}
-		seaLabel := "MER"
-		if g.state == StateWorldMap {
-			seaLabel = "ILE"
-		}
-		drawBtn(seaBtnX, seaBtnY, btnSize, g.ui.SeaButtonScale, seaLabel, g.ui.HoverSeaButton, false, seaCol)
-
-		// Draw Fleet Button (Green Fallback)
-		fleetCol := color.RGBA{0, 150, 0, 255}
-		if g.ui.ShowFleetUI {
-			fleetCol = color.RGBA{0, 200, 0, 255}
-		}
-		drawBtn(fleetBtnX, fleetBtnY, btnSize, g.ui.FleetButtonScale, "FLOTTE", g.ui.HoverFleetButton, false, fleetCol)
-	}
-}
-
-// drawResource draws a single resource icon and amount text in the HUD.
-func drawResource(screen *ebiten.Image, icon *ebiten.Image, amount, maxAmount float64, x, y float64) {
-	if icon != nil {
-		op := &ebiten.DrawImageOptions{}
-		bounds := icon.Bounds()
-		w := bounds.Dx()
-		s := 32.0 / float64(w)
-		op.GeoM.Scale(s, s)
-		op.GeoM.Translate(x, y)
-		screen.DrawImage(icon, op)
-	}
-	text := fmt.Sprintf("%.0f / %.0f", amount, maxAmount)
-	if amount >= maxAmount && maxAmount > 0 {
-		text += " (FULL)"
-	}
-	drawTextWithBackground(screen, text, int(x)+35, int(y)+10, color.RGBA{30, 40, 50, 255})
-}
-
-// DrawBuildButton renders the large construction button in the bottom right corner.
-func (g *Game) DrawBuildButton(screen *ebiten.Image) {
-	if g.player == nil || len(g.player.Islands) == 0 {
+	if !g.hudVisible() {
 		return
 	}
-	sw := float64(g.screenWidth)
-	sh := float64(g.screenHeight)
-
-	btnSize := 100.0
-	margin := 20.0
-	x := sw - btnSize - margin
-	y := sh - btnSize - margin
-
-	// Select Texture based on hover state
-	var img *ebiten.Image
-	if g.ui.HoverBuildButton {
-		img = g.btnHover
-	} else {
-		img = g.btnNormal
-	}
-
-	scale := g.ui.BuildButtonScale
-	if scale == 0 {
-		scale = 1.0
-	}
-
-	scaledSize := btnSize * scale
-	offsetX := (scaledSize - btnSize) / 2
-	offsetY := (scaledSize - btnSize) / 2
-
-	if img != nil {
-		drawImgScaled(screen, img, x-offsetX, y-offsetY, scaledSize, scaledSize)
-	} else {
-		// Fallback if texture missing
-		vector.DrawFilledRect(screen, float32(x-offsetX), float32(y-offsetY), float32(scaledSize), float32(scaledSize), color.RGBA{139, 69, 19, 255}, vecAA)
-	}
-
-	// Draw Build Icon (Hammer) on top
-	if g.btnBuild != nil {
-		op := &ebiten.DrawImageOptions{}
-		bounds := g.btnBuild.Bounds()
-		w, h := bounds.Dx(), bounds.Dy()
-		s := (btnSize * 0.6) / float64(w)
-		op.GeoM.Scale(s, s)
-		op.GeoM.Translate(x+(btnSize-(float64(w)*s))/2, y+(btnSize-(float64(h)*s))/2)
-		screen.DrawImage(g.btnBuild, op)
-	}
-
-	ebitenutil.DebugPrintAt(screen, "BUILD", int(x)+30, int(y)+75)
+	g.drawCaptainCard(screen)
+	g.drawResourceBar(screen)
+	g.drawDock(screen)
 }
+
+func (g *Game) drawCaptainCard(screen *ebiten.Image) {
+	r := g.captainCardRect()
+	drawThemePanel(screen, r.x, r.y, r.w, r.h, r.h/2)
+	cx, cy := r.x+r.h/2, r.y+r.h/2
+	rad := float32(r.h/2 - 7)
+	vector.DrawFilledCircle(screen, float32(cx), float32(cy), rad, color.RGBA{110, 66, 30, 255}, vecAA)
+	vector.StrokeCircle(screen, float32(cx), float32(cy), rad, 2, themeGold, vecAA)
+	initial := "?"
+	if n := []rune(g.player.Username); len(n) > 0 {
+		initial = strings.ToUpper(string(n[0]))
+	}
+	drawText(screen, initial, titleFace(26), cx, cy-16, themeGold, alignCenter)
+	tx := r.x + r.h + 8
+	drawText(screen, ellipsize(g.player.Username, titleFace(22), 200), titleFace(22), tx, r.y+6, themeGold, alignLeft)
+	drawText(screen, g.captainCardSubtitle(), bodyFace(12, false), tx, r.y+34, themeText, alignLeft)
+}
+
+var hudResources = [4]domain.ResourceType{domain.Wood, domain.Stone, domain.Rum, domain.Gold}
+
+func (g *Game) drawResourceBar(screen *ebiten.Image) {
+	bar, chips := g.resourceRects()
+	drawThemePanel(screen, bar.x, bar.y, bar.w, bar.h, 16)
+	island := g.player.Islands[0]
+	icons := [4]*ebiten.Image{g.iconWood, g.iconStone, g.iconRum, g.iconGold}
+	mx, my := cursorPosition()
+	hovered := -1
+	for i, res := range hudResources {
+		c := chips[i]
+		hover := c.has(float64(mx), float64(my))
+		if hover {
+			hovered = i
+		}
+		bg := themePanelHi
+		if hover {
+			bg = color.NRGBA{255, 255, 255, 32}
+		}
+		fillRoundRect(screen, c.x, c.y, c.w, c.h, 10, bg)
+		if icons[i] != nil {
+			drawImgScaled(screen, icons[i], c.x+5, c.y+(c.h-34)/2, 34, 34)
+		}
+		amount := g.visualResources[res]
+		limit := island.StorageLimits[res]
+		tx := c.x + 46
+		val := formatThousands(amount)
+		valClr := color.Color(themeText)
+		full := limit > 0 && amount >= limit
+		if full {
+			valClr = themeOrange
+		}
+		drawText(screen, val, bodyFace(16, true), tx, c.y+5, valClr, alignLeft)
+		if limit > 0 {
+			drawText(screen, "/ "+formatThousands(limit), bodyFace(11, false), tx+textWidth(val, bodyFace(16, true))+4, c.y+9, themeMuted, alignLeft)
+		}
+		prod := island.ResourceGeneration[res]
+		sub, subClr := fmt.Sprintf("+%s/h", formatThousands(prod)), color.Color(themeGreen)
+		if full {
+			sub, subClr = "Plein", themeOrange
+		} else if prod <= 0 {
+			sub, subClr = "+0/h", themeMuted
+		}
+		drawText(screen, sub, bodyFace(11, false), tx, c.y+27, subClr, alignLeft)
+	}
+
+	// Détail de la production au survol (souris).
+	if hovered >= 0 && !pointer.usingTouch {
+		res := hudResources[hovered]
+		total, _, _, details := g.calculateProduction(res)
+		name := strings.ToUpper(string(res)[:1]) + string(res)[1:]
+		lines := []string{
+			name,
+			fmt.Sprintf("Stock : %s / %s", formatThousands(g.visualResources[res]), formatThousands(island.StorageLimits[res])),
+			fmt.Sprintf("Production : %s / h", formatThousands(total)),
+		}
+		if len(details) > 1 {
+			lines = append(lines, details[1:]...)
+		}
+		drawTooltip(screen, mx+12, my+20, lines)
+	}
+}
+
+func (g *Game) drawDock(screen *ebiten.Image) {
+	d := g.dockRect()
+	drawThemePanel(screen, d.x, d.y, d.w, d.h, 22)
+	mx, my := cursorPosition()
+	blocked := g.IsModalOpen()
+	for _, b := range g.dockButtons() {
+		hover := !blocked && b.r.has(float64(mx), float64(my))
+		r := b.r
+		if b.big {
+			fillRoundRect(screen, r.x-3, r.y-3, r.w+6, r.h+6, 21, color.RGBA{0, 0, 0, 90})
+			top := themeGold
+			if hover || b.active {
+				top = color.RGBA{243, 207, 122, 255}
+			}
+			fillRoundRect(screen, r.x, r.y, r.w, r.h, 18, themeGoldDark)
+			fillRoundRect(screen, r.x, r.y, r.w, r.h-8, 18, top)
+			strokeRoundRect(screen, r.x, r.y, r.w, r.h, 18, 2, color.RGBA{243, 207, 122, 255})
+			drawIcon(screen, b.icon, r.x+r.w/2, r.y+31, 40, themeInk)
+			drawText(screen, b.label, titleFace(22), r.x+r.w/2, r.y+r.h-40, themeInk, alignCenter)
+			continue
+		}
+		bg := themePanelHi
+		fg := color.Color(themeText)
+		if b.active {
+			bg = color.NRGBA{224, 176, 74, 60}
+			fg = themeGold
+		} else if hover {
+			bg = color.NRGBA{255, 255, 255, 34}
+		}
+		fillRoundRect(screen, r.x, r.y, r.w, r.h, 14, bg)
+		if b.active {
+			strokeRoundRect(screen, r.x, r.y, r.w, r.h, 14, 2, themeGold)
+		}
+		drawIcon(screen, b.icon, r.x+r.w/2, r.y+28, 32, fg)
+		drawText(screen, b.label, bodyFace(13, true), r.x+r.w/2, r.y+r.h-24, fg, alignCenter)
+	}
+}
+
+// DrawBuildButton : Construire fait maintenant partie de la barre du bas.
+func (g *Game) DrawBuildButton(screen *ebiten.Image) {}

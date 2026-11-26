@@ -23,270 +23,93 @@ func (g *Game) UpdateShipyardMenu() {
 	}
 }
 
-// DrawDashboard renders the player's construction/research/ship timers on the left side.
+// DrawDashboard : le panneau « En cours » (constructions, recherche,
+// navires, recrutement), à gauche sous la carte du capitaine.
 func (g *Game) DrawDashboard(screen *ebiten.Image) {
 	if g.player == nil || len(g.player.Islands) == 0 {
 		return
 	}
-
 	island := g.player.Islands[0]
-	dashX := 10.0
-	dashY := 80.0 // Below HUD
-	dashW := 300.0
-	itemH := 60.0
-	gap := 5.0
-	currentY := dashY
 	now := time.Now()
 
-	// Count active timers
-	activeCount := 0
+	type job struct {
+		label     string
+		remaining time.Duration
+		progress  float64
+	}
+	var jobs []job
+	// progressOf : avancement à partir de la durée totale (en secondes) ;
+	// sans durée connue, une estimation grossière comme avant.
+	progressOf := func(finish time.Time, total float64, remaining time.Duration) float64 {
+		p := 0.0
+		if total > 0 {
+			start := finish.Add(-time.Duration(total) * time.Second)
+			p = now.Sub(start).Seconds() / total
+		} else if remaining.Minutes() < 1 {
+			p = 0.9
+		} else if remaining.Minutes() < 5 {
+			p = 0.7
+		} else {
+			p = 0.3
+		}
+		return math.Max(0, math.Min(1, p))
+	}
 
-	// Buildings under construction
 	for _, b := range island.Buildings {
-		if b.Constructing && !b.FinishTime.IsZero() {
-			if b.FinishTime.After(now) {
-				activeCount++
-			}
+		if b.Constructing && !b.FinishTime.IsZero() && b.FinishTime.After(now) {
+			rem := b.FinishTime.Sub(now)
+			jobs = append(jobs, job{b.Type, rem, progressOf(b.FinishTime, b.ConstructionTotalDuration, rem)})
 		}
 	}
-
-	// Research in progress
-	if g.player.ResearchingTechID != "" && !g.player.ResearchFinishTime.IsZero() {
-		if g.player.ResearchFinishTime.After(now) {
-			activeCount++
+	if g.player.ResearchingTechID != "" && !g.player.ResearchFinishTime.IsZero() && g.player.ResearchFinishTime.After(now) {
+		rem := g.player.ResearchFinishTime.Sub(now)
+		p := 0.0
+		if g.player.ResearchTotalDurationSeconds > 0 {
+			p = progressOf(g.player.ResearchFinishTime, g.player.ResearchTotalDurationSeconds, rem)
 		}
+		jobs = append(jobs, job{"Recherche : " + g.player.ResearchingTechID, rem, p})
 	}
-
-	// Ships under construction
 	for _, s := range island.Ships {
-		if s.State == "UnderConstruction" && !s.FinishTime.IsZero() {
-			if s.FinishTime.After(now) {
-				activeCount++
-			}
+		if s.State == "UnderConstruction" && !s.FinishTime.IsZero() && s.FinishTime.After(now) {
+			rem := s.FinishTime.Sub(now)
+			jobs = append(jobs, job{"Navire : " + s.Type, rem, progressOf(s.FinishTime, s.ConstructionTotalDuration, rem)})
 		}
 	}
-
-	// Don't draw if nothing is in progress
-	if activeCount == 0 {
+	if island.MilitiaRecruiting && island.MilitiaRecruitDoneAt != nil && island.MilitiaRecruitDoneAt.After(now) {
+		rem := island.MilitiaRecruitDoneAt.Sub(now)
+		total := island.MilitiaRecruitWarriors + island.MilitiaRecruitArchers + island.MilitiaRecruitGunners
+		// Durée estimée : 5 minutes.
+		jobs = append(jobs, job{fmt.Sprintf("Recrutement (%d)", total), rem, progressOf(*island.MilitiaRecruitDoneAt, 300, rem)})
+	}
+	if len(jobs) == 0 {
 		return
 	}
 
-	// Draw dashboard background
-	dashH := float64(activeCount)*itemH + float64(activeCount-1)*gap + 20
-	vector.DrawFilledRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), color.RGBA{20, 20, 30, 220}, vecAA)
-	vector.StrokeRect(screen, float32(dashX), float32(dashY), float32(dashW), float32(dashH), 2, color.RGBA{100, 100, 150, 255}, vecAA)
-
-	currentY += 10
-
-	// Draw building constructions
-	for _, b := range island.Buildings {
-		if b.Constructing && !b.FinishTime.IsZero() {
-			remaining := b.FinishTime.Sub(now)
-			if remaining > 0 {
-				// Item box
-				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
-				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{80, 120, 200, 255}, vecAA)
-
-				// Building name
-				ebitenutil.DebugPrintAt(screen, "🏗️ "+b.Type, int(dashX+20), int(currentY+10))
-
-				// Timer
-				mins := int(remaining.Minutes())
-				secs := int(remaining.Seconds()) % 60
-				timeStr := fmt.Sprintf("%02d:%02d", mins, secs)
-				ebitenutil.DebugPrintAt(screen, timeStr, int(dashX+20), int(currentY+30))
-
-				// Progress bar
-				barW := dashW - 60
-				barH := 8.0
-				barX := dashX + 30
-				barY := currentY + 45
-
-				// Calculate progress using server-provided duration, or estimate if not available
-				progress := 0.0
-				totalDuration := b.ConstructionTotalDuration
-				if totalDuration > 0 {
-					// Use server-provided duration (accurate)
-					startTime := b.FinishTime.Add(-time.Duration(totalDuration) * time.Second)
-					elapsed := now.Sub(startTime).Seconds()
-					progress = elapsed / totalDuration
-				} else {
-					// Fallback: show progress based on remaining time (approximate)
-					// Assume construction started recently, show 10-90% range based on remaining time
-					// This is just a visual indicator until server sends real duration
-					if remaining.Seconds() > 0 {
-						// Simple heuristic: if less than 1 minute left, show 90%, otherwise scale
-						if remaining.Minutes() < 1 {
-							progress = 0.9
-						} else if remaining.Minutes() < 5 {
-							progress = 0.7
-						} else {
-							progress = 0.3
-						}
-					}
-				}
-				if progress < 0 {
-					progress = 0
-				}
-				if progress > 1 {
-					progress = 1
-				}
-
-				// Progress bar background
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
-				// Progress bar fill
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{100, 200, 100, 255}, vecAA)
-
-				currentY += itemH + gap
-			}
+	const w, rowH = 250.0, 44.0
+	x := hudMargin
+	y := hudMargin + topBarH + 10
+	h := 40 + float64(len(jobs))*rowH
+	drawThemePanel(screen, x, y, w, h, 14)
+	drawText(screen, "En cours", titleFace(20), x+12, y+6, themeGold, alignLeft)
+	fLabel, fTime := bodyFace(13, false), bodyFace(13, true)
+	ry := y + 36
+	for _, j := range jobs {
+		secs := int(j.remaining.Seconds())
+		var t string
+		if secs >= 3600 {
+			t = fmt.Sprintf("%d:%02d:%02d", secs/3600, (secs/60)%60, secs%60)
+		} else {
+			t = fmt.Sprintf("%02d:%02d", secs/60, secs%60)
 		}
-	}
-
-	// Draw research in progress
-	if g.player.ResearchingTechID != "" && !g.player.ResearchFinishTime.IsZero() {
-		remaining := g.player.ResearchFinishTime.Sub(now)
-		if remaining > 0 {
-			// Item box
-			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
-			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 120, 80, 255}, vecAA)
-
-			// Research name
-			ebitenutil.DebugPrintAt(screen, "🔬 "+g.player.ResearchingTechID, int(dashX+20), int(currentY+10))
-
-			// Timer
-			mins := int(remaining.Minutes())
-			secs := int(remaining.Seconds()) % 60
-			timeStr := fmt.Sprintf("%02d:%02d", mins, secs)
-			ebitenutil.DebugPrintAt(screen, timeStr, int(dashX+20), int(currentY+30))
-
-			// Progress bar
-			barW := dashW - 60
-			barH := 8.0
-			barX := dashX + 30
-			barY := currentY + 45
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
-
-			// Calculate actual progress using server-provided total duration
-			progress := 0.0
-			if g.player.ResearchTotalDurationSeconds > 0 {
-				// Calculate start time: FinishTime - totalDuration
-				startTime := g.player.ResearchFinishTime.Add(-time.Duration(g.player.ResearchTotalDurationSeconds) * time.Second)
-				elapsed := now.Sub(startTime).Seconds()
-				progress = elapsed / g.player.ResearchTotalDurationSeconds
-				if progress < 0 {
-					progress = 0
-				}
-				if progress > 1 {
-					progress = 1
-				}
-			}
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 150, 100, 255}, vecAA)
-
-			currentY += itemH + gap
+		tw := textWidth(t, fTime)
+		drawText(screen, ellipsize(j.label, fLabel, w-24-tw-8), fLabel, x+12, ry, themeText, alignLeft)
+		drawText(screen, t, fTime, x+w-12, ry, themeText, alignRight)
+		bx, bw := x+12, w-24
+		fillRoundRect(screen, bx, ry+22, bw, 6, 3, color.NRGBA{255, 255, 255, 30})
+		if j.progress > 0 {
+			fillRoundRect(screen, bx, ry+22, math.Max(6, bw*j.progress), 6, 3, themeGold)
 		}
-	}
-
-	// Draw ships under construction
-	for _, s := range island.Ships {
-		if s.State == "UnderConstruction" && !s.FinishTime.IsZero() {
-			remaining := s.FinishTime.Sub(now)
-			if remaining > 0 {
-				// Item box
-				vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
-				vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{120, 150, 200, 255}, vecAA)
-
-				// Ship name
-				ebitenutil.DebugPrintAt(screen, "⛵ "+s.Type, int(dashX+20), int(currentY+10))
-
-				// Timer
-				mins := int(remaining.Minutes())
-				secs := int(remaining.Seconds()) % 60
-				timeStr := fmt.Sprintf("%02d:%02d", mins, secs)
-				ebitenutil.DebugPrintAt(screen, timeStr, int(dashX+20), int(currentY+30))
-
-				// Progress bar
-				barW := dashW - 60
-				barH := 8.0
-				barX := dashX + 30
-				barY := currentY + 45
-
-				// Calculate progress using server-provided duration, or estimate if not available
-				progress := 0.0
-				totalDuration := s.ConstructionTotalDuration
-				if totalDuration > 0 {
-					// Use server-provided duration (accurate)
-					startTime := s.FinishTime.Add(-time.Duration(totalDuration) * time.Second)
-					elapsed := now.Sub(startTime).Seconds()
-					progress = elapsed / totalDuration
-				} else {
-					// Fallback: show progress based on remaining time
-					if remaining.Seconds() > 0 {
-						if remaining.Minutes() < 1 {
-							progress = 0.9
-						} else if remaining.Minutes() < 5 {
-							progress = 0.7
-						} else {
-							progress = 0.3
-						}
-					}
-				}
-				if progress < 0 {
-					progress = 0
-				}
-				if progress > 1 {
-					progress = 1
-				}
-
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
-				vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{120, 180, 220, 255}, vecAA)
-
-				currentY += itemH + gap
-			}
-		}
-	}
-
-	// Draw militia recruitment in progress
-	if island.MilitiaRecruiting && island.MilitiaRecruitDoneAt != nil {
-		remaining := island.MilitiaRecruitDoneAt.Sub(now)
-		if remaining > 0 {
-			// Item box
-			vector.DrawFilledRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), color.RGBA{40, 40, 60, 255}, vecAA)
-			vector.StrokeRect(screen, float32(dashX+10), float32(currentY), float32(dashW-20), float32(itemH), 1, color.RGBA{200, 100, 100, 255}, vecAA)
-
-			// Recruitment info
-			totalUnits := island.MilitiaRecruitWarriors + island.MilitiaRecruitArchers + island.MilitiaRecruitGunners
-			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("👥 Recrutement (%d)", totalUnits), int(dashX+20), int(currentY+10))
-
-			// Timer
-			mins := int(remaining.Minutes())
-			secs := int(remaining.Seconds()) % 60
-			timeStr := fmt.Sprintf("%02d:%02d", mins, secs)
-			ebitenutil.DebugPrintAt(screen, timeStr, int(dashX+20), int(currentY+30))
-
-			// Progress bar (estimate 5 minutes for recruitment)
-			barW := dashW - 60
-			barH := 8.0
-			barX := dashX + 30
-			barY := currentY + 45
-
-			// Estimate total duration (5 minutes = 300 seconds)
-			totalDuration := 300.0
-			// Calculate start time: DoneAt - totalDuration
-			startTime := island.MilitiaRecruitDoneAt.Add(-time.Duration(totalDuration) * time.Second)
-			elapsed := now.Sub(startTime).Seconds()
-			progress := elapsed / totalDuration
-			if progress < 0 {
-				progress = 0
-			}
-			if progress > 1 {
-				progress = 1
-			}
-
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW), float32(barH), color.RGBA{60, 60, 80, 255}, vecAA)
-			vector.DrawFilledRect(screen, float32(barX), float32(barY), float32(barW*progress), float32(barH), color.RGBA{200, 120, 120, 255}, vecAA)
-
-			currentY += itemH + gap
-		}
+		ry += rowH
 	}
 }
 

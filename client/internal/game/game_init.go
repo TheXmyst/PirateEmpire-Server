@@ -63,9 +63,8 @@ func NewGame() *Game {
 
 	// Default Focus on Username
 	g.ui.IsTypingUser = true
-	// Chat starts hidden/minimized
-	g.ui.ShowChat = true
-	g.ui.ChatMinimized = true
+	// Le chat démarre fermé : seule la bulle est visible.
+	g.ui.ShowChat = false
 	g.loadCredentials()
 
 	g.loadAssets()

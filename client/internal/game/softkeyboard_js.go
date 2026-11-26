@@ -89,6 +89,19 @@ func initSoftKeyboard(g *Game) {
 		}
 	})
 
+	// Clic souris sur le bouton plein écran (le navigateur exige que la
+	// demande parte d'un vrai clic).
+	listen(doc, "mouseup", true, func(e js.Value) {
+		t := e.Get("target")
+		if pointer.usingTouch || !t.Truthy() || t.Get("tagName").String() != "CANVAS" {
+			return
+		}
+		x, y := cssToGame(t, e)
+		if b, ok := g.touchButtonAt(x, y); ok && b.fullscreen {
+			enterFullscreen()
+		}
+	})
+
 	// Doigt posé ailleurs que sur le champ : on ferme le clavier.
 	listen(doc, "touchstart", true, func(e js.Value) {
 		if !kbd.active {
