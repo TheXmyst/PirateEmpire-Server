@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -41,20 +42,67 @@ func scaledLayout(outsideWidth, outsideHeight int) (int, int) {
 
 // Update : d'abord le tactile et le clavier du téléphone, puis le jeu.
 func (g *Game) Update() error {
+	t0 := time.Now()
 	g.updatePointer()
 	syncSoftKeyboard(g)
-	return g.updateGame()
+	err := g.updateGame()
+	diag.update += time.Since(t0)
+	diag.updates++
+	return err
+}
+
+// diag : temps passé dans le code du jeu, pour le compteur ?fps.
+var diag struct {
+	update, draw   time.Duration
+	updates, draws int
+	since          time.Time
+	updMs, drawMs  float64
 }
 
 // Draw : le jeu, puis les boutons tactiles par-dessus.
 func (g *Game) Draw(screen *ebiten.Image) {
+	t0 := time.Now()
 	beginTextFieldFrame()
 	g.drawGame(screen)
 	g.drawTouchButtons(screen)
+	diag.draw += time.Since(t0)
+	diag.draws++
 	if showFPS() {
-		msg := fmt.Sprintf("FPS %.0f  TPS %.0f  %dx%d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.screenWidth, g.screenHeight)
-		vector.DrawFilledRect(screen, 8, 44, float32(len(msg)*6+12), 22, color.RGBA{0, 0, 0, 180}, vecAA)
-		ebitenutil.DebugPrintAt(screen, msg, 14, 47)
+		g.drawDiag(screen)
+	}
+}
+
+func (g *Game) drawDiag(screen *ebiten.Image) {
+	if time.Since(diag.since) >= time.Second {
+		if diag.updates > 0 {
+			diag.updMs = float64(diag.update.Microseconds()) / 1000 / float64(diag.updates)
+		}
+		if diag.draws > 0 {
+			diag.drawMs = float64(diag.draw.Microseconds()) / 1000 / float64(diag.draws)
+		}
+		diag.update, diag.draw, diag.updates, diag.draws = 0, 0, 0, 0
+		diag.since = time.Now()
+	}
+	son := "son ON"
+	if audioMuted() {
+		son = "son OFF"
+	}
+	lines := []string{
+		fmt.Sprintf("FPS %.0f  TPS %.0f  jeu %dx%d  %s", ebiten.ActualFPS(), ebiten.ActualTPS(), g.screenWidth, g.screenHeight, son),
+		fmt.Sprintf("calcul: update %.1f ms  draw %.1f ms (par image)", diag.updMs, diag.drawMs),
+	}
+	if b := browserDiag(); b != "" {
+		lines = append(lines, b)
+	}
+	maxLen := 0
+	for _, l := range lines {
+		if len(l) > maxLen {
+			maxLen = len(l)
+		}
+	}
+	vector.DrawFilledRect(screen, 8, 44, float32(maxLen*6+12), float32(len(lines)*16+8), color.RGBA{0, 0, 0, 200}, false)
+	for i, l := range lines {
+		ebitenutil.DebugPrintAt(screen, l, 14, 48+i*16)
 	}
 }
 
