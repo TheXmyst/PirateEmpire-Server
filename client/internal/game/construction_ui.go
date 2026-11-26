@@ -386,7 +386,7 @@ func (g *Game) UpdateConstructionMenu() {
 								// Check if occupied
 								occupied := false
 								for _, b := range island.Buildings {
-									if math.Abs(b.X-s.X) < 10 && math.Abs(b.Y-s.Y) < 10 {
+									if b.Type == s.AllowedType || (math.Abs(b.X-s.X) < 10 && math.Abs(b.Y-s.Y) < 10) {
 										occupied = true
 										debugSlots[len(debugSlots)-1] += " [OCCUPIED]"
 										break

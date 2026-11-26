@@ -66,6 +66,9 @@ type Game struct {
 	iconMilitia     *ebiten.Image
 	iconInfirmary   *ebiten.Image
 
+	// Sprites des bâtiments prêts pour l'île (par type), voir island_buildings.go
+	buildingSprites map[string]*buildingSprite
+
 	// NPC / Overlay Assets
 
 	// Login Button
@@ -570,13 +573,13 @@ func (g *Game) persistSocialState() {
 		return
 	}
 	state := socialStateFile{
-		Friends:      g.ui.SocialFriends,
-		GuildID:      g.ui.SocialGuildID,
-		GuildName:    g.ui.SocialGuildName,
-		GuildMembers: g.ui.SocialGuildMembers,
+		Friends:         g.ui.SocialFriends,
+		GuildID:         g.ui.SocialGuildID,
+		GuildName:       g.ui.SocialGuildName,
+		GuildMembers:    g.ui.SocialGuildMembers,
 		GuildReputation: g.ui.SocialGuildReputation,
-		GuildRank:    g.ui.SocialGuildRank,
-		HasTicket:    g.ui.SocialGuildHasTicket,
+		GuildRank:       g.ui.SocialGuildRank,
+		HasTicket:       g.ui.SocialGuildHasTicket,
 	}
 	data, err := json.Marshal(state)
 	if err != nil {

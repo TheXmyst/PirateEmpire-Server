@@ -203,53 +203,8 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		screen.DrawImage(g.bgImage, op)
 	}
 
-	// Buildings
-	if g.player != nil && len(g.player.Islands) > 0 {
-		for _, b := range g.player.Islands[0].Buildings {
-			var icon *ebiten.Image
-			switch b.Type {
-			case "Scierie":
-				icon = g.iconSawmill
-			case "Mine d'Or":
-				icon = g.iconGoldMine
-			case "Carrière":
-				icon = g.iconStoneQuarry
-			case "Hôtel de Ville":
-				icon = g.iconTownhall
-			case "Entrepôt":
-				icon = g.iconWarehouse
-			case "Distillerie":
-				icon = g.iconDistillery
-			case "Chantier Naval":
-				icon = g.iconShipyard
-			case "Académie":
-				icon = g.iconAcademy
-			case "Tavern":
-				icon = g.iconTavern
-			case "Milice":
-				icon = g.iconMilitia
-			case "Infirmary":
-				icon = g.iconInfirmary
-			default:
-				icon = g.iconRum
-			}
-			if icon != nil {
-				op := &ebiten.DrawImageOptions{}
-				op.Filter = ebiten.FilterLinear
-				bounds := icon.Bounds()
-				w, h := bounds.Dx(), bounds.Dy()
-				op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
-				op.GeoM.Translate(b.X, b.Y)
-				op.GeoM.Translate(-g.camX, -g.camY)
-				op.GeoM.Scale(g.camZoom, g.camZoom)
-				op.GeoM.Translate(screenW/2, screenH/2)
-				if b.Constructing {
-					op.ColorScale.Scale(1, 1, 1, 0.7)
-				}
-				screen.DrawImage(icon, op)
-			}
-		}
-	}
+	// Buildings (ombres, ordre d'affichage : voir island_buildings.go)
+	g.drawIslandBuildings(screen)
 
 	g.DrawDashboard(screen)
 	g.DrawHUD(screen)
@@ -339,47 +294,41 @@ func (g *Game) handleBuildingClick() {
 	if g.hudHit(float64(mx), float64(my)) {
 		return // clic sur l'interface, pas sur l'île
 	}
-	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
-	if g.player != nil && len(g.player.Islands) > 0 {
-		for _, b := range g.player.Islands[0].Buildings {
-			bx, by := b.X, b.Y
-			sx := (bx-g.camX)*g.camZoom + screenW/2
-			sy := (by-g.camY)*g.camZoom + screenH/2
-			if math.Abs(float64(mx)-sx) <= 65*g.camZoom && math.Abs(float64(my)-sy) <= 65*g.camZoom {
-				if b.Type == "Chantier Naval" {
-					g.ui.ShowShipyard = true
-					return
-				}
-				if b.Type == "Académie" {
-					g.ui.ShowTechUI = true
-					if g.techUI != nil {
-						g.techUI.Visible = true
-					}
-					return
-				}
-				if b.Type == "Tavern" {
-					if !b.Constructing {
-						g.ui.ShowTavernUI = true
-						return
-					}
-				}
-				if b.Type == "Milice" {
-					if !b.Constructing {
-						g.ui.ShowMilitiaUI = true
-						return
-					}
-				}
-				if b.Type == "Infirmary" {
-					if !b.Constructing {
-						g.ui.ShowInfirmaryUI = true
-						return
-					}
-				}
-				g.selectedBuilding = &b
-				return
-			}
+	b, ok := g.buildingAt(float64(mx), float64(my))
+	if !ok {
+		return
+	}
+	if b.Type == "Chantier Naval" {
+		g.ui.ShowShipyard = true
+		return
+	}
+	if b.Type == "Académie" {
+		g.ui.ShowTechUI = true
+		if g.techUI != nil {
+			g.techUI.Visible = true
+		}
+		return
+	}
+	if b.Type == "Tavern" {
+		if !b.Constructing {
+			g.ui.ShowTavernUI = true
+			return
 		}
 	}
+	if b.Type == "Milice" {
+		if !b.Constructing {
+			g.ui.ShowMilitiaUI = true
+			return
+		}
+	}
+	if b.Type == "Infirmary" {
+		if !b.Constructing {
+			g.ui.ShowInfirmaryUI = true
+			return
+		}
+	}
+	g.selectedBuilding = &b
+	return
 }
 
 func (g *Game) refreshStatusAfterDevAction() {

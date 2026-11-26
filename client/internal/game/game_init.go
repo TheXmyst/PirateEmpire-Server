@@ -46,19 +46,7 @@ func NewGame() *Game {
 		chatPollTimer: 0,
 		chatScroll:    0,
 		seenChatIDs:   make(map[uuid.UUID]struct{}),
-		slots: []Slot{
-			{X: -40, Y: -144, AllowedType: "Hôtel de Ville"},
-			{X: 106, Y: -556, AllowedType: "Scierie"},
-			{X: 470, Y: -214, AllowedType: "Mine d'Or"},
-			{X: 528, Y: 114, AllowedType: "Distillerie"},
-			{X: -412, Y: 208, AllowedType: "Académie"},
-			{X: -1668, Y: 636, AllowedType: "Chantier Naval"},
-			{X: 284, Y: 726, AllowedType: "Carrière"},
-			{X: 722, Y: 540, AllowedType: "Entrepôt"},
-			{X: -258, Y: -242, AllowedType: "Tavern"}, // Localized position (from localization mode)
-			{X: -100, Y: -100, AllowedType: "Milice"}, // Position near Tavern
-			{X: 224, Y: 331, AllowedType: "Infirmary"},
-		},
+		slots:         islandSlots,
 	}
 
 	// Default Focus on Username
@@ -160,24 +148,36 @@ func (g *Game) loadAssets() {
 	g.iconGold = loadImage("resources/images/icon_gold.png")
 	g.iconBlueprint = loadImage("resources/images/icon_blueprint_btn.png")
 
-	// Buildings (Deep paths)
-	g.iconTownhall = loadImage("resources/assets/townhall/Build_townhall_LvA.png")
-	g.iconSawmill = loadImage("resources/assets/sawmill/build_sawmill_LvA.png")
-	g.iconGoldMine = loadImage("resources/assets/gold_mine/build_Goldmine_LvA.png")
-	g.iconStoneQuarry = loadImage("resources/assets/stone_quarry/build_stonequarry_LvA.png")
-	g.iconWarehouse = loadImage("resources/assets/warehouse/build_warehouse_LvA.png")
-	g.iconDistillery = loadImage("resources/assets/distillery/build_distillery_LvA.png")
-	g.iconShipyard = loadImage("resources/assets/shipyard/build_shipyard_LvA.png")
-	g.iconAcademy = loadImage("resources/assets/academy/build_academy_LvA.png")
-	g.iconTavern = loadImage("resources/assets/Tavern/build_tavern_LvA.png")
-	g.iconMilitia = loadImage("resources/assets/militia/build_millitia_LvA.png") // Fallback to Tavern if not found
+	// Bâtiments : harmonisés (couleurs, ombre, pied) au chargement, voir
+	// island_buildings.go.
+	g.buildingSprites = map[string]*buildingSprite{}
+	loadB := func(t, path string) *ebiten.Image {
+		bs := loadBuildingSprite(path)
+		if bs == nil {
+			return nil
+		}
+		g.buildingSprites[t] = bs
+		return bs.img
+	}
+	g.iconTownhall = loadB("Hôtel de Ville", "resources/assets/townhall/Build_townhall_LvA.png")
+	g.iconSawmill = loadB("Scierie", "resources/assets/sawmill/build_sawmill_LvA.png")
+	g.iconGoldMine = loadB("Mine d'Or", "resources/assets/gold_mine/build_Goldmine_LvA.png")
+	g.iconStoneQuarry = loadB("Carrière", "resources/assets/stone_quarry/build_stonequarry_LvA.png")
+	g.iconWarehouse = loadB("Entrepôt", "resources/assets/warehouse/build_warehouse_LvA.png")
+	g.iconDistillery = loadB("Distillerie", "resources/assets/distillery/build_distillery_LvA.png")
+	g.iconShipyard = loadB("Chantier Naval", "resources/assets/shipyard/build_shipyard_LvA.png")
+	g.iconAcademy = loadB("Académie", "resources/assets/academy/build_academy_LvA.png")
+	g.iconTavern = loadB("Tavern", "resources/assets/Tavern/build_tavern_LvA.png")
+	g.iconMilitia = loadB("Milice", "resources/assets/militia/build_millitia_LvA.png")
 	if g.iconMilitia == nil {
 		g.iconMilitia = g.iconTavern // Use Tavern icon as fallback
+		g.buildingSprites["Milice"] = g.buildingSprites["Tavern"]
 	}
 
-	// Placeholder for Infirmary (Runtime generated)
-	g.iconInfirmary = ebiten.NewImage(64, 64)
-	g.iconInfirmary.Fill(color.RGBA{255, 105, 180, 255}) // Hot Pink
+	// Placeholder for Infirmary (sprite à venir)
+	inf := placeholderBuilding(color.NRGBA{255, 105, 180, 255})
+	g.buildingSprites["Infirmary"] = inf
+	g.iconInfirmary = inf.img
 	// Draw simple text overlay if possible, or just rely on hovering/building name
 	// Basic pixel "cross" or similar could be added here
 	// Horizontal bar
