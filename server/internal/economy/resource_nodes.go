@@ -97,12 +97,14 @@ func generateResourceNodes(playerID uuid.UUID, islandX, islandY int, allIslands 
 		}
 
 		if valid {
+			richness := 1.0 + rng.Float64()*0.5 // 1.0x to 1.5x richness
 			nodes = append(nodes, domain.ResourceNode{
-				ID:       fmt.Sprintf("res-%s-%d", playerID.String()[:8], i),
-				X:        int(x),
-				Y:        int(y),
-				Type:     resType,
-				Richness: 1.0 + rng.Float64()*0.5, // 1.0x to 1.5x richness
+				ID:          fmt.Sprintf("res-%s-%d", playerID.String()[:8], i),
+				X:           int(x),
+				Y:           int(y),
+				Type:        resType,
+				Richness:    richness,
+				RatePerHour: NodeHarvestRatePerSec(resType, richness, 0) * 3600,
 			})
 		}
 	}

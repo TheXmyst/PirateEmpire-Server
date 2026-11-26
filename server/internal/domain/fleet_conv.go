@@ -45,6 +45,7 @@ func (f *Fleet) ToDTO() *dto.FleetDTO {
 		StationedNodeID:         f.StationedNodeID,
 		StoredAmount:            f.StoredAmount,
 		StoredResource:          f.StoredResource,
+		NodeRichness:            f.NodeRichness,
 	}
 
 	// Convert ships to DTOs

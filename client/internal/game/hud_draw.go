@@ -233,6 +233,12 @@ func (g *Game) drawResourceBar(screen *ebiten.Image) {
 			sub, subClr = "+0/h", themeMuted
 		}
 		drawText(screen, sub, bodyFace(11, false), tx, c.y+27, subClr, alignLeft)
+		// Récolte des flottes en mer : arrive sur l'île au retour de la flotte.
+		if sea, _ := g.fleetHarvestPerHour(res); sea > 0 {
+			ax := tx + textWidth(sub, bodyFace(11, false)) + 5
+			drawIcon(screen, "anchor", ax+5, c.y+34, 11, themeGold)
+			drawText(screen, "+"+formatThousands(sea), bodyFace(11, true), ax+12, c.y+27, themeGold, alignLeft)
+		}
 	}
 
 	// Détail de la production au survol (souris).
@@ -247,6 +253,11 @@ func (g *Game) drawResourceBar(screen *ebiten.Image) {
 		}
 		if len(details) > 1 {
 			lines = append(lines, details[1:]...)
+		}
+		if sea, n := g.fleetHarvestPerHour(res); sea > 0 {
+			lines = append(lines,
+				fmt.Sprintf("En mer (%d flotte%s) : +%s / h", n, map[bool]string{true: "s"}[n > 1], formatThousands(sea)),
+				"Arrive sur l'île au retour de la flotte")
 		}
 		drawTooltip(screen, mx+12, my+20, lines)
 	}

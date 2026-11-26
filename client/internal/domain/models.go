@@ -59,6 +59,7 @@ type ResourceNode struct {
 	Amount       float64      `json:"amount"`
 	Regeneration float64      `json:"regeneration"`
 	Richness     float64      `json:"richness"`
+	RatePerHour  float64      `json:"rate_per_hour,omitempty"` // débit à l'arrivée (base x richesse)
 }
 
 // Requirement represents a building or technology requirement
@@ -191,6 +192,11 @@ type Fleet struct {
 	StoredAmount    float64                  `json:"stored_amount"`
 	StoredResource  string                   `json:"stored_resource"`
 	NodeRichness    float64                  `json:"node_richness"`
+
+	// Récolte en cours (calculée par le serveur, seulement si stationnée sur un spot)
+	HarvestDurationMult float64 `json:"harvest_duration_mult,omitempty"`
+	HarvestRatePerHour  float64 `json:"harvest_rate_per_hour,omitempty"`
+	HarvestFullInSec    float64 `json:"harvest_full_in_sec,omitempty"`
 
 	// Capacity Fields (Received from Server)
 	CargoCapacity float64 `json:"cargo_capacity"`
