@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -21,8 +22,16 @@ func (g *Game) ensureSocialDefaults() {
 		g.ui.SocialLeaderboardTab = "players"
 	}
 	// Load leaderboards from server if empty
-	if len(g.ui.SocialLeaderboardPlayers) == 0 && !g.ui.SocialSearchBusy {
-		go g.loadLeaderboards()
+	// Une seule requête à la fois, et pas plus d'une tentative toutes les
+	// 10 secondes si la liste reste vide (avant : une requête par image).
+	if len(g.ui.SocialLeaderboardPlayers) == 0 && !g.ui.SocialSearchBusy &&
+		!g.leaderboardBusy && time.Since(g.leaderboardTried) >= 10*time.Second {
+		g.leaderboardBusy = true
+		g.leaderboardTried = time.Now()
+		go func() {
+			defer func() { g.leaderboardBusy = false }()
+			g.loadLeaderboards()
+		}()
 	}
 	if g.ui.SocialGuildRank == 0 && g.ui.SocialGuildName != "" {
 		g.ui.SocialGuildRank = 42

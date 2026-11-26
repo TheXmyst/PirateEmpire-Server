@@ -143,6 +143,13 @@ type Game struct {
 	chatHistoryLoaded   bool
 	chatHistoryPlayerID uuid.UUID
 
+	// Le chat se charge en arrière-plan : la requête ne bloque jamais l'image.
+	chatFetchBusy    bool
+	chatLastAttempt  time.Time
+	chatResults      chan chatFetchResult
+	leaderboardBusy  bool
+	leaderboardTried time.Time
+
 	// Social
 	socialStateLoaded   bool
 	socialStatePlayerID uuid.UUID
@@ -193,28 +200,75 @@ func (g *Game) IsCombatActive() bool {
 	return false
 }
 
-// pollChatFeed fetches new chat messages from server.
+// chatFetchResult : réponse d'une requête de chat faite en arrière-plan.
+type chatFetchResult struct {
+	older    bool // messages plus anciens (défilement vers le haut)
+	messages []domain.ChatMessage
+	next     string
+	err      error
+}
+
+// pollChatFeed demande les nouveaux messages du chat, en arrière-plan.
+// Les réponses sont appliquées par applyChatResults, au début d'une image.
 func (g *Game) pollChatFeed() {
-	if g.api == nil || g.player == nil {
+	if g.api == nil || g.player == nil || g.chatFetchBusy {
 		return
 	}
-	prevLen := len(g.chatMessages)
-	messages, err := g.api.FetchChat(g.chatLastFetch)
-	if err != nil {
+	if g.chatResults == nil {
+		g.chatResults = make(chan chatFetchResult, 4)
+	}
+	g.chatFetchBusy = true
+	g.chatLastAttempt = time.Now()
+	since := g.chatLastFetch
+	api, out := g.api, g.chatResults
+	go func() {
+		messages, err := api.FetchChat(since)
+		out <- chatFetchResult{messages: messages, err: err}
+	}()
+}
+
+// applyChatResults applique les réponses du chat arrivées depuis la
+// dernière image (sans jamais attendre).
+func (g *Game) applyChatResults() {
+	if g.chatResults == nil {
 		return
 	}
-	for _, m := range messages {
-		g.addIncomingChat(m)
-		if m.Timestamp.After(g.chatLastFetch) {
-			g.chatLastFetch = m.Timestamp
+	for {
+		select {
+		case r := <-g.chatResults:
+			g.chatFetchBusy = false
+			if r.err != nil {
+				continue
+			}
+			if r.older {
+				g.applyOlderChat(r.messages, r.next)
+				continue
+			}
+			prevLen := len(g.chatMessages)
+			for _, m := range r.messages {
+				g.addIncomingChatNoSave(m)
+				if m.Timestamp.After(g.chatLastFetch) {
+					g.chatLastFetch = m.Timestamp
+				}
+			}
+			if len(g.chatMessages) != prevLen {
+				g.persistChatHistory()
+			}
+			if prevLen == 0 && len(g.chatMessages) > 0 {
+				g.chatScroll = 0
+			}
+		default:
+			return
 		}
-	}
-	if prevLen == 0 && len(g.chatMessages) > 0 {
-		g.chatScroll = 0
 	}
 }
 
 func (g *Game) addIncomingChat(msg domain.ChatMessage) {
+	g.addIncomingChatNoSave(msg)
+	g.persistChatHistory()
+}
+
+func (g *Game) addIncomingChatNoSave(msg domain.ChatMessage) {
 	if g.seenChatIDs == nil {
 		g.seenChatIDs = make(map[uuid.UUID]struct{})
 	}
@@ -245,8 +299,6 @@ func (g *Game) addIncomingChat(msg domain.ChatMessage) {
 	if atBottom {
 		g.chatScroll = 0
 	}
-
-	g.persistChatHistory()
 }
 
 // addOlderChats prepends older messages, keeping scroll position stable.
@@ -288,10 +340,14 @@ func (g *Game) addOlderChats(msgs []domain.ChatMessage) {
 	g.persistChatHistory()
 }
 
-// fetchOlderChat loads older messages before the oldest currently loaded.
+// fetchOlderChat demande, en arrière-plan, les messages plus anciens que le
+// plus vieux déjà chargé.
 func (g *Game) fetchOlderChat() {
-	if g.api == nil || g.player == nil {
+	if g.api == nil || g.player == nil || g.chatFetchBusy {
 		return
+	}
+	if g.chatResults == nil {
+		g.chatResults = make(chan chatFetchResult, 4)
 	}
 
 	before := g.chatOldest
@@ -302,10 +358,15 @@ func (g *Game) fetchOlderChat() {
 		}
 	}
 
-	msgs, next, err := g.api.FetchChatBefore(before, 50)
-	if err != nil {
-		return
-	}
+	g.chatFetchBusy = true
+	api, out := g.api, g.chatResults
+	go func() {
+		msgs, next, err := api.FetchChatBefore(before, 50)
+		out <- chatFetchResult{older: true, messages: msgs, next: next, err: err}
+	}()
+}
+
+func (g *Game) applyOlderChat(msgs []domain.ChatMessage, next string) {
 	if len(msgs) == 0 {
 		g.chatNextCursor = ""
 		return
@@ -334,7 +395,9 @@ func (g *Game) ensureChatLoaded() {
 	if g.api == nil || g.player == nil {
 		return
 	}
-	if len(g.chatMessages) == 0 {
+	// Chat vide : on redemande, mais au plus une fois toutes les 2 secondes
+	// (avant, c'était à chaque image).
+	if len(g.chatMessages) == 0 && !g.chatFetchBusy && time.Since(g.chatLastAttempt) >= 2*time.Second {
 		g.chatLastFetch = time.Time{}
 		g.chatOldest = time.Time{}
 		g.chatNextCursor = ""
