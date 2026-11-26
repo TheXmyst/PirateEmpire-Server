@@ -23,7 +23,8 @@ import (
 
 //go:embed resources/shaders resources/data resources/ui resources/sea
 //go:embed resources/images/ui_9slice
-//go:embed resources/images/island.jpg resources/images/login_bg.jpg resources/images/logo.png
+//go:embed web_resources
+//go:embed resources/images/login_bg.jpg resources/images/logo.png
 //go:embed resources/images/icon_wood.png resources/images/icon_stone.png resources/images/icon_rum.png
 //go:embed resources/images/icon_gold.png resources/images/icon_blueprint_btn.png resources/images/icon_hammer_1.png
 //go:embed resources/assets/UI/icon_build_btn.png
@@ -51,6 +52,14 @@ func pageBaseURL() string {
 
 // readAsset lit une ressource : d'abord dans le jeu, sinon sur le serveur.
 func readAsset(path string) ([]byte, error) {
+	// web_resources/ contient des versions allégées pour le navigateur (ex.
+	// l'île en 2500x1750 au lieu de 5000x3500, 4x moins lourde pour les
+	// téléphones). Elles remplacent l'original du même nom.
+	if light, ok := strings.CutPrefix(path, "resources/"); ok {
+		if data, err := fs.ReadFile(assetsFS, "web_resources/"+light); err == nil {
+			return data, nil
+		}
+	}
 	if data, err := fs.ReadFile(assetsFS, path); err == nil {
 		return data, nil
 	}

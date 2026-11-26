@@ -128,7 +128,9 @@ func (m *SeaDMSMusic) loadStems() [6]*audio.Player {
 func (m *SeaDMSMusic) Start() {
 	// 1. Strict Idempotency Guard
 	if m.isPlaying && !m.isStopping {
-		log.Printf("[DMS] start IGNORED (already running) inst=%p", m)
+		if !IsWebBuild { // appelé à chaque image : trop coûteux dans le navigateur
+			log.Printf("[DMS] start IGNORED (already running) inst=%p", m)
+		}
 		return
 	}
 
@@ -168,7 +170,9 @@ func (m *SeaDMSMusic) Start() {
 
 func (m *SeaDMSMusic) Stop() {
 	if !m.isPlaying && !m.isStopping {
-		log.Printf("[DMS] stop IGNORING (not running) inst=%p", m)
+		if !IsWebBuild { // appelé à chaque image : trop coûteux dans le navigateur
+			log.Printf("[DMS] stop IGNORING (not running) inst=%p", m)
+		}
 		return
 	}
 

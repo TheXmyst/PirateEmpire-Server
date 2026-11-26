@@ -42,6 +42,7 @@ type Game struct {
 	waterShader *ebiten.Shader
 
 	bgImage  *ebiten.Image
+	bgScale  float64 // taille du monde / taille de l'image (1 sur PC)
 	loginBG  *ebiten.Image
 	gameLogo *ebiten.Image
 
@@ -105,7 +106,6 @@ type Game struct {
 	screenWidth, screenHeight int
 
 	// Pause State
-	isPaused bool
 
 	// Developer Mode
 	isDev       bool

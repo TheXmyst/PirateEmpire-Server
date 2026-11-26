@@ -140,6 +140,13 @@ func (g *Game) loadAssets() {
 	}
 
 	g.bgImage = loadImage("resources/images/island.jpg")
+	g.bgScale = 1
+	const islandWorldWidth = 5000.0 // largeur de l'île dans le monde du jeu
+	if g.bgImage != nil {
+		// Dans le navigateur l'image est plus petite : on l'agrandit pour
+		// garder la même taille de monde (et les bâtiments au même endroit).
+		g.bgScale = islandWorldWidth / float64(g.bgImage.Bounds().Dx())
+	}
 	g.loginBG = loadImage("resources/images/login_bg.jpg")
 	g.gameLogo = loadImage("resources/images/logo.png")
 

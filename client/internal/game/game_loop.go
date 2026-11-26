@@ -7,7 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 func (g *Game) DevLog(lType, format string, a ...interface{}) {
@@ -20,6 +19,11 @@ func (g *Game) DevLog(lType, format string, a ...interface{}) {
 	select {
 	case g.logChan <- entry:
 	default:
+	}
+	// Dans le navigateur, les messages INFO restent dans le panneau dev (F1)
+	// mais ne vont pas dans la console, qui ralentit les téléphones.
+	if IsWebBuild && lType == "INFO" {
+		return
 	}
 	fmt.Printf("[%s] [%s] %s\n", entry.Timestamp.Format("15:04:05"), lType, msg)
 }
@@ -144,14 +148,10 @@ func (g *Game) updateGame() error {
 	default:
 	}
 
-	// Vraie touche seulement : le bouton tactile « Fermer » ne met pas le jeu en pause.
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		g.isPaused = !g.isPaused
-	}
-
-	if g.isPaused {
-		return nil
-	}
+	// Échap sert seulement à fermer les fenêtres (géré par chaque fenêtre).
+	// Avant, il mettait aussi le jeu en pause sans rien afficher : les menus
+	// ne répondaient plus jusqu'au prochain Échap. Dans un jeu en ligne la
+	// pause n'a pas de sens (le serveur continue), donc on l'a retirée.
 
 	g.hammerTimer++
 	if g.hammerTimer%10 == 0 {
@@ -193,8 +193,9 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterLinear
 		bounds := g.bgImage.Bounds()
-		w, h := bounds.Dx(), bounds.Dy()
-		op.GeoM.Translate(-float64(w)/2, -float64(h)/2)
+		w, h := float64(bounds.Dx())*g.bgScale, float64(bounds.Dy())*g.bgScale
+		op.GeoM.Scale(g.bgScale, g.bgScale)
+		op.GeoM.Translate(-w/2, -h/2)
 		op.GeoM.Translate(-g.camX, -g.camY)
 		op.GeoM.Scale(g.camZoom, g.camZoom)
 		op.GeoM.Translate(screenW/2, screenH/2)

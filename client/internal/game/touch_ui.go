@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
@@ -50,6 +51,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	beginTextFieldFrame()
 	g.drawGame(screen)
 	g.drawTouchButtons(screen)
+	if showFPS() {
+		msg := fmt.Sprintf("FPS %.0f  TPS %.0f  %dx%d", ebiten.ActualFPS(), ebiten.ActualTPS(), g.screenWidth, g.screenHeight)
+		vector.DrawFilledRect(screen, 8, 44, float32(len(msg)*6+12), 22, color.RGBA{0, 0, 0, 180}, true)
+		ebitenutil.DebugPrintAt(screen, msg, 14, 47)
+	}
 }
 
 // ---------------------------------------------------------------------------

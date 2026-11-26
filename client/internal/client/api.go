@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
@@ -148,7 +149,11 @@ func (c *APIClient) GetStatus() (*domain.Player, error) {
 	sr.Player.Islands = sr.Islands
 	sr.Player.Captains = sr.Captains
 
-	// Log fleets received from server
+	// Log fleets received from server (pas dans le navigateur : appelé chaque
+	// seconde, ça ralentit les téléphones pour rien)
+	if runtime.GOOS == "js" {
+		return &sr.Player, nil
+	}
 	if len(sr.Player.Islands) > 0 && len(sr.Player.Islands[0].Fleets) > 0 {
 		fleets := sr.Player.Islands[0].Fleets
 		fmt.Printf("[CLIENT] GetStatus received: fleets=%d\n", len(fleets))

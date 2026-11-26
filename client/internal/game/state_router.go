@@ -102,7 +102,7 @@ func (g *Game) updateByState() error {
 		// Clamp Camera to Image Bounds
 		if g.bgImage != nil {
 			bounds := g.bgImage.Bounds()
-			w, h := float64(bounds.Dx()), float64(bounds.Dy())
+			w, h := float64(bounds.Dx())*g.bgScale, float64(bounds.Dy())*g.bgScale
 
 			// Screen dimensions in world space
 			screenVisW := float64(g.screenWidth) / g.camZoom
