@@ -2,8 +2,6 @@ package game
 
 import (
 	"bytes"
-	"fmt"
-	"io"
 	"log"
 	"math"
 
@@ -29,6 +27,9 @@ type SeaDMSMusic struct {
 	isPlaying     bool
 	isStopping    bool
 	isLoaded      bool
+	// loadedCh reçoit les pistes quand le chargement en arrière-plan est fini
+	// (dans le navigateur, elles sont téléchargées depuis le serveur).
+	loadedCh chan [6]*audio.Player
 	logCounter    int
 	soloIndex     int // -1 for no solo, 0-5 for solo stem
 	isDebugSolo   bool
@@ -42,11 +43,38 @@ func NewSeaDMSMusic(am *AudioManager) *SeaDMSMusic {
 	}
 }
 
-func (m *SeaDMSMusic) Load() error {
-	if m.isLoaded {
-		return nil
+// beginLoad lance le chargement des 6 pistes en arrière-plan, pour ne pas
+// figer le jeu pendant le téléchargement et le décodage.
+func (m *SeaDMSMusic) beginLoad() {
+	if m.isLoaded || m.loadedCh != nil {
+		return
 	}
+	ch := make(chan [6]*audio.Player, 1)
+	m.loadedCh = ch
+	go func() { ch <- m.loadStems() }()
+}
 
+// pollLoaded récupère les pistes si le chargement vient de finir.
+func (m *SeaDMSMusic) pollLoaded() {
+	if m.loadedCh == nil {
+		return
+	}
+	select {
+	case players := <-m.loadedCh:
+		m.players = players
+		m.isLoaded = true
+		m.loadedCh = nil
+		// La mer était déjà affichée : on démarre la musique maintenant.
+		if m.isPlaying && !m.isStopping {
+			m.isPlaying = false
+			m.Start()
+		}
+	default:
+	}
+}
+
+func (m *SeaDMSMusic) loadStems() [6]*audio.Player {
+	var players [6]*audio.Player
 	stemFiles := []string{
 		"resources/Music/sea_DMS/0 Lead Vocals.mp3",
 		"resources/Music/sea_DMS/1 Drums.mp3",
@@ -58,22 +86,15 @@ func (m *SeaDMSMusic) Load() error {
 
 	ctx := m.audioManager.Context()
 	if ctx == nil {
-		return fmt.Errorf("audio context is nil")
+		log.Printf("[DMS] audio context is nil")
+		return players
 	}
 
 	loadedCount := 0
 	for i, path := range stemFiles {
-		// Use assetsFS from game package
-		file, err := assetsFS.Open(path)
+		data, err := readAsset(path)
 		if err != nil {
-			log.Printf("[DMS] Failed to open stem %d (%s): %v", i, path, err)
-			continue
-		}
-
-		data, err := io.ReadAll(file)
-		file.Close()
-		if err != nil {
-			log.Printf("[DMS] Failed to read stem %d: %v", i, err)
+			log.Printf("[DMS] Failed to read stem %d (%s): %v", i, path, err)
 			continue
 		}
 
@@ -94,15 +115,14 @@ func (m *SeaDMSMusic) Load() error {
 			continue
 		}
 
-		m.players[i] = player
 		// Initialize volume to 0
-		m.players[i].SetVolume(0)
+		player.SetVolume(0)
+		players[i] = player
 		loadedCount++
 	}
 
-	m.isLoaded = true
 	log.Printf("[DMS] init loaded=%d path=resources/Music/sea_DMS", loadedCount)
-	return nil
+	return players
 }
 
 func (m *SeaDMSMusic) Start() {
@@ -113,10 +133,13 @@ func (m *SeaDMSMusic) Start() {
 	}
 
 	if !m.isLoaded {
-		if err := m.Load(); err != nil {
-			log.Printf("[DMS] start FAILED (load error): %v", err)
-			return
-		}
+		// Pas encore chargée : on lance le chargement et on note que la
+		// musique est voulue. pollLoaded() la démarrera à l'arrivée.
+		m.beginLoad()
+		m.isPlaying = true
+		m.isStopping = false
+		m.updateTargets()
+		return
 	}
 
 	m.isPlaying = true
@@ -212,6 +235,8 @@ func (m *SeaDMSMusic) Update(dt float64) {
 	// Note: We need inpututil here, but it's already imported.
 	// Actually, Update is called from Game, we can move input check here
 	// if we import inpututil.
+
+	m.pollLoaded()
 
 	// Guards for total silence and stop
 	if !m.isPlaying && !m.isStopping {

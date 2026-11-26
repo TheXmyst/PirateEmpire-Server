@@ -1,9 +1,7 @@
 package game
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 )
@@ -25,16 +23,10 @@ func LoadConfig() Config {
 		APIURL: DefaultAPIURL, // Default
 	}
 
-	file, err := os.Open("config.json")
-	if err != nil {
-		// File doesn't exist or can't be opened, return default
-		return cfg
-	}
-	defer file.Close()
-
-	if err := json.NewDecoder(file).Decode(&cfg); err != nil {
-		// Failed to decode, return default (or partially loaded)
-		return cfg
+	// PC : lit config.json. Navigateur : utilise l'adresse du site.
+	loadPlatformConfig(&cfg)
+	if cfg.APIURL == "" {
+		cfg.APIURL = DefaultAPIURL
 	}
 
 	if err := client.CheckSecureURL(cfg.APIURL); err != nil {

@@ -195,7 +195,7 @@ func (g *Game) updateByState() error {
 
 	// StateWorldMap-specific logic
 	if g.state == StateWorldMap {
-		if g.audioManager != nil && g.audioManager.currentTrack == "island" {
+		if g.audioManager != nil && g.audioManager.Wants("island") {
 			g.audioManager.StopAll()
 		}
 		if g.seaDMS != nil {

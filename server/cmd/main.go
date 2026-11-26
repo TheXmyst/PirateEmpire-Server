@@ -18,6 +18,7 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/server/internal/engine"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/webclient"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"golang.org/x/time/rate"
@@ -89,7 +90,21 @@ func main() {
 	e.Use(middleware.Recover())
 
 	// Routes
+	// Version navigateur du jeu, sur /play (voir docs/version_navigateur.md).
+	webDir := webclient.Dir()
+	webclient.Register(e, webDir)
+	if webclient.Installed(webDir) {
+		fmt.Printf("[WEB] Version navigateur servie sur /play depuis %s\n", webDir)
+	} else {
+		fmt.Printf("[WEB] Pas de version navigateur dans %s (/play désactivé)\n", webDir)
+	}
+
 	e.GET("/", func(c echo.Context) error {
+		// Si la version navigateur est installée, l'adresse du site mène
+		// directement au jeu.
+		if webclient.Installed(webDir) {
+			return c.Redirect(http.StatusFound, "/play/")
+		}
 		return c.String(http.StatusOK, "Welcome to Sea-Dogs MMO Server!")
 	})
 

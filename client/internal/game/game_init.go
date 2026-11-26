@@ -1,14 +1,13 @@
 package game
 
 import (
-	"embed"
+	"bytes"
 	"encoding/json"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	"io"
 	"log"
-	"os"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
@@ -20,9 +19,6 @@ import (
 // game_init.go contains game initialization, assets loading, and credentials handling.
 // This file was extracted from main.go during Phase 1.7 refactoring to reduce file size.
 // No logic or behavior changes were made - only code organization.
-
-//go:embed resources
-var assetsFS embed.FS
 
 // loadImage is a global function variable for loading images from embedded assets.
 // It is initialized in loadAssets() and can be used throughout the package.
@@ -76,12 +72,10 @@ func NewGame() *Game {
 
 	// Init Audio System
 	g.audioManager = NewAudioManager()
-	if err := g.audioManager.LoadMusic("title", "resources/Music/title.mp3"); err != nil {
-		g.Log("Failed to load title music: %v", err)
-	}
-	if err := g.audioManager.LoadMusic("island", "resources/Music/island-theme.mp3"); err != nil {
-		g.Log("Failed to load island music: %v", err)
-	}
+	// En arrière-plan : le jeu démarre tout de suite, la musique arrive
+	// dès qu'elle est prête (dans le navigateur, elle est téléchargée).
+	g.audioManager.LoadMusicAsync("title", "resources/Music/title.mp3")
+	g.audioManager.LoadMusicAsync("island", "resources/Music/island-theme.mp3")
 
 	// Init DMS
 	g.seaDMS = NewSeaDMSMusic(g.audioManager)
@@ -111,29 +105,33 @@ func NewGame() *Game {
 
 // loadCredentials loads saved credentials from credentials.json if it exists.
 func (g *Game) loadCredentials() {
-	file, err := os.Open("credentials.json")
+	data, err := readUserFile("credentials.json")
 	if err != nil {
 		return
 	}
-	defer file.Close()
 	var creds Credentials
-	if err := json.NewDecoder(file).Decode(&creds); err == nil {
+	if err := json.Unmarshal(data, &creds); err == nil && creds.Username != "" {
 		g.ui.Username = creds.Username
 		g.ui.Password = creds.Password
 		g.ui.RememberMe = true
+		if creds.Password == "" {
+			// Version navigateur : seul le pseudo est gardé, le curseur va
+			// directement sur le mot de passe.
+			g.ui.IsTypingUser = false
+			g.ui.IsTypingPass = true
+		}
 	}
 }
 
 // loadAssets loads all game assets (images, icons, etc.) from embedded resources.
 func (g *Game) loadAssets() {
 	loadImage = func(path string) *ebiten.Image {
-		f, err := assetsFS.Open(path)
+		data, err := readAsset(path)
 		if err != nil {
 			log.Printf("Failed to open %s: %v", path, err)
 			return nil
 		}
-		defer f.Close()
-		img, _, err := image.Decode(f)
+		img, _, err := image.Decode(bytes.NewReader(data))
 		if err != nil {
 			log.Printf("Failed to decode %s: %v", path, err)
 			return nil
@@ -142,7 +140,7 @@ func (g *Game) loadAssets() {
 	}
 
 	g.bgImage = loadImage("resources/images/island.jpg")
-	g.loginBG = loadImage("resources/images/login_bg.png")
+	g.loginBG = loadImage("resources/images/login_bg.jpg")
 	g.gameLogo = loadImage("resources/images/logo.png")
 
 	// btn_connect removed/missing - handled in Draw
@@ -165,7 +163,7 @@ func (g *Game) loadAssets() {
 	g.iconShipyard = loadImage("resources/assets/shipyard/build_shipyard_LvA.png")
 	g.iconAcademy = loadImage("resources/assets/academy/build_academy_LvA.png")
 	g.iconTavern = loadImage("resources/assets/Tavern/build_tavern_LvA.png")
-	g.iconMilitia = loadImage("resources/assets/militia/build_militia_LvA.png") // Fallback to Tavern if not found
+	g.iconMilitia = loadImage("resources/assets/militia/build_millitia_LvA.png") // Fallback to Tavern if not found
 	if g.iconMilitia == nil {
 		g.iconMilitia = g.iconTavern // Use Tavern icon as fallback
 	}

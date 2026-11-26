@@ -3,7 +3,6 @@ package game
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -358,7 +357,7 @@ func (g *Game) loadChatHistory() {
 	if path == "" {
 		return
 	}
-	data, err := os.ReadFile(path)
+	data, err := readUserFile(path)
 	if err != nil {
 		g.chatHistoryLoaded = true
 		return
@@ -398,14 +397,11 @@ func (g *Game) persistChatHistory() {
 	if path == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return
-	}
 	data, err := json.Marshal(g.chatMessages)
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, data, 0o644)
+	_ = writeUserFile(path, data)
 }
 
 func (g *Game) resetChatForPlayer(id uuid.UUID) {
@@ -469,7 +465,7 @@ func (g *Game) loadSocialState() {
 	if path == "" {
 		return
 	}
-	data, err := os.ReadFile(path)
+	data, err := readUserFile(path)
 	if err != nil {
 		// No file yet: keep defaults (ticket true)
 		g.socialStateLoaded = true
@@ -502,9 +498,6 @@ func (g *Game) persistSocialState() {
 	if path == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return
-	}
 	state := socialStateFile{
 		Friends:      g.ui.SocialFriends,
 		GuildID:      g.ui.SocialGuildID,
@@ -518,5 +511,5 @@ func (g *Game) persistSocialState() {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, data, 0o644)
+	_ = writeUserFile(path, data)
 }
