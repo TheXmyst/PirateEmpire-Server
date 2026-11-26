@@ -28,11 +28,9 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 	panelY := 20.0
 
 	// Background
-	vector.DrawFilledRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), color.RGBA{20, 20, 40, 240}, vecAA)
-	vector.StrokeRect(screen, float32(panelX), float32(panelY), float32(panelW), float32(panelH), 3, color.RGBA{100, 150, 255, 255}, vecAA)
+	drawButton(screen, float64(panelX), float64(panelY), float64(panelW), float64(panelH), "=== dev tool ===", kindFromColor(color.RGBA{20, 20, 40, 240}))
 
 	// Title
-	uiPrint(screen, "=== DEV TOOL ===", int(panelX)+230, int(panelY)+10)
 	uiPrint(screen, "[F1] to close", int(panelX)+240, int(panelY)+25)
 
 	// Stats Section
@@ -50,7 +48,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Cheat Buttons Section
 	currentY += 20
-	uiPrint(screen, "CHEATS:", int(panelX)+20, int(currentY))
+	uiSubtitle(screen, "Triches", int(panelX)+20, int(currentY))
 
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
@@ -62,9 +60,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 		if hover {
 			btnColor = hoverColor
 		}
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), btnColor, vecAA)
-		vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.White, vecAA)
-		uiPrint(screen, label, int(x)+10, int(y)+10)
+		drawButton(screen, float64(x), float64(y), float64(w), float64(h), label, kindFromColor(btnColor))
 		return hover && isMouseJustPressed(ebiten.MouseButtonLeft)
 	}
 
@@ -126,7 +122,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Combat Simulator Section
 	currentY += 20
-	uiPrint(screen, "COMBAT SIMULATOR:", int(panelX)+20, int(currentY))
+	uiSubtitle(screen, "Simulateur de combat", int(panelX)+20, int(currentY))
 
 	currentY += 30
 	uiPrint(screen, "Fleet A (Your Fleet):", int(panelX)+30, int(currentY))
@@ -169,7 +165,7 @@ func (g *Game) DrawDevTool(screen *ebiten.Image) {
 
 	// Logs Section
 	currentY += 20
-	uiPrint(screen, "RECENT LOGS:", int(panelX)+20, int(currentY))
+	uiSubtitle(screen, "Journaux récents", int(panelX)+20, int(currentY))
 
 	currentY += 25
 	// Display last 5 logs

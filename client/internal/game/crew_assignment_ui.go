@@ -23,21 +23,18 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	modalX, modalY := cx-modalW/2, cy-modalH/2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 30, 20, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Assignation de milice", kindFromColor(color.RGBA{40, 30, 20, 255}))
 
 	// Title
-	uiPrint(screen, "ASSIGNATION DE MILICE", int(modalX)+20, int(modalY)+20)
 
 	// Close button (X)
 	closeX := modalX + modalW - 30
 	closeY := modalY + 10
 	closeSize := 20.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	uiPrint(screen, "X", int(closeX)+6, int(closeY)+3)
+	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
 
 	// Get ship and island data
 	var ship *domain.Ship
@@ -167,9 +164,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasAssign || g.ui.CrewModalBusy {
 		assignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), assignBtnCol, vecAA)
-	vector.StrokeRect(screen, float32(assignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
-	uiPrint(screen, "ASSIGNER", int(assignBtnX)+25, int(btnY)+10)
+	drawButton(screen, float64(assignBtnX), float64(btnY), float64(btnW), float64(btnH), "Assigner", kindFromColor(assignBtnCol))
 
 	// Unassign button (if negative diff)
 	hasUnassign := warriorDiff < 0 || archerDiff < 0 || gunnerDiff < 0
@@ -178,9 +173,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !hasUnassign || g.ui.CrewModalBusy {
 		unassignBtnCol = color.RGBA{100, 100, 100, 255}
 	}
-	vector.DrawFilledRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), unassignBtnCol, vecAA)
-	vector.StrokeRect(screen, float32(unassignBtnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
-	uiPrint(screen, "RETIRER", int(unassignBtnX)+30, int(btnY)+10)
+	drawButton(screen, float64(unassignBtnX), float64(btnY), float64(btnW), float64(btnH), "Retirer", kindFromColor(unassignBtnCol))
 
 	// Error display
 	if g.ui.CrewModalError != "" {
@@ -213,8 +206,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 	} else if isHovered {
 		bgColor = color.RGBA{60, 60, 60, 255} // Slightly lighter when hovered
 	}
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
 
 	// Fill (value indicator) with glow effect when dragging
 	if max > min {
@@ -230,7 +223,7 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 		if isDragging {
 			fillColor = color.RGBA{0, 180, 0, 255} // Brighter green when dragging
 		}
-		vector.DrawFilledRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
+		uiFillRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
 	}
 
 	// Handle (draggable thumb) with enhanced visuals
@@ -252,8 +245,8 @@ func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max in
 			handleColor = color.RGBA{230, 230, 230, 255} // Lighter when hovered
 		}
 
-		vector.DrawFilledRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
-		vector.StrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
+		uiFillRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
+		uiStrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
 	}
 }
 

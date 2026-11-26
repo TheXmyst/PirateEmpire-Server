@@ -19,7 +19,7 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 	modalX, modalY := (w-modalW)/2, (h-modalH)/2
 
 	// Shadow / Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 180}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 180}, vecAA)
 
 	// Panel
 	draw9Slice(screen, g, modalX, modalY, modalW, modalH, 16)
@@ -37,7 +37,7 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 	uiPrint(screen, note, int(modalX+20), int(modalY)+110)
 
 	if g.ui.InterceptError != "" {
-		vector.DrawFilledRect(screen, float32(modalX+20), float32(modalY+150), float32(modalW-40), 40, color.RGBA{150, 0, 0, 200}, vecAA)
+		uiFillRect(screen, float32(modalX+20), float32(modalY+150), float32(modalW-40), 40, color.RGBA{150, 0, 0, 200}, vecAA)
 		uiPrint(screen, g.ui.InterceptError, int(modalX+30), int(modalY)+155)
 	}
 
@@ -50,12 +50,12 @@ func (g *Game) DrawInterceptConfirmModal(screen *ebiten.Image) {
 	if g.ui.InterceptBusy {
 		confirmColor = color.RGBA{50, 50, 50, 255}
 	}
-	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmColor, vecAA)
+	uiFillRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmColor, vecAA)
 	uiPrint(screen, "POURSUIVRE", int(confirmX+20), int(confirmY+12))
 
 	// CANCEL
 	cancelX, cancelY := modalX+modalW-160, modalY+modalH-60
-	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), color.RGBA{150, 0, 0, 255}, vecAA)
+	uiFillRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), color.RGBA{150, 0, 0, 255}, vecAA)
 	uiPrint(screen, "ANNULER", int(cancelX+30), int(cancelY+12))
 
 	// Interaction
@@ -116,7 +116,7 @@ func (g *Game) DrawPursuitBanner(screen *ebiten.Image) {
 	bannerH := 40.0
 	bannerY := 60.0 // Just below Top HUD
 
-	vector.DrawFilledRect(screen, 0, float32(bannerY), float32(w), float32(bannerH), color.RGBA{200, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, float32(bannerY), float32(w), float32(bannerH), color.RGBA{200, 0, 0, 200}, vecAA)
 	vector.StrokeLine(screen, 0, float32(bannerY), float32(w), float32(bannerY), 2, color.RGBA{255, 255, 0, 255}, vecAA)
 	vector.StrokeLine(screen, 0, float32(bannerY+bannerH), float32(w), float32(bannerY+bannerH), 2, color.RGBA{255, 255, 0, 255}, vecAA)
 

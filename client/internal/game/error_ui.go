@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 func (g *Game) DrawError(screen *ebiten.Image) {
@@ -25,9 +24,7 @@ func (g *Game) DrawError(screen *ebiten.Image) {
 	y := (sh - h) / 2
 
 	// Draw Background (Semi-transparent dark red)
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{150, 0, 0, 200}, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.White, vecAA)
+	drawButton(screen, float64(x), float64(y), float64(w), float64(h), g.errorMessage, kindFromColor(color.RGBA{150, 0, 0, 200}))
 
 	// Draw Message (Centered)
-	uiPrint(screen, g.errorMessage, int(x)+20, int(y)+40)
 }

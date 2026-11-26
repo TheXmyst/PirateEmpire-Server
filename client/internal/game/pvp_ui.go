@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawPvpButton renders the PvP button on the world map
@@ -30,11 +29,9 @@ func (g *Game) DrawPvpButton(screen *ebiten.Image) {
 	}
 
 	// Draw button
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 2, color.White, vecAA)
+	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "⚔️ PvP", kindFromColor(btnColor))
 
 	// Button text
-	uiPrint(screen, "⚔️ PvP", int(btnX)+60, int(btnY)+18)
 
 	// Handle click
 	if hoverPvp && isMousePressed(ebiten.MouseButtonLeft) {
@@ -90,14 +87,12 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	modalY := (h - modalH) / 2
 
 	// Semi-transparent overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 180}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 180}, vecAA)
 
 	// Modal box
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Cibles PvP Disponibles", kindFromColor(color.RGBA{40, 40, 60, 255}))
 
 	// Title
-	uiPrint(screen, "Cibles PvP Disponibles", int(modalX)+20, int(modalY)+20)
 
 	// Close button
 	closeX := modalX + modalW - 40
@@ -106,12 +101,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
-	closeColor := color.RGBA{180, 30, 30, 255}
-	if hoverClose {
-		closeColor = color.RGBA{220, 50, 50, 255}
-	}
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, vecAA)
-	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
+	drawCloseButton(screen, float64(closeX)+float64(30)/2, float64(closeY)+float64(30)/2, 15)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpUI = false
@@ -161,8 +151,8 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 			boxColor = color.RGBA{80, 80, 100, 255}
 		}
 
-		vector.DrawFilledRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), boxColor, vecAA)
-		vector.StrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
+		uiFillRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), boxColor, vecAA)
+		uiStrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
 
 		// Target info
 		uiPrint(screen, fmt.Sprintf("Joueur: %s", target.Name), int(modalX+30), int(boxY+10))
@@ -175,8 +165,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 		btnH := 30.0
 
 		if isProtected {
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{100, 100, 100, 255}, vecAA)
-			uiPrint(screen, "🛡️ PROTÉGÉ", int(btnX)+10, int(btnY)+10)
+			drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "🛡️ protégé", kindFromColor(color.RGBA{100, 100, 100, 255}))
 		} else {
 			hoverAttack := fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH
 
@@ -185,8 +174,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 				attackColor = color.RGBA{220, 50, 50, 255}
 			}
 
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), attackColor, vecAA)
-			uiPrint(screen, "ATTAQUER", int(btnX)+25, int(btnY)+10)
+			drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Attaquer", kindFromColor(attackColor))
 
 			if hoverAttack && isMousePressed(ebiten.MouseButtonLeft) {
 				// Select this target and show fleet selection
@@ -212,14 +200,12 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	modalY := (h - modalH) / 2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal box
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Sélectionner une Flotte", kindFromColor(color.RGBA{40, 40, 60, 255}))
 
 	// Title
-	uiPrint(screen, "Sélectionner une Flotte", int(modalX)+20, int(modalY)+20)
 	uiPrint(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+20, int(modalY)+45)
 
 	// Close button
@@ -229,12 +215,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
-	if hoverClose {
-		vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, color.RGBA{220, 50, 50, 255}, vecAA)
-	} else {
-		vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, color.RGBA{180, 30, 30, 255}, vecAA)
-	}
-	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
+	drawCloseButton(screen, float64(closeX)+float64(30)/2, float64(closeY)+float64(30)/2, 15)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
@@ -265,8 +246,8 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 			boxColor = color.RGBA{80, 80, 100, 255}
 		}
 
-		vector.DrawFilledRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), boxColor, vecAA)
-		vector.StrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
+		uiFillRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), boxColor, vecAA)
+		uiStrokeRect(screen, float32(modalX+20), float32(boxY), float32(modalW-40), float32(boxH), 1, color.White, vecAA)
 
 		// Fleet info
 		uiPrint(screen, fmt.Sprintf("○ %s (%d navires)", fleet.Name, len(fleet.Ships)), int(modalX+30), int(boxY+10))
@@ -296,8 +277,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	if hoverCancel {
 		cancelColor = color.RGBA{130, 130, 130, 255}
 	}
-	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, vecAA)
-	uiPrint(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
+	drawButton(screen, float64(cancelX), float64(btnY), 120, 40, "Annuler", kindFromColor(cancelColor))
 
 	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
@@ -320,14 +300,12 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	modalY := (h - modalH) / 2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 220}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 220}, vecAA)
 
 	// Modal box
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{50, 30, 30, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 4, color.RGBA{220, 50, 50, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "⚠️  confirmer l'attaque", kindFromColor(color.RGBA{50, 30, 30, 255}))
 
 	// Warning title
-	uiPrint(screen, "⚠️  CONFIRMER L'ATTAQUE", int(modalX)+120, int(modalY)+20)
 
 	// Info
 	uiPrint(screen, fmt.Sprintf("Cible: %s", g.ui.PvpSelectedTarget.Name), int(modalX)+30, int(modalY)+60)
@@ -364,8 +342,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	if hoverCancel {
 		cancelColor = color.RGBA{130, 130, 130, 255}
 	}
-	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, vecAA)
-	uiPrint(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
+	drawButton(screen, float64(cancelX), float64(btnY), 120, 40, "Annuler", kindFromColor(cancelColor))
 
 	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpConfirm = false
@@ -377,8 +354,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	if hoverAttack {
 		attackColor = color.RGBA{220, 50, 50, 255}
 	}
-	vector.DrawFilledRect(screen, float32(attackX), float32(btnY), 120, 40, attackColor, vecAA)
-	uiPrint(screen, "ATTAQUER", int(attackX)+25, int(btnY)+15)
+	drawButton(screen, float64(attackX), float64(btnY), 120, 40, "Attaquer", kindFromColor(attackColor))
 
 	if hoverAttack && isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.PvpAttackBusy {
 		g.Log("[PVP UI] Confirmation button clicked!")

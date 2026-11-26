@@ -7,7 +7,6 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // GetActiveFleetShips returns all ships currently in a fleet.
@@ -23,7 +22,7 @@ func GetActiveFleetShips(fleet *domain.Fleet) []domain.Ship {
 // DrawFleetList renders list of 3 fleets on the left
 func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
 
 	// Calculate limits
 	shipyardLevel := g.getShipyardLevel()
@@ -64,7 +63,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 
 		if locked {
 			// Locked state
-			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, vecAA)
+			uiFillRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), color.RGBA{50, 50, 50, 200}, vecAA)
 			uiPrint(screen, fmt.Sprintf("Flotte %d (Verrouillée)", i), int(x)+10, int(slotY)+10)
 			req := 10
 			if i == 3 {
@@ -80,7 +79,7 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 				col = color.RGBA{50, 60, 70, 255}
 			}
 
-			vector.DrawFilledRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), col, vecAA)
+			uiFillRect(screen, float32(x), float32(slotY), float32(w), float32(slotH), col, vecAA)
 
 			// Get ship count - find fleet by name to get accurate count (filter destroyed ships)
 			shipCount := 0
@@ -109,10 +108,9 @@ func (g *Game) DrawFleetList(screen *ebiten.Image, x, y, w, h float64) {
 // DrawFleetDetails renders details of selected fleet on the right
 func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	// Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{20, 30, 40, 200}, vecAA)
+	drawButton(screen, float64(x), float64(y), float64(w), float64(h), "Sélectionnez une flotte.", kindFromColor(color.RGBA{20, 30, 40, 200}))
 
 	if shipyardUI.SelectedFleetIndex == 0 {
-		uiPrint(screen, "Sélectionnez une flotte.", int(x)+10, int(y)+10)
 		return
 	}
 
@@ -206,8 +204,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 		btnText = "Flotte Complète"
 	}
 
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	uiPrint(screen, btnText, int(btnX)+20, int(btnY)+12)
+	drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), btnText, kindFromColor(btnCol))
 
 	// Handle click (shielded by modal)
 	if !disabled && !shipyardUI.ShowAddShipModal && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -428,7 +425,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, false)
 
 	// Modal window (increased height to accommodate capacity info block)
 	modalW, modalH := 500.0, 450.0
@@ -541,7 +538,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 				col = color.RGBA{80, 80, 80, 255}
 			}
 
-			vector.DrawFilledRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
+			uiFillRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
 			uiPrint(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
 
 			// Ship selection is now handled in UpdateAddShipModalShipyard()
@@ -560,8 +557,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 		colCancel = color.RGBA{200, 50, 50, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnCancelX), float32(btnCancelY), float32(btnW), float32(btnH), colCancel, false)
-	uiPrint(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
+	drawButton(screen, float64(btnCancelX), float64(btnCancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(colCancel))
 
 	// Cancel button click is now handled in UpdateAddShipModalShipyard()
 
@@ -576,8 +572,7 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 		colOk = color.RGBA{0, 200, 0, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnOkX), float32(btnOkY), float32(btnW), float32(btnH), colOk, false)
-	uiPrint(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
+	drawButton(screen, float64(btnOkX), float64(btnOkY), float64(btnW), float64(btnH), "Assigner", kindFromColor(colOk))
 
 	// Input handling is now in UpdateAddShipModalShipyard()
 }

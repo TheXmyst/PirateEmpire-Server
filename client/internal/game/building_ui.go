@@ -9,7 +9,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // Helper to get cost based on type and level
@@ -66,62 +65,40 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	w, h := 500.0, 400.0
 	x, y := cx-w/2, cy-h/2
 
-	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
-	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+	drawDimBackground(screen, 110)
+	drawWindowFrame(screen, x, y, w, h, sb.Type)
+	drawText(screen, fmt.Sprintf("Niveau %d", sb.Level), bodyFace(14, true), x+w-24, y+20, themeText, alignRight)
 
-	// Title
-	title := fmt.Sprintf("%s (Lvl %d)", sb.Type, sb.Level)
-	uiPrint(screen, title, int(x)+20, int(y)+20)
-
-	status := "Status: Active"
+	status, statusClr := "Actif", color.Color(themeGreen)
 	if sb.Constructing {
-		status = "Status: En Construction..."
+		status, statusClr = "En construction…", themeOrange
 	}
-	uiPrint(screen, status, int(x)+20, int(y)+45)
+	drawLabel(screen, "État", x+24, y+68, 13, false, themeMuted)
+	drawLabel(screen, status, x+24, y+86, 15, true, statusClr)
 
-	// Tavern cannot be upgraded - hide upgrade section completely
+	// La taverne ne s'améliore pas : seulement l'état.
 	if sb.Type == "Tavern" {
-		// Show only status, no upgrade info
 		return
 	}
 
-	// Separator
-	vector.StrokeLine(screen, float32(x)+20, float32(y)+70, float32(x+w)-20, float32(y)+70, 1, color.Gray{100}, vecAA)
+	// Niveau suivant (les prérequis sont vérifiés par le serveur)
+	drawInset(screen, x+20, y+124, w-40, 110)
+	drawText(screen, fmt.Sprintf("Niveau %d", sb.Level+1), titleFace(22), x+36, y+134, themeGold, alignLeft)
+	drawLabel(screen, "Coût", x+36, y+172, 13, false, themeMuted)
+	var have map[domain.ResourceType]float64
+	if g.player != nil && len(g.player.Islands) > 0 {
+		have = g.player.Islands[0].Resources
+	}
+	drawCost(screen, g.getBuildingCost(sb.Type, sb.Level+1), have, x+36, y+192)
 
-	// Next Level Info
-	uiPrint(screen, "Next Level:", int(x)+20, int(y)+90)
-
-	// Prerequisites check removed - server is authoritative
-	// Upgrade button will show prerequisites modal if needed
-	infoY := int(y) + 120
-
-	// Cost Display - use fixed order to prevent flickering
-	costs := g.getBuildingCost(sb.Type, sb.Level+1)
-	costStr := "Cost: " + buildCostString(costs, false, nil)
-	uiPrint(screen, costStr, int(x)+20, infoY)
-	infoY += 30
-	uiPrint(screen, "Time: 30s", int(x)+20, infoY)
-
-	// Upgrade Button
+	// Bouton Améliorer
 	btnW, btnH := 200.0, 50.0
 	btnX, btnY := x+w/2-btnW/2, y+h-80
-
-	btnCol := color.RGBA{100, 100, 100, 255}
-	if !sb.Constructing {
-		btnCol = color.RGBA{0, 150, 0, 255}
-	}
-
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-	vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-
-	label := "UPGRADE"
 	if sb.Constructing {
-		label = "EN COURS"
+		drawButton(screen, btnX, btnY, btnW, btnH, "En cours…", btnDisabled)
+	} else {
+		drawButton(screen, btnX, btnY, btnW, btnH, "Améliorer", btnPrimary)
 	}
-	// Center text manually approx
-	uiPrint(screen, label, int(btnX)+70, int(btnY)+20)
 
 	// Handle Click - Upgrade
 	// Logic moved to UpdateBuildingModal

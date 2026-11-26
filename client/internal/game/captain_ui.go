@@ -20,48 +20,31 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 
 	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
 
-	// Draw dark overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 153}, false)
+	drawDimBackground(screen, 150)
 
 	// Window dimensions
 	cx, cy := sw/2, sh/2
 	w, h := 900.0, 600.0
 	x, y := cx-w/2, cy-h/2
 
-	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
-	// Border
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+	drawThemePanel(screen, x, y, w, h, 18)
 
 	// Closing button (X)
 	padding := 20.0
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - padding
 	closeY := y + padding
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	uiPrint(screen, "X", int(closeX)+10, int(closeY)+8)
+	drawCloseButton(screen, closeX+closeBtnSize/2, closeY+closeBtnSize/2, 16)
 
 	// Tabs
 	tabW := 150.0
 	tabH := 30.0
 	tabY := y + 10 // Top aligned
 
-	// Tab List
-	listColor := color.RGBA{40, 40, 60, 255}
-	if g.ui.CaptainUITab == "list" || g.ui.CaptainUITab == "" {
-		listColor = color.RGBA{80, 80, 150, 255}
-	}
-	vector.DrawFilledRect(screen, float32(x+padding), float32(tabY), float32(tabW), float32(tabH), listColor, vecAA)
-	uiPrint(screen, "LISTE", int(x+padding+50), int(tabY+8))
-
-	// Tab Upgrade
-	upgradeColor := color.RGBA{40, 40, 60, 255}
-	if g.ui.CaptainUITab == "upgrade" {
-		upgradeColor = color.RGBA{80, 80, 150, 255}
-	}
-	vector.DrawFilledRect(screen, float32(x+padding+tabW+10), float32(tabY), float32(tabW), float32(tabH), upgradeColor, vecAA)
-	uiPrint(screen, "AMÉLIORER", int(x+padding+tabW+10+30), int(tabY+8))
+	// Titre et onglets
+	drawText(screen, "Capitaines", titleFace(28), x+w/2, y+10, themeGold, alignCenter)
+	drawTab(screen, x+padding, tabY, tabW, tabH, "Liste", g.ui.CaptainUITab == "list" || g.ui.CaptainUITab == "")
+	drawTab(screen, x+padding+tabW+10, tabY, tabW, tabH, "Améliorer", g.ui.CaptainUITab == "upgrade")
 
 	// Content bounds
 	contentY := tabY + tabH + 10
@@ -208,17 +191,13 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 	leftX := x + padding
 	leftH := h
 
-	// Right column (65%) - Details
-	rightW := w * 0.65
+	// Colonne de droite : le détail (reste de la largeur)
 	rightX := leftX + leftW + padding
+	rightW := x + w - padding - rightX
 	rightH := h
 
-	// Draw columns background
-	vector.DrawFilledRect(screen, float32(leftX), float32(y), float32(leftW), float32(leftH), color.RGBA{20, 25, 35, 240}, vecAA)
-	vector.DrawFilledRect(screen, float32(rightX), float32(y), float32(rightW), float32(rightH), color.RGBA{20, 25, 35, 240}, vecAA)
-
-	// Column separator
-	vector.StrokeLine(screen, float32(rightX-padding/2), float32(y), float32(rightX-padding/2), float32(y+rightH), 1, color.Gray{80}, vecAA)
+	drawInset(screen, leftX, y, leftW, leftH)
+	drawInset(screen, rightX, y, rightW, rightH)
 
 	// Draw captain list (left column)
 	if len(g.captains) == 0 {
@@ -250,17 +229,13 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			}
 
 			// Background for selected item
-			if isSelected {
-				vector.DrawFilledRect(screen, float32(leftX+5), float32(itemY), float32(leftW-10), float32(lineHeight-5), color.RGBA{50, 100, 150, 200}, vecAA)
-			}
+			drawCard(screen, leftX+6, itemY, leftW-12, lineHeight-5, isSelected)
+			vector.DrawFilledCircle(screen, float32(leftX+22), float32(itemY+lineHeight/2-2), 6, rarityColor(captain.Rarity), false)
 
-			// Captain name
-			nameY := int(itemY + 8)
-			uiPrint(screen, captain.Name, int(leftX+padding), nameY)
-
-			// Rarity
-			rarityText := strings.ToUpper(captain.Rarity)
-			uiPrint(screen, rarityText, int(leftX+padding), nameY+15)
+			// Nom, rareté, étoiles
+			nameY := int(itemY + 5)
+			drawLabel(screen, captain.Name, leftX+36, float64(nameY), 14, true, themeText)
+			drawLabel(screen, rarityLabel(captain.Rarity), leftX+36, float64(nameY)+20, 12, false, rarityColor(captain.Rarity))
 
 			// Stars
 			maxStars := 3
@@ -270,8 +245,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			case "legendary":
 				maxStars = 5
 			}
-			starsText := formatStars(captain.Stars, maxStars)
-			uiPrint(screen, starsText, int(leftX+padding), nameY+28)
+			drawStars(screen, leftX+leftW-20, float64(nameY)+12, captain.Stars, maxStars, 7, true)
 		}
 	}
 
@@ -289,11 +263,10 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			detailY := y + padding
 			lineSpacing := 20.0
 
-			// Name and Rarity
-			uiPrint(screen, selectedCaptain.Name, int(rightX+padding), int(detailY))
-			rarityText := fmt.Sprintf("Rareté: %s", strings.ToUpper(selectedCaptain.Rarity))
-			uiPrint(screen, rarityText, int(rightX+padding), int(detailY+lineSpacing))
-			detailY += lineSpacing * 2
+			// Nom et rareté
+			drawText(screen, selectedCaptain.Name, titleFace(30), rightX+padding, detailY-4, themeGold, alignLeft)
+			drawLabel(screen, rarityLabel(selectedCaptain.Rarity), rightX+padding, detailY+34, 14, true, rarityColor(selectedCaptain.Rarity))
+			detailY += lineSpacing * 3
 
 			// Stars
 			maxStars := 3
@@ -303,14 +276,13 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			case "legendary":
 				maxStars = 5
 			}
-			starsText := formatStars(selectedCaptain.Stars, maxStars)
-			uiPrint(screen, fmt.Sprintf("Étoiles: %s", starsText), int(rightX+padding), int(detailY))
+			drawStars(screen, rightX+padding, detailY+8, selectedCaptain.Stars, maxStars, 9, false)
 			detailY += lineSpacing * 2
 
 			// Naval Bonuses (from stars)
 			if selectedCaptain.NavalHPBonusPct != 0 || selectedCaptain.NavalSpeedBonusPct != 0 ||
 				selectedCaptain.NavalDamageReductionPct != 0 || selectedCaptain.RumConsumptionReductionPct != 0 {
-				uiPrint(screen, "Bonus Navals:", int(rightX+padding), int(detailY))
+				drawLabel(screen, "Bonus navals", rightX+padding, detailY, 14, true, themeGold)
 				detailY += lineSpacing
 
 				bonuses := []string{}
@@ -333,7 +305,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			}
 
 			// Skill/Effect
-			uiPrint(screen, "Compétence:", int(rightX+padding), int(detailY))
+			drawLabel(screen, "Compétence", rightX+padding, detailY, 14, true, themeGold)
 			detailY += lineSpacing
 			if selectedCaptain.SkillID != "" {
 				uiPrint(screen, fmt.Sprintf("  ID: %s", selectedCaptain.SkillID), int(rightX+padding+10), int(detailY))
@@ -380,7 +352,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 	listW := w - padding*2
 	listH := h
 
-	vector.DrawFilledRect(screen, float32(listX), float32(y), float32(listW), float32(listH), color.RGBA{20, 25, 35, 240}, vecAA)
+	drawInset(screen, listX, y, listW, listH)
 
 	if len(g.captains) == 0 {
 		uiPrint(screen, "Aucun capitaine", int(listX+padding), int(y+padding))
@@ -407,24 +379,17 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 			continue
 		}
 
-		// Alternating background
-		if i%2 == 0 {
-			vector.DrawFilledRect(screen, float32(listX), float32(itemY), float32(listW), float32(lineHeight), color.RGBA{30, 35, 45, 100}, vecAA)
+		drawCard(screen, listX+6, itemY+4, listW-12, lineHeight-8, false)
+		// Médaillon de rareté
+		vector.DrawFilledCircle(screen, float32(listX+44), float32(itemY+40), 28, color.RGBA{60, 38, 20, 255}, false)
+		vector.StrokeCircle(screen, float32(listX+44), float32(itemY+40), 28, 3, rarityColor(captain.Rarity), false)
+		if r := []rune(captain.Name); len(r) > 0 {
+			drawText(screen, strings.ToUpper(string(r[0])), titleFace(28), listX+44, itemY+22, rarityColor(captain.Rarity), alignCenter)
 		}
 
-		// Icon (Placeholder) - Color by rarity
-		rarityColor := color.RGBA{150, 150, 150, 255} // Common
-		if captain.Rarity == "rare" {
-			rarityColor = color.RGBA{0, 150, 255, 255}
-		}
-		if captain.Rarity == "legendary" {
-			rarityColor = color.RGBA{255, 215, 0, 255}
-		}
-		vector.DrawFilledRect(screen, float32(listX+10), float32(itemY+10), 60, 60, rarityColor, vecAA)
-
-		// Name & Rarity
-		uiPrint(screen, captain.Name, int(listX+80), int(itemY+15))
-		uiPrint(screen, strings.ToUpper(captain.Rarity), int(listX+80), int(itemY+35))
+		// Nom et rareté
+		drawLabel(screen, captain.Name, listX+86, itemY+18, 15, true, themeText)
+		drawLabel(screen, rarityLabel(captain.Rarity), listX+86, itemY+40, 12.5, false, rarityColor(captain.Rarity))
 
 		// Stars
 		maxStars := 3
@@ -434,21 +399,21 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 		case "legendary":
 			maxStars = 5
 		}
-		starsText := formatStars(captain.Stars, maxStars)
-		uiPrint(screen, starsText, int(listX+200), int(itemY+25))
+		drawStars(screen, listX+230, itemY+38, captain.Stars, maxStars, 9, false)
 
 		// Progress / Cost
 		// Need logic to show "MAX" if max stars
 		if captain.Stars >= maxStars {
-			uiPrint(screen, "MAX STARS", int(listX+350), int(itemY+25))
+			drawLabel(screen, "Étoiles au maximum", listX+380, itemY+30, 13, true, themeGold)
 		} else {
 			// Shards Progress
-			progressText := fmt.Sprintf("%d / %d Éclats", captain.Shards, captain.NextStarCost)
-			// Draw progress text
-			uiPrint(screen, progressText, int(listX+350), int(itemY+25))
-			if captain.Shards >= captain.NextStarCost {
-				uiPrint(screen, "(Prêt!)", int(listX+350), int(itemY+40))
+			progressText := fmt.Sprintf("%d / %d éclats", captain.Shards, captain.NextStarCost)
+			drawLabel(screen, progressText, listX+380, itemY+20, 13, true, themeText)
+			p := 0.0
+			if captain.NextStarCost > 0 {
+				p = float64(captain.Shards) / float64(captain.NextStarCost)
 			}
+			drawProgressBar(screen, listX+380, itemY+44, 200, 8, p, themeGold)
 
 			// Upgrade Button
 			btnX := listX + listW - 120
@@ -456,14 +421,11 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 			btnW := 100.0
 			btnH := 40.0
 
-			btnColor := color.RGBA{60, 60, 60, 255} // Disabled
+			kind := btnDisabled
 			if captain.CanUpgrade {
-				btnColor = color.RGBA{0, 200, 100, 255} // Green
-				// Hover effect? Need mouse pos. Handled in Update generally, here simplify.
+				kind = btnPrimary
 			}
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnColor, vecAA)
-			vector.StrokeRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), 1, color.White, vecAA)
-			uiPrint(screen, "UPGRADE", int(btnX+10), int(btnY+12))
+			drawButton(screen, btnX, btnY, btnW, btnH, "Améliorer", kind)
 		}
 	}
 }

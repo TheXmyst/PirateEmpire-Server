@@ -82,8 +82,8 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				targetColor = color.RGBA{255, 255, 255, 255} // White on hover
 			}
 
-			vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
-			vector.StrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
+			uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+			uiStrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
 
 			// Draw name and tier above
 			nameY := ty - targetSize/2 - 20
@@ -117,9 +117,9 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 					textW := len(rating.Label) * 6
 					textX := int(tx) - textW/2
 
-					vector.DrawFilledRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
+					uiFillRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
 					uiPrint(screen, rating.Label, textX, ratingY)
-					vector.DrawFilledRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
+					uiFillRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
 				}
 			}
 		}
@@ -154,7 +154,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 			// Render Sprite
 			if target.IsFleet {
 				// Fleet Icon (Square or Ship Sprite)
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 				// Small arrow if moving
 				if target.Speed > 0 && target.TargetX != nil && target.TargetY != nil {
 					// Draw simple dir line
@@ -175,7 +175,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				op.GeoM.Translate(tx-(float64(iw)*scale)/2, ty-(float64(ih)*scale)/2)
 				screen.DrawImage(g.imgIsland, op)
 			} else {
-				vector.DrawFilledRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
+				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
 			}
 
 			// Show tooltip on hover instead of white border
@@ -192,8 +192,8 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 				tooltipX := tx + targetSize/2 + 10
 				tooltipY := ty - tooltipH/2
 
-				vector.DrawFilledRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
-				vector.StrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+				uiFillRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
+				uiStrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 				// Tooltip content
 				uiPrint(screen, fmt.Sprintf("Joueur: %s", target.Name), int(tooltipX)+10, int(tooltipY)+10)
@@ -274,7 +274,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 
 				// Draw Square
 				col := color.RGBA{0, 200, 0, 255} // Green
-				vector.DrawFilledRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
+				uiFillRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
 
 				// Optional: Name
 				if g.camZoom > 0.5 {
@@ -343,7 +343,7 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	overlayColor := color.RGBA{0, 0, 0, 200}
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
 
 	panelW, panelH := 400.0, 500.0
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
@@ -351,12 +351,11 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 	// Panel Background
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
 
-	uiPrint(screen, "STATION FLEET", int(panelX)+20, int(panelY)+20)
+	uiTitle(screen, "Stationner la flotte", int(panelX)+20, int(panelY)+20)
 
 	// Close Button
 	closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
-	vector.DrawFilledRect(screen, float32(closeBtnX), float32(closeBtnY), 30, 30, color.RGBA{200, 50, 50, 255}, vecAA)
-	uiPrint(screen, "X", int(closeBtnX)+10, int(closeBtnY)+8)
+	drawCloseButton(screen, float64(closeBtnX)+float64(30)/2, float64(closeBtnY)+float64(30)/2, 15)
 
 	// List Idle Fleets
 	yOffset := panelY + 60
@@ -367,7 +366,7 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			// Fleet List Item
 			itemColor := color.RGBA{60, 60, 60, 255}
 
-			vector.DrawFilledRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
+			uiFillRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
 
 			state := f.State
 			if state == "" {
@@ -384,13 +383,12 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 			if state == domain.FleetStateIdle && len(f.Ships) > 0 {
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{0, 150, 0, 255}, vecAA)
-				uiPrint(screen, "SEND", int(btnX)+15, int(btnY)+8)
+				drawButton(screen, float64(btnX), float64(btnY), 70, 30, "Send", kindFromColor(color.RGBA{0, 150, 0, 255}))
 			} else if state == domain.FleetStateStationed {
 				// RECALL Button
 				btnX := panelX + panelW - 100
 				btnY := yOffset + 5
-				vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
+				uiFillRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
 				uiPrint(screen, "RECALL", int(btnX)+10, int(btnY)+8)
 			}
 
@@ -1139,7 +1137,7 @@ func (g *Game) engagePveTarget(targetID string) {
 func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	overlayColor := color.RGBA{0, 0, 0, 200}
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
 
 	panelW, panelH := 450.0, 250.0
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
@@ -1148,7 +1146,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
 
 	// Title
-	uiPrint(screen, "CONFIRMATION D'ATTAQUE", int(panelX)+20, int(panelY)+20)
+	uiTitle(screen, "Confirmer l'attaque", int(panelX)+20, int(panelY)+20)
 
 	// Content
 	msg1 := fmt.Sprintf("Lancer l'attaque contre %s (Niveau %d)", g.ui.PveConfirmTargetName, g.ui.PveConfirmTier)
@@ -1180,8 +1178,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(cancelX), float32(cancelY), float32(btnW), float32(btnH), cancelCol, vecAA)
-	uiPrint(screen, "ANNULER", int(cancelX)+25, int(cancelY)+12)
+	drawButton(screen, float64(cancelX), float64(cancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(cancelCol))
 
 	// Confirm (Green)
 	confirmX, confirmY := panelX+panelW-50-btnW, panelY+panelH-60
@@ -1195,8 +1192,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 			return
 		}
 	}
-	vector.DrawFilledRect(screen, float32(confirmX), float32(confirmY), float32(btnW), float32(btnH), confirmCol, vecAA)
-	uiPrint(screen, "CONFIRMER", int(confirmX)+20, int(confirmY)+12)
+	drawButton(screen, float64(confirmX), float64(confirmY), float64(btnW), float64(btnH), "Confirmer", kindFromColor(confirmCol))
 }
 
 // DrawNavFreeConfirmModal renders the Free Navigation confirmation dialog

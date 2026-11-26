@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawPvpResultUI renders the PvP combat result modal (reuses PvE result structure)
@@ -23,11 +22,11 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	modalY := (h - modalH) / 2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal box
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
+	uiFillRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 40, 60, 255}, vecAA)
+	uiStrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 3, color.RGBA{200, 50, 50, 255}, vecAA)
 
 	// Title
 	result := g.ui.PvpCombatResult
@@ -39,8 +38,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	}
 
 	// Title background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), 50, titleColor, vecAA)
-	uiPrint(screen, title, int(modalX)+280, int(modalY)+18)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), 50, title, kindFromColor(titleColor))
 
 	// Close button
 	closeX := modalX + modalW - 40
@@ -49,12 +47,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
-	closeColor := color.RGBA{180, 30, 30, 255}
-	if hoverClose {
-		closeColor = color.RGBA{220, 50, 50, 255}
-	}
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, vecAA)
-	uiPrint(screen, "X", int(closeX)+10, int(closeY)+10)
+	drawCloseButton(screen, float64(closeX)+float64(30)/2, float64(closeY)+float64(30)/2, 15)
 
 	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false
@@ -97,8 +90,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	if hoverOK {
 		okColor = color.RGBA{70, 180, 70, 255}
 	}
-	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 150, 40, okColor, vecAA)
-	uiPrint(screen, "OK", int(btnX)+65, int(btnY)+15)
+	drawButton(screen, float64(btnX), float64(btnY), 150, 40, "Ok", kindFromColor(okColor))
 
 	if hoverOK && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false

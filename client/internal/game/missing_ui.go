@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // UpdateShipyardMenu handles shipyard logic and modal interactions.
@@ -119,7 +118,7 @@ func (g *Game) DrawDevMenu(screen *ebiten.Image) {
 	}
 	w := 400.0
 	h := 300.0
-	vector.DrawFilledRect(screen, 10, 100, float32(w), float32(h), color.RGBA{0, 0, 80, 200}, vecAA)
+	uiFillRect(screen, 10, 100, float32(w), float32(h), color.RGBA{0, 0, 80, 200}, vecAA)
 	uiPrint(screen, "--- DEV MENU ---", 20, 110)
 	uiPrint(screen, "FPS: "+fmt.Sprintf("%.1f", ebiten.ActualFPS()), 20, 130)
 	uiPrint(screen, "TPS: "+fmt.Sprintf("%.1f", ebiten.ActualTPS()), 20, 145)

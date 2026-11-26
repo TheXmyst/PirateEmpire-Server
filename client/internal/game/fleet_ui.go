@@ -82,8 +82,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 
 		if locked {
 			// Locked State
-			vector.DrawFilledRect(screen, float32(lx), float32(slotY), float32(lw), float32(slotH), color.RGBA{50, 50, 50, 200}, false)
-			uiPrint(screen, msg+" (Verrouillée)", int(lx)+10, int(slotY)+10)
+			drawButton(screen, float64(lx), float64(slotY), float64(lw), float64(slotH), msg+" (Verrouillée)", kindFromColor(color.RGBA{50, 50, 50, 200}))
 			req := 10
 			if i == 3 {
 				req = 20
@@ -99,7 +98,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 			}
 
 			// Draw BG
-			vector.DrawFilledRect(screen, float32(lx), float32(slotY), float32(lw), float32(slotH), col, false)
+			uiFillRect(screen, float32(lx), float32(slotY), float32(lw), float32(slotH), col, false)
 			// Border
 			if fleetUI.SelectedFleetIndex == i {
 				vector.StrokeLine(screen, float32(lx), float32(slotY), float32(lx+lw), float32(slotY), 1, color.White, false)
@@ -128,10 +127,9 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 
 	// 3. Draw Right Panel (Details of Selected Fleet)
 	// Background for Details
-	vector.DrawFilledRect(screen, float32(rx), float32(ry), float32(rw), float32(rh), color.RGBA{0, 0, 0, 80}, false)
+	drawButton(screen, float64(rx), float64(ry), float64(rw), float64(rh), "Sélectionnez une flotte.", kindFromColor(color.RGBA{0, 0, 0, 80}))
 
 	if fleetUI.SelectedFleetIndex == 0 {
-		uiPrint(screen, "Sélectionnez une flotte.", int(rx)+20, int(ry)+20)
 		return
 	}
 
@@ -206,12 +204,11 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 		colAdd = color.RGBA{0, 200, 0, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnAddX), float32(btnAddY), float32(btnAddW), float32(btnAddH), colAdd, false)
 	labelAdd := "Ajouter un navire"
 	if currentShips >= maxShips {
-		labelAdd = "Flotte Complète"
+		labelAdd = "Flotte complète"
 	}
-	uiPrint(screen, labelAdd, int(btnAddX)+20, int(btnAddY)+12)
+	drawButton(screen, float64(btnAddX), float64(btnAddY), float64(btnAddW), float64(btnAddH), labelAdd, kindFromColor(colAdd))
 
 	if hoverAdd && isMouseJustPressed(ebiten.MouseButtonLeft) && currentShips < maxShips {
 		// Open Modal
@@ -237,7 +234,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, false)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, false)
 
 	// Modal Window
 	modalW, modalH := 500.0, 400.0
@@ -284,7 +281,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 				col = color.RGBA{80, 80, 80, 255}
 			}
 
-			vector.DrawFilledRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
+			uiFillRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
 			uiPrint(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
 
 			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -305,8 +302,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 		colCancel = color.RGBA{200, 50, 50, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnCancelX), float32(btnCancelY), float32(btnW), float32(btnH), colCancel, false)
-	uiPrint(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
+	drawButton(screen, float64(btnCancelX), float64(btnCancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(colCancel))
 
 	if inputEnabled && hoverCancel && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		fleetUI.ShowAddModal = false
@@ -324,8 +320,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 		colOk = color.RGBA{0, 200, 0, 255}
 	}
 
-	vector.DrawFilledRect(screen, float32(btnOkX), float32(btnOkY), float32(btnW), float32(btnH), colOk, false)
-	uiPrint(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
+	drawButton(screen, float64(btnOkX), float64(btnOkY), float64(btnW), float64(btnH), "Assigner", kindFromColor(colOk))
 
 	if inputEnabled && !disabled && hoverOk && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Execute Assign - find fleet by name to get the correct ID from server

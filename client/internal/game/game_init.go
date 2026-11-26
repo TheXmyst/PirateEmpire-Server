@@ -181,9 +181,9 @@ func (g *Game) loadAssets() {
 	// Draw simple text overlay if possible, or just rely on hovering/building name
 	// Basic pixel "cross" or similar could be added here
 	// Horizontal bar
-	// vector.DrawFilledRect(g.iconInfirmary, 16, 28, 32, 8, color.White, vecAA)
+	// uiFillRect(g.iconInfirmary, 16, 28, 32, 8, color.White, vecAA)
 	// Vertical bar
-	// vector.DrawFilledRect(g.iconInfirmary, 28, 16, 8, 32, color.White, vecAA)
+	// uiFillRect(g.iconInfirmary, 28, 16, 8, 32, color.White, vecAA)
 
 	g.iconHammer1 = loadImage("resources/images/icon_hammer_1.png")
 

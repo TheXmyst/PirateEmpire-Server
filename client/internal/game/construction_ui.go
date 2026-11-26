@@ -2,14 +2,12 @@ package game
 
 import (
 	"fmt"
-	"image/color"
 
 	"math"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // Construction Menu Logic
@@ -120,20 +118,12 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 	cx, cy := w/2, h/2
 	winW, winH := 500.0, 600.0
 
-	// Semi-transparent BG
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 100}, vecAA)
+	drawDimBackground(screen, 110)
 
-	// Window
+	// Fenêtre
 	winX, winY := cx-winW/2, cy-winH/2
-	if g.sliceTopLeft != nil {
-		draw9Slice(screen, g, winX, winY, winW, winH, 24)
-	} else {
-		vector.DrawFilledRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), color.RGBA{40, 45, 60, 255}, vecAA)
-		vector.StrokeRect(screen, float32(winX), float32(winY), float32(winW), float32(winH), 2, color.RGBA{200, 180, 50, 255}, vecAA)
-	}
-
-	uiPrint(screen, "CONSTRUCTION", int(winX)+20, int(winY)+20)
-	uiPrint(screen, "[Fermer]", int(winX+winW)-80, int(winY)+20)
+	drawWindowFrame(screen, winX, winY, winW, winH, "Construction")
+	drawCloseButton(screen, winX+winW-30, winY+27, 16)
 
 	items := g.getConstructionItems()
 	startY := winY + 60
@@ -158,8 +148,7 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		}
 
 		ix := winX + 20
-		vector.DrawFilledRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), color.RGBA{60, 65, 80, 255}, vecAA)
-		vector.StrokeRect(screen, float32(ix), float32(y), float32(winW-40), float32(itemH), 1, color.RGBA{150, 150, 150, 255}, vecAA)
+		drawCard(screen, ix, y, winW-40, itemH, false)
 
 		// Icon
 		if item.Icon != nil {
@@ -171,10 +160,10 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 			screen.DrawImage(item.Icon, op)
 		}
 
-		// Text
-		textX := int(ix) + 80
-		uiPrint(screen, item.Name, textX, int(y)+10)
-		uiPrint(screen, item.Desc, textX, int(y)+30)
+		// Texte
+		textX := int(ix) + 84
+		drawText(screen, item.Name, titleFace(21), float64(textX), y+6, themeGold, alignLeft)
+		drawLabel(screen, item.Desc, float64(textX), y+32, 12.5, false, themeMuted)
 
 		// Check if building exists
 		var existing *domain.Building
@@ -213,7 +202,6 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 				}
 			}
 		}
-		costStr := buildCostString(realCost, true, hasResources)
 
 		// Prerequisites are checked server-side - no client-side blocking
 		// The button will be enabled, and server will return prerequisites error if needed
@@ -222,35 +210,31 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		} else {
 			// For upgrade, we rely on server for advanced reqs, or basic resource/busy checks
 			// Visual indication of upgrade level
-			uiPrint(screen, fmt.Sprintf("(Niv %d -> %d)", currentLevel, currentLevel+1), int(ix)+250, int(y)+20)
+			lvl := fmt.Sprintf("Niv. %d → %d", currentLevel, currentLevel+1)
+			if !isUpgrade {
+				lvl = "Nouveau"
+			}
+			drawText(screen, lvl, bodyFace(12, true), ix+winW-40-20-100, y+10, themeMuted, alignLeft)
 		}
 
-		// Draw cost text with opaque background to prevent ghosting
-		drawTextWithBackground(screen, costStr, textX, int(y)+50, color.RGBA{60, 65, 80, 255})
+		// Coût (en rouge ce qui manque)
+		drawCost(screen, realCost, hasResources, float64(textX), y+54)
 
 		// Button
 		btnW, btnH := 100.0, 30.0
 		btnX := ix + winW - 40 - 20 - btnW
 		btnY := y + itemH/2 - btnH/2
 
-		btnCol := color.RGBA{50, 150, 50, 255}
-		btnText := "CONSTRUIRE"
-
+		kind, btnText := btnPrimary, "Construire"
 		if isUpgrade {
-			btnCol = color.RGBA{0, 100, 200, 255}
-			btnText = "AMÉLIORER"
+			kind, btnText = btnSecondary, "Améliorer"
 		}
-
 		if isBusy {
-			btnCol = color.RGBA{100, 100, 100, 255}
-			btnText = "OCCUPÉ"
+			kind, btnText = btnDisabled, "Occupé"
 		} else if !canAfford {
-			btnCol = color.RGBA{150, 50, 50, 255}
-			btnText = "MANQUE"
+			kind, btnText = btnDisabled, "Ressources"
 		}
-
-		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-		uiPrint(screen, btnText, int(btnX)+5, int(btnY)+8)
+		drawButton(screen, btnX, btnY+4, btnW, btnH, btnText, kind)
 	}
 }
 

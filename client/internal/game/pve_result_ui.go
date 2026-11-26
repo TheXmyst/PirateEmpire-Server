@@ -17,7 +17,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Draw dark overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 153}, false)
+	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 153}, false)
 
 	// Window dimensions
 	cx, cy := sw/2, sh/2
@@ -26,20 +26,18 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	padding := 20.0
 
 	// Draw Window Background
-	vector.DrawFilledRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
-	vector.StrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
+	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
+	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
 
 	// Header
 	headerH := 50.0
-	uiPrint(screen, "RÉSULTAT DU COMBAT", int(x+padding), int(y+padding+10))
+	uiTitle(screen, "Résultat du combat", int(x+padding), int(y+padding+10))
 
 	// Close button (X)
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - padding
 	closeY := y + padding
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), color.RGBA{150, 50, 50, 255}, vecAA)
-	vector.StrokeRect(screen, float32(closeX), float32(closeY), float32(closeBtnSize), float32(closeBtnSize), 1, color.White, vecAA)
-	uiPrint(screen, "X", int(closeX)+10, int(closeY)+8)
+	drawCloseButton(screen, float64(closeX)+float64(closeBtnSize)/2, float64(closeY)+float64(closeBtnSize)/2, 15)
 
 	// Separator
 	vector.StrokeLine(screen, float32(x+padding), float32(y+headerH), float32(x+w-padding), float32(y+headerH), 1, color.Gray{100}, vecAA)
@@ -81,7 +79,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	textH := 30.0
 	textX := x + padding
 	textY := currentY
-	vector.DrawFilledRect(screen, float32(textX-5), float32(textY-5), float32(textW+10), float32(textH), color.RGBA{winnerColor.R / 4, winnerColor.G / 4, winnerColor.B / 4, 200}, vecAA)
+	uiFillRect(screen, float32(textX-5), float32(textY-5), float32(textW+10), float32(textH), color.RGBA{winnerColor.R / 4, winnerColor.G / 4, winnerColor.B / 4, 200}, vecAA)
 	uiPrint(screen, winnerText, int(textX), int(textY+5))
 	currentY += lineSpacing * 2
 

@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawLocalizationOverlay draws the coordinate overlay in localization mode
@@ -28,11 +27,9 @@ func (g *Game) DrawLocalizationOverlay(screen *ebiten.Image) {
 	boxH := 100.0
 
 	// Background
-	vector.DrawFilledRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), color.RGBA{0, 0, 0, 200}, vecAA)
-	vector.StrokeRect(screen, float32(boxX), float32(boxY), float32(boxW), float32(boxH), 2, color.RGBA{100, 100, 200, 255}, vecAA)
+	drawButton(screen, float64(boxX), float64(boxY), float64(boxW), float64(boxH), "Localization mode", kindFromColor(color.RGBA{0, 0, 0, 200}))
 
 	// Title
-	uiPrint(screen, "LOCALIZATION MODE", int(boxX)+10, int(boxY)+10)
 
 	// Coordinates
 	uiPrint(screen, fmt.Sprintf("WORLD X: %.0f", worldX), int(boxX)+10, int(boxY)+30)

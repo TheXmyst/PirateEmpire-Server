@@ -10,7 +10,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // GetCaptainForShip returns the captain assigned to a given ship, or nil if none
@@ -361,20 +360,19 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	winX, winY := cx-winW/2, cy-winH/2
 
 	// Semi-transparent overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, vecAA)
 
 	// Main window
 	draw9Slice(screen, g, winX, winY, winW, winH, 16)
 
 	// Title
 	titleY := winY + 15
-	uiPrint(screen, "GESTION DES FLOTTES", int(cx)-80, int(titleY))
+	uiTitleCentered(screen, "Gestion des flottes", int(cx), int(titleY))
 
 	// Close button (X)
 	closeX, closeY := winX+winW-35, winY+10
 	closeSize := 25.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	uiPrint(screen, "X", int(closeX)+8, int(closeY)+5)
+	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
 
 	// Handle close button click
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -450,7 +448,7 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, w, h float64, fleet domain.Fleet) {
 	// Header
 	headerH := 60.0
-	vector.DrawFilledRect(screen, float32(startX), float32(startY), float32(w), float32(headerH), color.RGBA{30, 40, 50, 255}, vecAA)
+	uiFillRect(screen, float32(startX), float32(startY), float32(w), float32(headerH), color.RGBA{30, 40, 50, 255}, vecAA)
 	uiPrint(screen, fmt.Sprintf("DÉTAILS: %s", fleet.Name), int(startX)+20, int(startY)+20)
 
 	// Status / Activate button area
@@ -523,8 +521,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			btnY := startY + 15
 			btnW := 100.0
 			btnH := 30.0
-			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{150, 0, 0, 255}, vecAA)
-			uiPrint(screen, "ABANDON", int(btnX)+20, int(btnY)+8)
+			drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Abandon", kindFromColor(color.RGBA{150, 0, 0, 255}))
 		}
 	} else {
 		// Activate Button
@@ -532,8 +529,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		btnY := startY + 15
 		btnW := 100.0
 		btnH := 30.0
-		vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), color.RGBA{0, 100, 200, 255}, vecAA)
-		uiPrint(screen, "ACTIVER", int(btnX)+20, int(btnY)+8)
+		drawButton(screen, float64(btnX), float64(btnY), float64(btnW), float64(btnH), "Activer", kindFromColor(color.RGBA{0, 100, 200, 255}))
 
 		// Handle Activate Click
 		// Note: Logic is usually in Update, but handling simple clicks here for UI context is common in immediate mode GUIs
@@ -581,7 +577,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	for _, ship := range activeShips {
 		// Card BG
-		vector.StrokeRect(screen, float32(col1X), float32(currentY), float32(colW), float32(lineH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
+		uiStrokeRect(screen, float32(col1X), float32(currentY), float32(colW), float32(lineH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
 
 		// 1. Ship Info
 		uiPrint(screen, ship.Name, int(col1X)+5, int(currentY)+5)
@@ -611,7 +607,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 		// Crew Button placeholder (Visual only, inputs handled in Update)
 		btnCrewY := currentY + 50
-		vector.DrawFilledRect(screen, float32(subCol2X), float32(btnCrewY), float32(subCol2W-10), 20, color.RGBA{0, 120, 200, 255}, vecAA)
+		uiFillRect(screen, float32(subCol2X), float32(btnCrewY), float32(subCol2W-10), 20, color.RGBA{0, 120, 200, 255}, vecAA)
 		uiPrint(screen, "GÉRER", int(subCol2X)+10, int(btnCrewY)+3)
 
 		// 3. Captain Info
@@ -635,15 +631,15 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		btnCaptY := currentY + 5
 		if captain != nil {
 			// Upgrade
-			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{200, 150, 0, 255}, vecAA)
+			uiFillRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{200, 150, 0, 255}, vecAA)
 			uiPrint(screen, "UPGRADE", int(subCol4X)+5, int(btnCaptY)+3)
 
 			// Unassign
-			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY+25), float32(subCol4W-5), 20, color.RGBA{150, 50, 50, 255}, vecAA)
+			uiFillRect(screen, float32(subCol4X), float32(btnCaptY+25), float32(subCol4W-5), 20, color.RGBA{150, 50, 50, 255}, vecAA)
 			uiPrint(screen, "RETIRER", int(subCol4X)+5, int(btnCaptY+28))
 		} else {
 			// Assign
-			vector.DrawFilledRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{0, 150, 0, 255}, vecAA)
+			uiFillRect(screen, float32(subCol4X), float32(btnCaptY), float32(subCol4W-5), 20, color.RGBA{0, 150, 0, 255}, vecAA)
 			uiPrint(screen, "ASSIGNER", int(subCol4X)+5, int(btnCaptY)+3)
 		}
 
@@ -669,7 +665,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		remainingCap = 0
 	}
 
-	uiPrint(screen, "CARGAISON", int(startX)+20, int(currentY))
+	uiSubtitle(screen, "Cargaison", int(startX)+20, int(currentY))
 	// Summary Line
 	uiPrint(screen, fmt.Sprintf("Capacité: %.0f/%.0f   Libre: %.0f", curLoad, capacity, remainingCap), int(startX)+150, int(currentY))
 	currentY += 25
@@ -726,7 +722,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	// TRANSFER SECTION COMPACT
 	currentY += 15
-	uiPrint(screen, "TRANSFERT (ÎLE <-> FLOTTE)", int(startX)+20, int(currentY))
+	uiSubtitle(screen, "Transfert île ↔ flotte", int(startX)+20, int(currentY))
 	currentY += 20
 
 	// Check eligibility
@@ -773,8 +769,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				}
 			}
 
-			vector.DrawFilledRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), col, vecAA)
-			vector.StrokeRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
+			uiFillRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), col, vecAA)
+			uiStrokeRect(screen, float32(rx), float32(currentY), float32(resW), float32(resH), 1, color.RGBA{100, 100, 100, 255}, vecAA)
 
 			// Center Text
 			label := resourceLabels[r]
@@ -874,8 +870,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			borderCol = color.RGBA{0, 200, 255, 255}
 		}
 
-		vector.DrawFilledRect(screen, float32(inputX), float32(currentY), float32(inputW), 25, color.RGBA{10, 10, 10, 255}, vecAA)
-		vector.StrokeRect(screen, float32(inputX), float32(currentY), float32(inputW), 25, 1, borderCol, vecAA)
+		uiFillRect(screen, float32(inputX), float32(currentY), float32(inputW), 25, color.RGBA{10, 10, 10, 255}, vecAA)
+		uiStrokeRect(screen, float32(inputX), float32(currentY), float32(inputW), 25, 1, borderCol, vecAA)
 
 		displayText := fmt.Sprintf("%.0f", g.ui.TransferAmount)
 		if g.ui.TransferInputActive {
@@ -932,8 +928,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 				}
 			}
 
-			vector.DrawFilledRect(screen, float32(bx), float32(currentY), float32(bw), 25, col, vecAA)
-			vector.StrokeRect(screen, float32(bx), float32(currentY), float32(bw), 25, 1, color.RGBA{100, 100, 100, 255}, vecAA)
+			uiFillRect(screen, float32(bx), float32(currentY), float32(bw), 25, col, vecAA)
+			uiStrokeRect(screen, float32(bx), float32(currentY), float32(bw), 25, 1, color.RGBA{100, 100, 100, 255}, vecAA)
 
 			// Center Label
 			lX := int(bx) + 2
@@ -962,8 +958,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if !canLoad {
 			colLoad = color.RGBA{40, 40, 40, 255}
 		}
-		vector.DrawFilledRect(screen, float32(loadX), float32(currentY), float32(actW), float32(actH), colLoad, vecAA)
-		uiPrint(screen, "CHARGER ->", int(loadX)+35, int(currentY)+8)
+		drawButton(screen, float64(loadX), float64(currentY), float64(actW), float64(actH), "Charger ->", kindFromColor(colLoad))
 
 		cmx, cmy = cursorPosition()
 		if canLoad && float64(cmx) >= loadX && float64(cmx) <= loadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
@@ -1005,7 +1000,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		if !canUnload {
 			colUnload = color.RGBA{40, 40, 40, 255}
 		}
-		vector.DrawFilledRect(screen, float32(unloadX), float32(currentY), float32(actW), float32(actH), colUnload, vecAA)
+		uiFillRect(screen, float32(unloadX), float32(currentY), float32(actW), float32(actH), colUnload, vecAA)
 		uiPrint(screen, "<- DÉCHARGER", int(unloadX)+30, int(currentY)+8) // text centered approx
 
 		if canUnload && float64(cmx) >= unloadX && float64(cmx) <= unloadX+actW && float64(cmy) >= currentY && float64(cmy) <= currentY+actH {
@@ -1050,8 +1045,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 // DrawManagementFleetList renders the left column list of fleets
 func (g *Game) DrawManagementFleetList(screen *ebiten.Image, startX, startY, w, h float64, fleets []domain.Fleet) {
 	// List background
-	vector.DrawFilledRect(screen, float32(startX), float32(startY), float32(w), float32(h), color.RGBA{20, 30, 40, 255}, vecAA)
-	vector.StrokeRect(screen, float32(startX), float32(startY), float32(w), float32(h), 1, color.RGBA{100, 100, 100, 255}, vecAA)
+	uiFillRect(screen, float32(startX), float32(startY), float32(w), float32(h), color.RGBA{20, 30, 40, 255}, vecAA)
+	uiStrokeRect(screen, float32(startX), float32(startY), float32(w), float32(h), 1, color.RGBA{100, 100, 100, 255}, vecAA)
 
 	itemHeight := 60.0
 	itemGap := 5.0
@@ -1102,15 +1097,16 @@ func (g *Game) DrawManagementFleetList(screen *ebiten.Image, startX, startY, w, 
 			borderColor = color.RGBA{200, 150, 50, 255}
 		}
 
-		vector.DrawFilledRect(screen, float32(startX), float32(itemY), float32(w), float32(itemHeight), bgColor, vecAA)
-		vector.StrokeRect(screen, float32(startX), float32(itemY), float32(w), float32(itemHeight), 1, borderColor, vecAA)
+		_ = bgColor
+		_ = borderColor
+		drawCard(screen, startX, itemY, w, itemHeight-4, g.ui.SelectedFleetID == fleet.ID.String())
 
-		// Name
-		uiPrint(screen, fleet.Name, int(startX)+10, int(itemY)+10)
+		// Nom
+		drawLabel(screen, fleet.Name, startX+10, itemY+10, 14, true, themeGold)
 
 		// Active Icon
 		if isActive {
-			uiPrint(screen, "✅ ACTIVE", int(startX)+10, int(itemY)+35)
+			drawLabel(screen, "Active", startX+10, itemY+34, 12.5, true, themeGreen)
 		} else {
 			// Count ships
 			activeShips := 0
@@ -1132,14 +1128,12 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	modalX, modalY := cx-modalW/2, cy-modalH/2
 
 	// Overlay
-	vector.DrawFilledRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
+	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
 
 	// Modal background
-	vector.DrawFilledRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), color.RGBA{40, 30, 20, 255}, vecAA)
-	vector.StrokeRect(screen, float32(modalX), float32(modalY), float32(modalW), float32(modalH), 2, color.RGBA{200, 180, 100, 255}, vecAA)
+	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Selectionner un capitaine", kindFromColor(color.RGBA{40, 30, 20, 255}))
 
 	// Title
-	uiPrint(screen, "SELECTIONNER UN CAPITAINE", int(modalX)+20, int(modalY)+20)
 
 	// List available captains (not assigned to any ship)
 	contentY := modalY + 50
@@ -1201,8 +1195,8 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 
 			// Captain card
 			cardH := captainCardHeight
-			vector.DrawFilledRect(screen, float32(contentX), float32(captY), float32(modalW-40), float32(cardH), color.RGBA{60, 50, 40, 255}, vecAA)
-			vector.StrokeRect(screen, float32(contentX), float32(captY), float32(modalW-40), float32(cardH), 1, color.RGBA{150, 150, 150, 255}, vecAA)
+			uiFillRect(screen, float32(contentX), float32(captY), float32(modalW-40), float32(cardH), color.RGBA{60, 50, 40, 255}, vecAA)
+			uiStrokeRect(screen, float32(contentX), float32(captY), float32(modalW-40), float32(cardH), 1, color.RGBA{150, 150, 150, 255}, vecAA)
 
 			// Captain info
 			maxStars := 3
@@ -1236,8 +1230,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			if canUpgrade {
 				upgradeBtnX := btnX
 				upgradeBtnCol := color.RGBA{200, 150, 0, 255}
-				vector.DrawFilledRect(screen, float32(upgradeBtnX), float32(btnY), float32(btnW), float32(btnH), upgradeBtnCol, vecAA)
-				uiPrint(screen, "UPGRADE ★", int(upgradeBtnX)+5, int(btnY)+7)
+				drawButton(screen, float64(upgradeBtnX), float64(btnY), float64(btnW), float64(btnH), "Upgrade ★", kindFromColor(upgradeBtnCol))
 
 				// Handle upgrade click
 				if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1264,8 +1257,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 				selectBtnX = btnX + btnW + btnSpacing
 			}
 			btnCol := color.RGBA{0, 150, 0, 255}
-			vector.DrawFilledRect(screen, float32(selectBtnX), float32(btnY), float32(btnW), float32(btnH), btnCol, vecAA)
-			uiPrint(screen, "SELECT", int(selectBtnX)+15, int(btnY)+7)
+			drawButton(screen, float64(selectBtnX), float64(btnY), float64(btnW), float64(btnH), "Select", kindFromColor(btnCol))
 
 			// Handle select click
 			if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -1295,8 +1287,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	closeX := modalX + modalW - 30
 	closeY := modalY + 10
 	closeSize := 20.0
-	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), float32(closeSize), float32(closeSize), color.RGBA{150, 0, 0, 255}, vecAA)
-	uiPrint(screen, "X", int(closeX)+6, int(closeY)+3)
+	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
 
 	// Handle close button click
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
