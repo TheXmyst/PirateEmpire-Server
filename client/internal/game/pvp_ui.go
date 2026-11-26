@@ -6,7 +6,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -21,7 +20,7 @@ func (g *Game) DrawPvpButton(screen *ebiten.Image) {
 	btnH := 50.0
 
 	// Check hover
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	hoverPvp := fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH
 
@@ -39,7 +38,7 @@ func (g *Game) DrawPvpButton(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "⚔️ PvP", int(btnX)+60, int(btnY)+18)
 
 	// Handle click
-	if hoverPvp && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverPvp && isMousePressed(ebiten.MouseButtonLeft) {
 		if !g.ui.ShowPvpUI {
 			g.ui.ShowPvpUI = true
 			// Load PvP targets if not already loaded
@@ -104,7 +103,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	// Close button
 	closeX := modalX + modalW - 40
 	closeY := modalY + 10
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
@@ -115,7 +114,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, true)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
 
-	if hoverClose && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpUI = false
 		return
 	}
@@ -190,7 +189,7 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 			vector.DrawFilledRect(screen, float32(btnX), float32(btnY), float32(btnW), float32(btnH), attackColor, true)
 			ebitenutil.DebugPrintAt(screen, "ATTAQUER", int(btnX)+25, int(btnY)+10)
 
-			if hoverAttack && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			if hoverAttack && isMousePressed(ebiten.MouseButtonLeft) {
 				// Select this target and show fleet selection
 				g.ui.PvpSelectedTarget = &g.ui.PvpTargets[i]
 				g.ui.ShowPvpFleetSelect = true
@@ -227,7 +226,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	// Close button
 	closeX := modalX + modalW - 40
 	closeY := modalY + 10
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
@@ -238,7 +237,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	}
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
 
-	if hoverClose && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
 		g.ui.PvpSelectedFleetID = ""
 		return
@@ -282,7 +281,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("   État: %s", status), int(modalX+30), int(boxY+30))
 
 		// Click to select
-		if hoverFleet && !isLocked && !isAway && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		if hoverFleet && !isLocked && !isAway && isMousePressed(ebiten.MouseButtonLeft) {
 			g.ui.PvpSelectedFleetID = fleet.ID.String()
 			g.ui.ShowPvpConfirm = true
 		}
@@ -301,7 +300,7 @@ func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, true)
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
 
-	if hoverCancel && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpFleetSelect = false
 		g.ui.PvpSelectedFleetID = ""
 	}
@@ -357,7 +356,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	cancelX := modalX + 50
 	attackX := modalX + modalW - 180
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Cancel
@@ -369,7 +368,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(cancelX), float32(btnY), 120, 40, cancelColor, true)
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(cancelX)+30, int(btnY)+15)
 
-	if hoverCancel && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverCancel && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpConfirm = false
 	}
 
@@ -382,7 +381,7 @@ func (g *Game) DrawPvpConfirmation(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(attackX), float32(btnY), 120, 40, attackColor, true)
 	ebitenutil.DebugPrintAt(screen, "ATTAQUER", int(attackX)+25, int(btnY)+15)
 
-	if hoverAttack && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !g.ui.PvpAttackBusy {
+	if hoverAttack && isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.PvpAttackBusy {
 		g.Log("[PVP UI] Confirmation button clicked!")
 		g.executePvpAttack()
 	}

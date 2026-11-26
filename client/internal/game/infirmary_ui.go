@@ -7,7 +7,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -140,7 +139,7 @@ func (g *Game) UpdateInfirmaryUI() bool {
 	}
 
 	// Close on Escape
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowInfirmaryUI = false
 		return true
 	}
@@ -151,11 +150,11 @@ func (g *Game) UpdateInfirmaryUI() bool {
 	winX, winY := (w-winW)/2, (h-winH)/2
 
 	// Mouse Input
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Scroll
-	_, wy := ebiten.Wheel()
+	_, wy := wheelDelta()
 	if wy != 0 {
 		g.ui.InfirmaryScrollY -= wy * 30
 		if g.ui.InfirmaryScrollY < 0 {
@@ -164,7 +163,7 @@ func (g *Game) UpdateInfirmaryUI() bool {
 		// Max scroll calc could be added if needed
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Close button (Top Right)
 		if fmx >= winX+winW-100 && fmx <= winX+winW && fmy >= winY && fmy <= winY+50 {
 			g.ui.ShowInfirmaryUI = false

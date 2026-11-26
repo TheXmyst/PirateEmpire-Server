@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -95,8 +94,8 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+8, int(closeY)+5)
 
 	// Handle close button click
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= closeX && float64(mx) <= closeX+closeSize && float64(my) >= closeY && float64(my) <= closeY+closeSize {
 			g.ui.ShowShipyard = false
 			return
@@ -124,8 +123,8 @@ func (g *Game) DrawShipyardMenu(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "FLOTTES", int(tab2X)+60, int(tabY)+12)
 
 	// Handle tab clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(my) >= tabY && float64(my) <= tabY+tabH {
 			if float64(mx) >= tab1X && float64(mx) <= tab1X+tabW {
 				shipyardUI.CurrentTab = 0
@@ -304,8 +303,8 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		}
 
 		// Handle button click
-		if canBuild && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			mx, my := ebiten.CursorPosition()
+		if canBuild && isMouseJustPressed(ebiten.MouseButtonLeft) {
+			mx, my := cursorPosition()
 			if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 				// Build ship
 				g.Log("[SHIP BUILD] Button clicked: %s (Type: %s)", ship.Name, ship.ID)
@@ -332,7 +331,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 
 	// Handle mouse wheel scrolling
 	// Constrain scroll to prevent items from escaping the viewport
-	_, wy := ebiten.Wheel()
+	_, wy := wheelDelta()
 	if wy != 0 {
 		totalH := float64(len(ships)) * (itemH + gap)
 
@@ -505,8 +504,8 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+30, int(btnY)+12)
 
 	// Handle upgrade button click
-	if canAfford && !isBusy && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if canAfford && !isBusy && isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 			// Find shipyard building ID
 			var shipyardID string

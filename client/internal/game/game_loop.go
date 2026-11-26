@@ -28,7 +28,7 @@ func (g *Game) Log(format string, a ...interface{}) {
 	g.DevLog("INFO", format, a...)
 }
 
-func (g *Game) Update() error {
+func (g *Game) updateGame() error {
 	select {
 	case entry := <-g.logChan:
 		g.consoleLog = append(g.consoleLog, entry)
@@ -59,7 +59,7 @@ func (g *Game) Update() error {
 		g.pollChatFeed()
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyF11) {
+	if isKeyJustPressed(ebiten.KeyF11) {
 		ebiten.SetFullscreen(!ebiten.IsFullscreen())
 	}
 
@@ -144,6 +144,7 @@ func (g *Game) Update() error {
 	default:
 	}
 
+	// Vraie touche seulement : le bouton tactile « Fermer » ne met pas le jeu en pause.
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.isPaused = !g.isPaused
 	}
@@ -170,13 +171,13 @@ func (g *Game) Update() error {
 
 	// DMS Debug Keys (F9/F10)
 	if g.seaDMS != nil && g.isDev {
-		g.seaDMS.HandleDebugKeys(inpututil.IsKeyJustPressed, ebiten.KeyF9, ebiten.KeyF10)
+		g.seaDMS.HandleDebugKeys(isKeyJustPressed, ebiten.KeyF9, ebiten.KeyF10)
 	}
 
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
+func (g *Game) drawGame(screen *ebiten.Image) {
 	// Route to state-specific draw logic
 	g.drawByState(screen)
 
@@ -286,10 +287,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.DrawError(screen)
 }
 
+// Layout : l'interface est dessinée pour un écran d'au moins 1280x720.
+// Sur un écran plus petit (téléphone), on dessine le jeu « en grand » puis on
+// le réduit pour qu'il tienne entièrement à l'écran.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	g.screenWidth = outsideWidth
-	g.screenHeight = outsideHeight
-	return outsideWidth, outsideHeight
+	w, h := scaledLayout(outsideWidth, outsideHeight)
+	g.screenWidth = w
+	g.screenHeight = h
+	return w, h
 }
 
 func (g *Game) calculateProduction(res domain.ResourceType) (float64, float64, float64, []string) {
@@ -328,7 +333,7 @@ func (g *Game) updateVisualResources(dt float64) {
 }
 
 func (g *Game) handleBuildingClick() {
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
 	if g.player != nil && len(g.player.Islands) > 0 {
 		for _, b := range g.player.Islands[0].Buildings {

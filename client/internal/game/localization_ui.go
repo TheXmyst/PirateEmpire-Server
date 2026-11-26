@@ -15,7 +15,7 @@ func (g *Game) DrawLocalizationOverlay(screen *ebiten.Image) {
 		return
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	screenW, screenH := float64(g.screenWidth), float64(g.screenHeight)
 
 	// Convert screen coords to world coords

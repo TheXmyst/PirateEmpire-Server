@@ -10,7 +10,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -92,7 +91,7 @@ func (ui *TechUI) Update(g *Game) {
 		return
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	cmx, cmy := float64(mx), float64(my)
 
 	// Handle Clicking Outside (Close)
@@ -105,7 +104,7 @@ func (ui *TechUI) Update(g *Game) {
 		tx := ui.X + float64(i)*tabW
 		ty := ui.Y - 30
 		if cmx >= tx && cmx < tx+tabW && cmy >= ty && cmy < ui.Y {
-			if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			if isMousePressed(ebiten.MouseButtonLeft) {
 				ui.SelectedTab = t
 			}
 		}
@@ -141,7 +140,7 @@ func (ui *TechUI) Update(g *Game) {
 
 		if cmx >= nx && cmx < nx+160 && cmy >= ny && cmy < ny+80 {
 			ui.HoverID = tech.ID
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				ui.SelectedID = tech.ID
 				// Trigger Action? Or just Select?
 				// Let's make click = Start Research if available
@@ -506,8 +505,8 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 			}
 
 			// Check Click on Research
-			mx, my := ebiten.CursorPosition()
-			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			mx, my := cursorPosition()
+			if isMouseJustPressed(ebiten.MouseButtonLeft) {
 				if float64(mx) >= float64(btnX) && float64(mx) < float64(btnX)+200 && float64(my) >= float64(btnY) && float64(my) < float64(btnY)+50 {
 					if label == "RECHERCHER" {
 						g.StartResearch(selTech.ID)
@@ -527,8 +526,8 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 	// Close Button
 	ebitenutil.DebugPrintAt(screen, "[X] FERMER", int(ui.X+ui.W)-80, int(ui.Y)+10)
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) > ui.X+ui.W-90 && float64(mx) < ui.X+ui.W-10 && float64(my) > ui.Y && float64(my) < ui.Y+30 {
 			ui.Visible = false
 		}
@@ -677,8 +676,8 @@ func (g *Game) DrawAcademyUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 	ebitenutil.DebugPrintAt(screen, btnText, int(btnX)+30, int(btnY)+12)
 
 	// Handle upgrade button click
-	if canAfford && !isBusy && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if canAfford && !isBusy && isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 			// Find academy building ID
 			var academyID string

@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -634,12 +633,12 @@ func (g *Game) UpdateWorldMapInteraction() {
 	// But IsModalOpen is true if StationMenu is open.
 	// We process Station Menu input IF it is the top-level blocker (or at least if open).
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	if g.ui.ShowStationMenu {
 		// Log input consumption if clicking
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			// g.Log("[UI_INPUT] StationMenu consuming input")
 		}
 
@@ -648,7 +647,7 @@ func (g *Game) UpdateWorldMapInteraction() {
 		panelX, panelY := (w-panelW)/2, (h-panelH)/2
 		closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
 
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			if fmx >= closeBtnX && fmx <= closeBtnX+30 && fmy >= closeBtnY && fmy <= closeBtnY+30 {
 				g.ui.ShowStationMenu = false
 				return
@@ -791,7 +790,7 @@ func (g *Game) UpdateWorldMapInteraction() {
 	}
 
 	// Clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// 1. Check Return Button Click FIRST (before blocking on UI hover)
 		w := float64(g.screenWidth)
 		btnW, btnH := 100.0, 30.0
@@ -1162,7 +1161,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "La flotte poursuivra sa cible jusqu'à l'engagement.", int(panelX)+30, int(panelY)+120)
 
 	// Inputs
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Buttons
@@ -1173,7 +1172,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	cancelCol := color.RGBA{180, 50, 50, 255}
 	if fmx >= cancelX && fmx <= cancelX+btnW && fmy >= cancelY && fmy <= cancelY+btnH {
 		cancelCol = color.RGBA{220, 70, 70, 255}
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			g.ui.ShowPveConfirmModal = false
 			if g.seaDMS != nil {
 				g.seaDMS.SetMode(DMSCalm, "pve_cancel")
@@ -1189,7 +1188,7 @@ func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
 	confirmCol := color.RGBA{50, 150, 50, 255}
 	if fmx >= confirmX && fmx <= confirmX+btnW && fmy >= confirmY && fmy <= confirmY+btnH {
 		confirmCol = color.RGBA{70, 200, 70, 255}
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			// Execute Chase
 			g.confirmPveChase()
 			g.ui.ShowPveConfirmModal = false
@@ -1250,8 +1249,8 @@ func (g *Game) DrawNavFreeConfirmModal(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(canX+35), int(canY+12))
 
 	// Click Handling
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 
 		if fmx >= confX && fmx <= confX+btnW && fmy >= confY && fmy <= confY+btnH {
@@ -1467,7 +1466,7 @@ func (g *Game) DrawRecallButton(screen *ebiten.Image) {
 }
 
 func (g *Game) isMovingToReturn(x, y, w, h float64) bool {
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	return fmx >= x && fmx <= x+w && fmy >= y && fmy <= y+h
 }

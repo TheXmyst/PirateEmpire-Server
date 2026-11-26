@@ -46,7 +46,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	// Close button
 	closeX := modalX + modalW - 40
 	closeY := modalY + 10
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	hoverClose := fmx >= closeX && fmx <= closeX+30 && fmy >= closeY && fmy <= closeY+30
 
@@ -57,7 +57,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(closeX), float32(closeY), 30, 30, closeColor, true)
 	ebitenutil.DebugPrintAt(screen, "X", int(closeX)+10, int(closeY)+10)
 
-	if hoverClose && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverClose && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false
 		if g.seaDMS != nil {
 			g.seaDMS.SetMode(DMSCalm, "pvp_result_closed_btn")
@@ -101,7 +101,7 @@ func (g *Game) DrawPvpResultUI(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(btnX), float32(btnY), 150, 40, okColor, true)
 	ebitenutil.DebugPrintAt(screen, "OK", int(btnX)+65, int(btnY)+15)
 
-	if hoverOK && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if hoverOK && isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.ShowPvpResultUI = false
 		if g.seaDMS != nil {
 			g.seaDMS.SetMode(DMSCalm, "pvp_result_ok")

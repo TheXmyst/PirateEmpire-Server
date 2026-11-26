@@ -9,7 +9,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -279,7 +278,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	x, y := cx-w/2, cy-h/2
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowMilitiaUI = false
 		g.ui.MilitiaError = ""
 		// Reset drag state
@@ -302,7 +301,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 		}
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Slider positions (synchronized with Draw)
@@ -317,7 +316,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	gunnerY := archerY + 60
 
 	// Stop dragging when mouse released
-	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if !isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.DraggingMilitiaWarrior = false
 		g.ui.DraggingMilitiaArcher = false
 		g.ui.DraggingMilitiaGunner = false
@@ -343,7 +342,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	}
 
 	// PRIORITY 1: Handle close button FIRST
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		closeBtnSize := 30.0
 		closeX := x + w - closeBtnSize - 10
 		closeY := y + 10
@@ -358,7 +357,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	}
 
 	// PRIORITY 2: Start dragging on mouse down over slider (EXCLUSIVE with else if)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Warrior slider (expanded hit area)
 		if fmy >= warriorY-sliderCaptureH/2 && fmy <= warriorY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW {
 			g.ui.DraggingMilitiaWarrior = true
@@ -381,7 +380,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	}
 
 	// PRIORITY 3: Continue dragging if mouse button held down
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if isMousePressed(ebiten.MouseButtonLeft) {
 		if g.ui.DraggingMilitiaWarrior {
 			g.ui.MilitiaWarriors = calcSliderValue(fmx)
 		} else if g.ui.DraggingMilitiaArcher {
@@ -392,7 +391,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 	}
 
 	// PRIORITY 4: Handle buttons (only if not currently dragging)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingMilitiaWarrior && !g.ui.DraggingMilitiaArcher && !g.ui.DraggingMilitiaGunner {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingMilitiaWarrior && !g.ui.DraggingMilitiaArcher && !g.ui.DraggingMilitiaGunner {
 		// Upgrade button
 		if militiaBuilding != nil && !militiaBuilding.Constructing {
 			upgradeBtnX := x + w - 150

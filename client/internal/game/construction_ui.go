@@ -10,7 +10,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -262,7 +261,7 @@ func (g *Game) UpdateConstructionMenu() {
 	}
 
 	// Handle Mouse Wheel Scrolling
-	_, wy := ebiten.Wheel()
+	_, wy := wheelDelta()
 	if wy != 0 {
 		items := g.getConstructionItems()
 		itemH := 80.0
@@ -281,13 +280,13 @@ func (g *Game) UpdateConstructionMenu() {
 	}
 
 	// Close on Escape or Outside Click
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowConstruction = false
 		return
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 		w, h := float64(g.screenWidth), float64(g.screenHeight)
 		cx, cy := w/2, h/2

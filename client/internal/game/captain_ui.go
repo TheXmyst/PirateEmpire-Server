@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -114,7 +113,7 @@ func (g *Game) UpdateCaptainUI() bool {
 	padding := 20.0
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowCaptainUI = false
 		return true
 	}
@@ -124,10 +123,10 @@ func (g *Game) UpdateCaptainUI() bool {
 		return true
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Close button (X)
 		closeBtnSize := 30.0
 		closeX := x + w - closeBtnSize - padding
@@ -476,12 +475,12 @@ func (g *Game) updateCaptainListTab(x, y, w, h float64) bool {
 	leftW := w * 0.35
 	leftX := x + padding
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Scroll Logic
 	if fmx >= leftX && fmx <= leftX+leftW && fmy >= y && fmy <= y+h {
-		_, dy := ebiten.Wheel()
+		_, dy := wheelDelta()
 		if dy != 0 {
 			g.ui.CaptainUIScroll -= dy * 20.0
 			if g.ui.CaptainUIScroll < 0 {
@@ -501,7 +500,7 @@ func (g *Game) updateCaptainListTab(x, y, w, h float64) bool {
 	}
 
 	// Click Logic
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Click on captain in list (left column)
 		if fmx >= leftX && fmx <= leftX+leftW && fmy >= y && fmy <= y+h {
 			lineHeight := 50.0
@@ -525,12 +524,12 @@ func (g *Game) updateCaptainUpgradeTab(x, y, w, h float64) bool {
 	listX := x + padding
 	listW := w - padding*2
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Scroll
 	if fmx >= listX && fmx <= listX+listW && fmy >= y && fmy <= y+h {
-		_, dy := ebiten.Wheel()
+		_, dy := wheelDelta()
 		if dy != 0 {
 			g.ui.CaptainUIScroll -= dy * 20.0
 			if g.ui.CaptainUIScroll < 0 {
@@ -549,7 +548,7 @@ func (g *Game) updateCaptainUpgradeTab(x, y, w, h float64) bool {
 		}
 	}
 
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Upgrade Button Clicks
 		lineHeight := 80.0
 		startIndex := int(g.ui.CaptainUIScroll / lineHeight)

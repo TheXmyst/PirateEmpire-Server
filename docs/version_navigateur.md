@@ -47,7 +47,14 @@ WEB_DIR=../client/web/dist DEV_MODE=1 go run ./cmd
 
 ## Limites connues
 
-- Pensé pour les navigateurs d'ordinateur (Chrome, Firefox, Edge). Sur
-  téléphone, il manque le clavier et les commandes tactiles.
+- Sur téléphone : se joue en paysage (un message demande de tourner le
+  téléphone). Tap = clic, un doigt qui glisse déplace la carte ou fait
+  défiler une fenêtre, deux doigts pour zoomer. Toucher un champ de texte
+  ouvre une barre de saisie en haut avec le clavier du téléphone. Des boutons
+  à droite remplacent les touches : FERMER (Échap), PLEIN ECRAN (F11, pas
+  disponible sur iPhone) et DEV (F1, admins). Le code est dans
+  `client/internal/game/input.go`, `touch_ui.go` et `softkeyboard_js.go`.
+- Sur petit écran, l'interface (prévue pour 1280x720) est réduite pour tenir
+  entièrement : les textes sont petits.
 - Les navigateurs bloquent le son tant que le joueur n'a pas cliqué : la
   musique démarre au premier clic.

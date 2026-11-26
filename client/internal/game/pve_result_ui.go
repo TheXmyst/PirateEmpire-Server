@@ -6,7 +6,6 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -223,18 +222,18 @@ func (g *Game) UpdatePveResultUI() bool {
 	contentH := h - headerH - padding*2 - 40
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowPveResultUI = false
 		g.Log("[PVE UI] close")
 		return true
 	}
 
 	// Handle mouse wheel scrolling
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	if fmx >= x && fmx <= x+w && fmy >= contentY && fmy <= contentY+contentH {
-		_, dy := ebiten.Wheel()
+		_, dy := wheelDelta()
 		if dy != 0 {
 			g.ui.PveResultScroll -= dy * 20.0
 			if g.ui.PveResultScroll < 0 {
@@ -258,7 +257,7 @@ func (g *Game) UpdatePveResultUI() bool {
 	}
 
 	// Handle mouse clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Close button
 		closeBtnSize := 30.0
 		closeX := x + w - closeBtnSize - padding

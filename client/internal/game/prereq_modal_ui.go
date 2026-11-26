@@ -7,7 +7,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -166,14 +165,14 @@ func (g *Game) UpdatePrereqModal() bool {
 	padding := 20.0
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.closePrereqModal()
 		return true
 	}
 
 	// Handle mouse clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 
 		// Close button (X)
@@ -206,7 +205,7 @@ func (g *Game) UpdatePrereqModal() bool {
 	}
 
 	// Mouse wheel scrolling
-	_, dy := ebiten.Wheel()
+	_, dy := wheelDelta()
 	if dy != 0 {
 		totalItems := len(g.ui.PrereqModalReqs)
 		listHeight := (y + h - 80) - (y + 90) // Approximate list height
@@ -229,7 +228,7 @@ func (g *Game) UpdatePrereqModal() bool {
 	}
 
 	// Arrow keys for scrolling
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+	if isKeyJustPressed(ebiten.KeyArrowDown) {
 		totalItems := len(g.ui.PrereqModalReqs)
 		listHeight := (y + h - 80) - (y + 90)
 		maxVisibleItems := int(listHeight / 25)
@@ -242,7 +241,7 @@ func (g *Game) UpdatePrereqModal() bool {
 		}
 		return true
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+	if isKeyJustPressed(ebiten.KeyArrowUp) {
 		if g.ui.PrereqModalScroll > 0 {
 			g.ui.PrereqModalScroll--
 		}

@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -71,7 +70,7 @@ func (g *Game) UpdateSocialUI() bool {
 		return false
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	cx, cy := float64(mx), float64(my)
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 
@@ -79,7 +78,7 @@ func (g *Game) UpdateSocialUI() bool {
 	panelX, panelY := (w-panelW)/2, (h-panelH)/2
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowSocialUI = false
 		g.ui.SocialSearchFocus = false
 		g.ui.SocialGuildNameFocus = false
@@ -87,7 +86,7 @@ func (g *Game) UpdateSocialUI() bool {
 	}
 
 	// Handle clicks
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Close button
 		if pointInRect(cx, cy, panelX+panelW-40, panelY+10, 30, 30) {
 			g.ui.ShowSocialUI = false
@@ -198,7 +197,7 @@ func (g *Game) UpdateSocialUI() bool {
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+	if isKeyJustPressed(ebiten.KeyBackspace) {
 		if g.ui.SocialSearchFocus && len(g.ui.SocialSearchQuery) > 0 {
 			_, size := utf8.DecodeLastRuneInString(g.ui.SocialSearchQuery)
 			g.ui.SocialSearchQuery = g.ui.SocialSearchQuery[:len(g.ui.SocialSearchQuery)-size]
@@ -209,7 +208,7 @@ func (g *Game) UpdateSocialUI() bool {
 		}
 	}
 
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+	if isKeyJustPressed(ebiten.KeyEnter) {
 		switch g.ui.SocialActiveTab {
 		case "friends":
 			if g.ui.SocialSearchFocus {
@@ -369,6 +368,8 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 
 	searchX, searchY := panelX+20, panelY+70
 	searchW, searchH := panelW-200, 32.0
+	registerTextField(textField{id: "social-search", x: searchX, y: searchY, w: searchW, h: searchH,
+		value: &g.ui.SocialSearchQuery, focused: g.ui.SocialSearchFocus, label: "Chercher un joueur"})
 	vector.DrawFilledRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), alpha(15, 15, 20, 210), true)
 	vector.StrokeRect(screen, float32(searchX), float32(searchY), float32(searchW), float32(searchH), 2, alpha(180, 160, 100, 200), true)
 	ebitenutil.DebugPrintAt(screen, g.ui.SocialSearchQuery, int(searchX)+8, int(searchY)+8)
@@ -435,6 +436,8 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 		ebitenutil.DebugPrintAt(screen, "Pas de guilde actuelle", int(panelX)+20, int(titleY)+20)
 		nameX, nameY := panelX+20, panelY+80
 		nameW, nameH := panelW-200, 32.0
+		registerTextField(textField{id: "guild-name", x: nameX, y: nameY, w: nameW, h: nameH,
+			value: &g.ui.SocialGuildNameInput, focused: g.ui.SocialGuildNameFocus, label: "Nom de guilde"})
 		vector.DrawFilledRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), alpha(15, 15, 20, 210), true)
 		vector.StrokeRect(screen, float32(nameX), float32(nameY), float32(nameW), float32(nameH), 2, alpha(180, 160, 100, 200), true)
 		placeholder := "Nom de guilde"

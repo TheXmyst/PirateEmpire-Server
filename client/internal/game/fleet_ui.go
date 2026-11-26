@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -66,7 +65,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 	padding := 20.0
 	startY := ly
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 
 	// Disable interaction if modal is open
 	modalOpen := fleetUI.ShowAddModal
@@ -122,7 +121,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d / %d Navires", shipCount, maxShips), int(lx)+10, int(slotY)+30)
 
 			// Click to Select
-			if hover && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
 				fleetUI.SelectedFleetIndex = i
 			}
 		}
@@ -215,7 +214,7 @@ func (g *Game) DrawFleetTab(screen *ebiten.Image, lx, ly, lw, lh, rx, ry, rw, rh
 	}
 	ebitenutil.DebugPrintAt(screen, labelAdd, int(btnAddX)+20, int(btnAddY)+12)
 
-	if hoverAdd && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && currentShips < maxShips {
+	if hoverAdd && isMouseJustPressed(ebiten.MouseButtonLeft) && currentShips < maxShips {
 		// Open Modal
 		fleetUI.ShowAddModal = true
 		fleetUI.TargetFleetIndex = selIdx
@@ -267,7 +266,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 		}
 	}
 
-	curMx, curMy := ebiten.CursorPosition()
+	curMx, curMy := cursorPosition()
 
 	if len(availableShips) == 0 {
 		ebitenutil.DebugPrintAt(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
@@ -289,7 +288,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 			vector.DrawFilledRect(screen, float32(rowX), float32(rowY), float32(rowW), float32(rowH), col, false)
 			ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%s (%s)", s.Name, s.Type), int(rowX)+10, int(rowY)+8)
 
-			if hover && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			if hover && isMouseJustPressed(ebiten.MouseButtonLeft) {
 				id := s.ID
 				fleetUI.SelectedShipID = &id
 			}
@@ -310,7 +309,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(btnCancelX), float32(btnCancelY), float32(btnW), float32(btnH), colCancel, false)
 	ebitenutil.DebugPrintAt(screen, "ANNULER", int(btnCancelX)+30, int(btnCancelY)+8)
 
-	if inputEnabled && hoverCancel && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if inputEnabled && hoverCancel && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		fleetUI.ShowAddModal = false
 		fleetUI.SelectedShipID = nil
 	}
@@ -329,7 +328,7 @@ func (g *Game) DrawAddShipModal(screen *ebiten.Image) {
 	vector.DrawFilledRect(screen, float32(btnOkX), float32(btnOkY), float32(btnW), float32(btnH), colOk, false)
 	ebitenutil.DebugPrintAt(screen, "ASSIGNER", int(btnOkX)+30, int(btnOkY)+8)
 
-	if inputEnabled && !disabled && hoverOk && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if inputEnabled && !disabled && hoverOk && isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Execute Assign - find fleet by name to get the correct ID from server
 		if g.player != nil && len(g.player.Islands) > 0 {
 			// Find fleet by matching name (Flotte 1, Flotte 2, Flotte 3)

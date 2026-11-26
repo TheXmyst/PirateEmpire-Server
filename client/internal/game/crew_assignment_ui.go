@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -102,7 +101,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	sliderCaptureH := 30.0 // Match UpdateCrewAssignmentModal
 
 	// Get mouse position for hover detection
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Warrior slider
@@ -271,7 +270,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	modalX, modalY := cx-modalW/2, cy-modalH/2
 
 	// Close on ESC
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	if isKeyJustPressed(ebiten.KeyEscape) {
 		g.ui.ShowCrewModal = false
 		g.ui.SelectedShipForCrew = ""
 		g.ui.CrewModalError = ""
@@ -314,7 +313,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 		maxCrew = 250
 	}
 
-	mx, my := ebiten.CursorPosition()
+	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
 	// Synchronized slider positions (match DrawCrewAssignmentModal)
@@ -331,7 +330,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	gunnerY := archerY + 60
 
 	// Stop dragging when mouse released
-	if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if !isMousePressed(ebiten.MouseButtonLeft) {
 		g.ui.DraggingCrewWarrior = false
 		g.ui.DraggingCrewArcher = false
 		g.ui.DraggingCrewGunner = false
@@ -362,7 +361,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	}
 
 	// PRIORITY 1: Handle close button FIRST (before sliders consume input)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		closeX := modalX + modalW - 30
 		closeY := modalY + 10
 		closeSize := 20.0
@@ -378,7 +377,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	}
 
 	// PRIORITY 2: Start dragging on mouse down over slider (EXCLUSIVE with else if)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Warrior slider (expanded hit area)
 		if fmy >= warriorY-sliderCaptureH/2 && fmy <= warriorY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW {
 			g.ui.DraggingCrewWarrior = true
@@ -401,7 +400,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	}
 
 	// PRIORITY 3: Continue dragging if mouse button held down
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	if isMousePressed(ebiten.MouseButtonLeft) {
 		if g.ui.DraggingCrewWarrior {
 			g.ui.CrewModalWarriors = calcSliderValue(fmx, ship.MilitiaWarriors, island.Crew[domain.Warrior])
 		} else if g.ui.DraggingCrewArcher {
@@ -412,7 +411,7 @@ func (g *Game) UpdateCrewAssignmentModal() bool {
 	}
 
 	// PRIORITY 4: Handle buttons (only if not currently dragging)
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingCrewWarrior && !g.ui.DraggingCrewArcher && !g.ui.DraggingCrewGunner {
+	if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingCrewWarrior && !g.ui.DraggingCrewArcher && !g.ui.DraggingCrewGunner {
 		btnY := modalY + modalH - 80
 		btnW := 120.0
 		btnH := 35.0

@@ -48,7 +48,7 @@ func (g *Game) DrawHUD(screen *ebiten.Image) {
 		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Captain: %s | Island: %s", g.player.Username, g.player.Islands[0].Name), int(infoX), int(hudY)+18)
 
 		// Resource Tooltips
-		mx, my := ebiten.CursorPosition()
+		mx, my := cursorPosition()
 		cmx, cmy := float64(mx), float64(my)
 		if cmy >= hudY && cmy <= hudY+hudH {
 			var tooltipRes domain.ResourceType
