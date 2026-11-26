@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
@@ -130,6 +131,19 @@ func (g *Game) UpdateLogin() error {
 	return nil
 }
 
+// loginErrorText : message d'erreur court, avec une majuscule.
+func loginErrorText(err error) string {
+	msg := err.Error()
+	// « serveur injoignable (adresse) : détail technique » -> sans le détail.
+	if i := strings.Index(msg, ") : "); strings.HasPrefix(msg, "serveur injoignable") && i > 0 {
+		msg = msg[:i+1]
+	}
+	if r := []rune(msg); len(r) > 0 {
+		msg = strings.ToUpper(string(r[0])) + string(r[1:])
+	}
+	return msg
+}
+
 func (g *Game) attemptLogin() {
 	if g.ui.Username == "" || g.ui.Password == "" {
 		g.ui.LoginError = "Champs vides"
@@ -141,7 +155,7 @@ func (g *Game) attemptLogin() {
 	go func() {
 		resp, err := g.api.Login(g.ui.Username, g.ui.Password)
 		if err != nil {
-			g.ui.LoginError = "Erreur de connexion"
+			g.ui.LoginError = loginErrorText(err)
 			g.Log("Login Failed: %v", err)
 			return
 		}
@@ -194,7 +208,7 @@ func (g *Game) attemptRegister() {
 	go func() {
 		err := g.api.Register(g.ui.Username, g.ui.Password)
 		if err != nil {
-			g.ui.LoginError = "Erreur Creation"
+			g.ui.LoginError = loginErrorText(err)
 			g.Log("Register Failed: %v", err)
 			return
 		}
@@ -388,7 +402,10 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	ebitenutil.DebugPrintAt(screen, "Developed by Masterkey Technologic", 10, int(h)-20)
 
 	if g.ui.LoginError != "" {
-		ebitenutil.DebugPrintAt(screen, g.ui.LoginError, int(cx)-100, int(loginY)+230)
+		f := bodyFace(14, true)
+		tw := textWidth(g.ui.LoginError, f)
+		fillRoundRect(screen, cx-tw/2-12, loginY+188, tw+24, 26, 13, color.RGBA{20, 13, 7, 210})
+		drawText(screen, g.ui.LoginError, f, cx, loginY+192, themeOrange, alignCenter)
 	}
 
 	if g.ui.ShowUpdateModal {
