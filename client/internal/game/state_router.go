@@ -213,7 +213,8 @@ func (g *Game) updateByState() error {
 		if g.UpdateCrewAssignmentModal() {
 			return nil
 		}
-		g.UpdateFleetUI() // Handles its own "Close on ESC" check internally
+		// UpdateFleetUI est appelé une seule fois par frame, dans game_loop.go
+		// (avant, il l'était aussi ici : en mer chaque clic comptait double).
 		if g.UpdateCaptainUI() {
 			return nil
 		}

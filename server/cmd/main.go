@@ -164,6 +164,7 @@ func main() {
 		protected.POST("/fleets/create", api.CreateFleet)
 		protected.POST("/fleets/add-ship", api.AddShipToFleet)
 		protected.GET("/fleets", api.GetFleets)
+		protected.POST("/fleets/set-active", api.SetActiveFleet)
 		// Captain endpoints
 		protected.GET("/captains", api.GetCaptains)
 		protected.POST("/captains/assign", api.AssignCaptain)

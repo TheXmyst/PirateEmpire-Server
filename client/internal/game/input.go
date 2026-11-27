@@ -46,6 +46,9 @@ type pointerState struct {
 
 	pressed     bool // équivalent « bouton gauche enfoncé »
 	justPressed bool // équivalent « clic gauche » pour cette frame
+	justDown    bool // le doigt (ou le bouton gauche) vient de se poser cette frame
+
+	escFrame uint64 // frame où Échap a déjà été « pris » par une fenêtre
 
 	wheelY   float64 // crans de molette générés cette frame
 	wheelAcc float64
@@ -88,6 +91,7 @@ func (g *Game) updatePointer() {
 
 	p.frame++
 	p.justPressed = false
+	p.justDown = false
 	p.wheelY = 0
 	p.panDX, p.panDY = 0, 0
 	p.zoomFactor = 1
@@ -106,8 +110,12 @@ func (g *Game) updatePointer() {
 
 	// Clic souris sur un bouton rond : on le prend pour nous.
 	p.mouseConsumed = false
-	if len(ids) == 0 && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) && g.consumeTouchButtonTap(mx, my) {
-		p.mouseConsumed = true
+	if len(ids) == 0 && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		if g.consumeTouchButtonTap(mx, my) {
+			p.mouseConsumed = true
+		} else {
+			p.justDown = true
+		}
 	}
 
 	if p.hideAfterRelease && len(ids) == 0 {
@@ -142,6 +150,7 @@ func (g *Game) updatePointer() {
 		p.x, p.y = p.missedTapX, p.missedTapY
 		if !g.consumeTouchButtonTap(p.x, p.y) {
 			p.justPressed = true
+			p.justDown = true
 			p.pressed = true
 		}
 		p.hideAfterRelease = true
@@ -176,6 +185,7 @@ func (g *Game) updatePointer() {
 		p.moved = false
 		p.multi = len(ids) > 1
 		p.pressed = true
+		p.justDown = true
 		p.wheelAcc = 0
 		p.pinchDist = 0
 		p.dragScrolls = g.touchDragScrollsAt(x, y)
@@ -273,6 +283,24 @@ func isMousePressed(b ebiten.MouseButton) bool {
 		return true
 	}
 	return ebiten.IsMouseButtonPressed(b)
+}
+
+// isPointerJustDown : le bouton gauche ou le doigt vient de se poser.
+// Contrairement à isMouseJustPressed (qui, sur téléphone, ne part qu'au
+// lever du doigt), ça permet de commencer à faire glisser un curseur.
+func isPointerJustDown() bool {
+	return pointer.justDown
+}
+
+// consumeEscape : vrai si Échap vient d'être appuyé et qu'aucune autre
+// fenêtre ne l'a déjà pris pendant cette frame. Comme ça, Échap ferme
+// seulement la fenêtre du dessus.
+func consumeEscape() bool {
+	if pointer.escFrame == pointer.frame || !isKeyJustPressed(ebiten.KeyEscape) {
+		return false
+	}
+	pointer.escFrame = pointer.frame
+	return true
 }
 
 // wheelDelta remplace ebiten.Wheel : la molette, ou le glisser du doigt.

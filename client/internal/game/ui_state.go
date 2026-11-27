@@ -31,10 +31,10 @@ type SocialProfile struct {
 
 // SocialGuildEntry represents guild leaderboard entries and the player's guild info.
 type SocialGuildEntry struct {
-	Name       string
+	Name        string
 	MemberCount int
-	Reputation int
-	Rank       int
+	Reputation  int
+	Rank        int
 }
 
 // UIState contains all UI-related state variables for the game.
@@ -64,12 +64,18 @@ type UIState struct {
 	ShowConstruction    bool
 	ConstructionScrollY float64
 
-	ShowFleetUI      bool
-	HoverFleetButton bool
-	FleetButtonScale float64 // For click animation
-	SelectedFleetID  string  // Selected fleet ID for details panel
-	LastLogFleetID   string  // For debug logging dedup of Fleet UI
-	FleetListScroll  float64 // Scroll position for fleet list
+	ShowFleetUI          bool
+	HoverFleetButton     bool
+	FleetButtonScale     float64 // For click animation
+	SelectedFleetID      string  // Selected fleet ID for details panel
+	LastLogFleetID       string  // For debug logging dedup of Fleet UI
+	FleetListScroll      float64 // Scroll position for fleet list
+	FleetDetailsScroll   float64 // Défilement de la fiche (navires + cargaison)
+	FleetDetailsContentH float64 // Hauteur de la fiche, pour limiter le défilement
+	FleetMessage         string  // Résultat de la dernière action du menu flotte
+	FleetMessageErr      bool
+	FleetBusy            bool // Une action du menu flotte est en cours
+	FleetCaptainsLoading bool
 
 	// Cargo Transfer UI
 	TransferSelectedResource string  // "wood", "stone", "gold", "rum"
@@ -163,18 +169,18 @@ type UIState struct {
 	SocialSearchResult []SocialProfile
 	SocialFriends      []SocialProfile
 
-	SocialGuildID        uuid.UUID
-	SocialGuildHasTicket bool
-	SocialGuildNameFocus bool
-	SocialGuildNameInput string
-	SocialGuildName      string
-	SocialGuildMembers   []SocialProfile
+	SocialGuildID          uuid.UUID
+	SocialGuildHasTicket   bool
+	SocialGuildNameFocus   bool
+	SocialGuildNameInput   string
+	SocialGuildName        string
+	SocialGuildMembers     []SocialProfile
 	SocialGuildMemberCount int
-	SocialGuildRank      int
-	SocialGuildReputation int
-	SocialGuildBusy      bool
-	SocialGuildInfo      string
-	SocialGuildError     string
+	SocialGuildRank        int
+	SocialGuildReputation  int
+	SocialGuildBusy        bool
+	SocialGuildInfo        string
+	SocialGuildError       string
 
 	SocialLeaderboardTab     string // "players" or "guilds"
 	SocialLeaderboardPlayers []SocialProfile
