@@ -2,7 +2,9 @@ package game
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"math"
 	"strconv"
 	"time"
 
@@ -84,16 +86,79 @@ func FormatCaptainPassiveSummary(captain *client.Captain) string {
 	}
 }
 
-// UpdateFleetUI handles input for the Fleet Management UI
+// Géométrie de la fenêtre Flottes (partagée par Draw et Update).
+type fleetLayout struct {
+	winX, winY, winW, winH    float64
+	contentX, contentY        float64
+	contentW, contentH        float64
+	listW, detailsX, detailsW float64
+	closeCX, closeCY, closeR  float64
+	footBtnX, footBtnY        float64
+	footBtnW, footBtnH        float64
+	detailsHeaderH            float64
+}
+
+func (g *Game) fleetLayout() fleetLayout {
+	var l fleetLayout
+	w, h := float64(g.screenWidth), float64(g.screenHeight)
+	l.winW, l.winH = 900, 700
+	l.winX, l.winY = w/2-l.winW/2, h/2-l.winH/2
+	l.contentY = l.winY + 60
+	l.contentX = l.winX + 20
+	l.contentW = l.winW - 40
+	l.contentH = l.winH - 60 - 72 // place pour le bouton Fermer en bas
+	l.listW = l.contentW * 0.25
+	l.detailsX = l.contentX + l.listW + 10
+	l.detailsW = l.contentW - l.listW - 10
+	l.closeR = 22
+	l.closeCX, l.closeCY = l.winX+l.winW-40, l.winY+34
+	l.footBtnW, l.footBtnH = 150, 46
+	l.footBtnX = l.winX + l.winW - 20 - l.footBtnW
+	l.footBtnY = l.winY + l.winH - 12 - l.footBtnH
+	l.detailsHeaderH = 60
+	return l
+}
+
+func (g *Game) closeFleetUI() {
+	g.ui.ShowFleetUI = false
+	g.ui.FleetMessage = ""
+}
+
+// fleetAction lance un appel au serveur depuis le menu flotte, empêche un
+// double déclenchement, recharge l'état et affiche l'erreur s'il y en a une.
+func (g *Game) fleetAction(okMsg string, call func() error) {
+	if g.ui.FleetBusy {
+		return
+	}
+	g.ui.FleetBusy = true
+	g.ui.FleetMessage = ""
+	go func() {
+		defer func() { g.ui.FleetBusy = false }()
+		err := call()
+		if captains, cerr := g.api.GetCaptains(); cerr == nil {
+			g.captains = captains
+		}
+		g.refreshStatusAfterDevAction()
+		if err != nil {
+			g.ui.FleetMessage = "Erreur : " + err.Error()
+			g.ui.FleetMessageErr = true
+			return
+		}
+		g.ui.FleetMessage = okMsg
+		g.ui.FleetMessageErr = false
+	}()
+}
+
 func (g *Game) UpdateFleetUI() {
 	if !g.ui.ShowFleetUI {
 		return
 	}
 
 	// Load captains when opening the UI (refresh on each open to get latest state)
-	// Only run this occasionally or if logic requires, but keeping existing pattern is fine
-	if g.captains == nil {
+	if g.captains == nil && !g.ui.FleetCaptainsLoading {
+		g.ui.FleetCaptainsLoading = true
 		go func() {
+			defer func() { g.ui.FleetCaptainsLoading = false }()
 			captains, err := g.api.GetCaptains()
 			if err == nil {
 				g.captains = captains
@@ -101,21 +166,19 @@ func (g *Game) UpdateFleetUI() {
 		}()
 	}
 
-	// Close on ESC
-	if isKeyJustPressed(ebiten.KeyEscape) {
+	// Échap ferme seulement la fenêtre du dessus.
+	if g.ui.ShowCrewModal {
+		// La fenêtre Équipage gère ses propres entrées (UpdateCrewAssignmentModal).
+		return
+	}
+	if consumeEscape() {
 		if g.ui.ShowCaptainModal {
 			g.ui.ShowCaptainModal = false
 			g.ui.SelectedShipForCaptain = ""
 			g.ui.CaptainModalScroll = 0
 			return
 		}
-		if g.ui.ShowCrewModal {
-			g.ui.ShowCrewModal = false
-			g.ui.SelectedShipForCrew = ""
-			g.ui.CrewModalError = ""
-			return
-		}
-		g.ui.ShowFleetUI = false
+		g.closeFleetUI()
 		return
 	}
 
@@ -133,30 +196,27 @@ func (g *Game) UpdateFleetUI() {
 		}
 		return
 	}
-	if g.ui.ShowCrewModal {
-		return
-	}
 
-	// Layout Geometry (Must match DrawFleetUI)
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	cx, cy := w/2, h/2
-	winW, winH := 900.0, 700.0
-	winX, winY := cx-winW/2, cy-winH/2
-	contentY := winY + 60
-	contentX := winX + 20
-	contentW := winW - 40
-	contentH := winH - 80
-
-	// Metrics
-	listW := contentW * 0.25
-	detailsX := contentX + listW + 10
-	detailsW := contentW - listW - 10
+	l := g.fleetLayout()
+	contentX, contentY, contentH := l.contentX, l.contentY, l.contentH
+	listW, detailsX, detailsW := l.listW, l.detailsX, l.detailsW
 
 	// Inputs
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	clicked := isMouseJustPressed(ebiten.MouseButtonLeft)
 	_, dy := wheelDelta()
+
+	// Fermer : grosse croix, bouton « Fermer » en bas, ou clic en dehors.
+	if clicked {
+		onClose := (fmx-l.closeCX)*(fmx-l.closeCX)+(fmy-l.closeCY)*(fmy-l.closeCY) <= (l.closeR+6)*(l.closeR+6)
+		onFoot := fmx >= l.footBtnX && fmx <= l.footBtnX+l.footBtnW && fmy >= l.footBtnY && fmy <= l.footBtnY+l.footBtnH
+		outside := fmx < l.winX || fmx > l.winX+l.winW || fmy < l.winY || fmy > l.winY+l.winH
+		if onClose || onFoot || outside {
+			g.closeFleetUI()
+			return
+		}
+	}
 
 	// 1. FLEET LIST INTERACTION (Left Column)
 	if fmx >= contentX && fmx <= contentX+listW && fmy >= contentY && fmy <= contentY+contentH {
@@ -184,6 +244,10 @@ func (g *Game) UpdateFleetUI() {
 					// Check if click was actually on the item (simple bounds check)
 					itemTop := contentY + float64(idx)*(itemHeight+itemGap) - g.ui.FleetListScroll
 					if fmy >= itemTop && fmy <= itemTop+itemHeight {
+						if g.ui.SelectedFleetID != fleets[idx].ID.String() {
+							g.ui.FleetDetailsScroll = 0
+							g.ui.FleetMessage = ""
+						}
 						g.ui.SelectedFleetID = fleets[idx].ID.String()
 					}
 				}
@@ -194,6 +258,14 @@ func (g *Game) UpdateFleetUI() {
 
 	// 2. DETAILS INTERACTION (Right Column)
 	if fmx >= detailsX && fmx <= detailsX+detailsW && fmy >= contentY && fmy <= contentY+contentH {
+		// Défilement de la liste des navires + cargaison (la fiche peut être plus haute que la fenêtre)
+		if dy != 0 {
+			g.ui.FleetDetailsScroll -= dy * 30.0
+			if g.ui.FleetDetailsScroll < 0 {
+				g.ui.FleetDetailsScroll = 0
+			}
+			// Max scroll clamping happens in Draw
+		}
 		if clicked {
 			// Find Selected Fleet
 			var selectedFleet *domain.Fleet
@@ -226,30 +298,26 @@ func (g *Game) UpdateFleetUI() {
 
 				if !isActive {
 					if fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH {
-						go func(fid string) {
-							uid, _ := uuid.Parse(fid)
-							g.api.SetActiveFleet(uid)
-							time.Sleep(100 * time.Millisecond)
-							g.api.GetStatus()
-						}(selectedFleet.ID.String())
+						fid := selectedFleet.ID
+						g.fleetAction("Flotte activée", func() error { return g.api.SetActiveFleet(fid) })
 						return
 					}
 				} else if selectedFleet.State == domain.FleetStateChasingPvP {
 					// ABORT Button logic
 					btnAbortX := detailsX + 400
 					if fmx >= btnAbortX && fmx <= btnAbortX+btnW && fmy >= btnY && fmy <= btnY+btnH {
-						go func(fid string) {
-							g.api.AbortIntercept(fid)
-							time.Sleep(100 * time.Millisecond)
-							g.loadPlayerData()
-						}(selectedFleet.ID.String())
+						fid := selectedFleet.ID.String()
+						g.fleetAction("Poursuite abandonnée", func() error { return g.api.AbortIntercept(fid) })
 						return
 					}
 				}
 
-				// Ship List Actions
-				headerH := 60.0
-				shipsStartY := contentY + headerH + 10
+				// Ship List Actions (zone qui défile, sous l'en-tête)
+				headerH := l.detailsHeaderH
+				if fmy < contentY+headerH {
+					return
+				}
+				shipsStartY := contentY + headerH + 10 - g.ui.FleetDetailsScroll
 				currentY := shipsStartY + 25
 				lineH := 100.0
 
@@ -267,14 +335,12 @@ func (g *Game) UpdateFleetUI() {
 				colGap := 10.0
 				colW := detailsW - 20 - 3*colGap
 				// Proportions from DrawManagementFleetDetails
-				// subCol1W := colW * 0.25
 				subCol2W := colW * 0.30
 				subCol3W := colW * 0.25
 				subCol4W := colW * 0.20
 
 				col1X := detailsX + 10
 				subCol2X := col1X + (colW * 0.25) + colGap
-				// subCol3X := subCol2X + subCol2W + colGap
 				subCol4X := (subCol2X + subCol2W + colGap) + subCol3W + colGap
 
 				for _, ship := range activeShips {
@@ -282,16 +348,16 @@ func (g *Game) UpdateFleetUI() {
 					if fmy >= currentY && fmy <= currentY+lineH {
 
 						// Button B: GÉRER (Crew)
-						// Pos: subCol2X, currentY + 50, W=subCol2W-10, H=20
 						btnCrewY := currentY + 50
 						btnCrewW := subCol2W - 10
-						btnCrewH := 24.0
+						btnCrewH := 34.0
 
 						if fmx >= subCol2X && fmx <= subCol2X+btnCrewW && fmy >= btnCrewY && fmy <= btnCrewY+btnCrewH {
 							g.ui.SelectedShipForCrew = ship.ID.String()
 							g.ui.CrewModalWarriors = ship.MilitiaWarriors
 							g.ui.CrewModalArchers = ship.MilitiaArchers
 							g.ui.CrewModalGunners = ship.MilitiaGunners
+							g.ui.CrewModalError = ""
 							g.ui.ShowCrewModal = true
 							return
 						}
@@ -300,33 +366,24 @@ func (g *Game) UpdateFleetUI() {
 						captain := g.GetCaptainForShip(ship.ID.String())
 						btnCaptY := currentY + 5
 						btnCaptW := subCol4W - 5
-						btnCaptH := 22.0
+						btnCaptH := 30.0
 
 						if captain != nil {
 							// UPGRADE
-							// Pos: subCol4X, btnCaptY
 							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY && fmy <= btnCaptY+btnCaptH {
-								go func(cid uuid.UUID) {
-									g.api.UpgradeCaptainStars(cid)
-									g.api.GetCaptains()
-								}(captain.ID)
+								cid := captain.ID
+								g.fleetAction("Capitaine amélioré", func() error { return g.api.UpgradeCaptainStars(cid) })
 								return
 							}
 
 							// RETIRER
-							// Pos: subCol4X, btnCaptY + 25
-							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY+25 && fmy <= btnCaptY+25+btnCaptH {
-								go func(cid string) {
-									g.api.UnassignCaptain(cid)
-									time.Sleep(100 * time.Millisecond)
-									g.api.GetStatus()
-									g.api.GetCaptains()
-								}(captain.ID.String())
+							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY+36 && fmy <= btnCaptY+36+btnCaptH {
+								cid := captain.ID.String()
+								g.fleetAction("Capitaine retiré", func() error { return g.api.UnassignCaptain(cid) })
 								return
 							}
 						} else {
 							// ASSIGNER
-							// Pos: subCol4X, btnCaptY
 							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY && fmy <= btnCaptY+btnCaptH {
 								g.ui.SelectedShipForCaptain = ship.ID.String()
 								g.ui.ShowCaptainModal = true
@@ -340,12 +397,6 @@ func (g *Game) UpdateFleetUI() {
 			}
 		}
 	}
-
-	// Close Button (Window X)
-	closeX, closeY := winX+winW-35, winY+10
-	if clicked && fmx >= closeX && fmx <= closeX+25 && fmy >= closeY && fmy <= closeY+25 {
-		g.ui.ShowFleetUI = false
-	}
 }
 
 // DrawFleetUI renders the Fleet Management window (Master-Detail)
@@ -355,9 +406,9 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	}
 
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	cx, cy := w/2, h/2
-	winW, winH := 900.0, 700.0
-	winX, winY := cx-winW/2, cy-winH/2
+	l := g.fleetLayout()
+	cx := w / 2
+	winX, winY, winW, winH := l.winX, l.winY, l.winW, l.winH
 
 	// Semi-transparent overlay
 	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 150}, vecAA)
@@ -369,25 +420,27 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	titleY := winY + 15
 	uiTitleCentered(screen, "Gestion des flottes", int(cx), int(titleY))
 
-	// Close button (X)
-	closeX, closeY := winX+winW-35, winY+10
-	closeSize := 25.0
-	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
+	// Grosse croix (le clic est géré dans UpdateFleetUI)
+	drawCloseButton(screen, l.closeCX, l.closeCY, l.closeR)
 
-	// Handle close button click
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := cursorPosition()
-		if float64(mx) >= closeX && float64(mx) <= closeX+closeSize && float64(my) >= closeY && float64(my) <= closeY+closeSize {
-			g.ui.ShowFleetUI = false
-			return
+	// Bouton Fermer en bas + message des actions
+	drawButton(screen, l.footBtnX, l.footBtnY, l.footBtnW, l.footBtnH, "Fermer", btnSecondary)
+	msgY := l.footBtnY + 14
+	switch {
+	case g.ui.FleetBusy:
+		drawText(screen, "Envoi en cours…", bodyFace(14, false), l.contentX, msgY, themeMuted, alignLeft)
+	case g.ui.FleetMessage != "":
+		clr := color.Color(themeGreen)
+		if g.ui.FleetMessageErr {
+			clr = themeOrange
 		}
+		drawText(screen, ellipsize(g.ui.FleetMessage, bodyFace(14, false), l.footBtnX-l.contentX-20), bodyFace(14, false), l.contentX, msgY, clr, alignLeft)
 	}
 
 	// Content area
-	contentY := winY + 60
-	contentX := winX + 20
-	contentW := winW - 40
-	contentH := winH - 80 // Footer space
+	contentY := l.contentY
+	contentX := l.contentX
+	contentH := l.contentH
 
 	if g.player == nil || len(g.player.Islands) == 0 {
 		uiPrint(screen, "Aucune île disponible.", int(contentX), int(contentY))
@@ -401,9 +454,16 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	}
 
 	// Layout: 25% Left (List), 75% Right (Details)
-	listW := contentW * 0.25
-	detailsX := contentX + listW + 10
-	detailsW := contentW - listW - 10
+	listW := l.listW
+	detailsX := l.detailsX
+	detailsW := l.detailsW
+
+	// Quand une fenêtre est ouverte par-dessus, les boutons de la fiche
+	// (cargaison...) ne doivent pas recevoir le clic qui la traverse.
+	savedClick := pointer.clickForDraw
+	if g.ui.ShowCrewModal || g.ui.ShowCaptainModal {
+		pointer.clickForDraw = false
+	}
 
 	// Draw List
 	g.DrawManagementFleetList(screen, contentX, contentY, listW, contentH, island.Fleets)
@@ -428,10 +488,7 @@ func (g *Game) DrawFleetUI(screen *ebiten.Image) {
 	if selectedFleet != nil {
 		g.DrawManagementFleetDetails(screen, detailsX, contentY, detailsW, contentH, *selectedFleet)
 	}
-
-	// Footer info
-	footerY := winY + winH - 30
-	uiPrint(screen, "[ESC] pour fermer", int(contentX), int(footerY))
+	pointer.clickForDraw = savedClick
 
 	// Draw captain selection modal if open (overlay on top)
 	if g.ui.ShowCaptainModal {
@@ -537,8 +594,22 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		// For this refactor, we just render here. Click logic in UpdateFleetUI is safer to avoid multiple triggers.
 	}
 
-	// List of ships
-	shipsStartY := startY + headerH + 10
+	// List of ships : cette partie défile sous l'en-tête (molette ou doigt)
+	bodyTop := startY + headerH
+	visibleH := h - headerH
+	maxScroll := math.Max(0, g.ui.FleetDetailsContentH-visibleH)
+	if g.ui.FleetDetailsScroll > maxScroll {
+		g.ui.FleetDetailsScroll = maxScroll
+	}
+	scroll := g.ui.FleetDetailsScroll
+	screen = screen.SubImage(image.Rect(int(startX), int(bodyTop), int(startX+w), int(startY+h))).(*ebiten.Image)
+	if _, py := cursorPosition(); float64(py) < bodyTop || float64(py) > startY+h {
+		// Un bouton qui a défilé hors de la zone visible ne doit pas être cliquable.
+		pointer.clickForDraw = false
+	}
+	shipsStartY := startY + headerH + 10 - scroll
+	contentEnd := shipsStartY + 40
+	defer func() { g.ui.FleetDetailsContentH = contentEnd + scroll - bodyTop + 20 }()
 	activeShips := make([]domain.Ship, 0)
 	for _, ship := range fleet.Ships {
 		if ship.State != "Destroyed" && ship.Health > 0 {
@@ -616,7 +687,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 		// Crew Button placeholder (Visual only, inputs handled in Update)
 		btnCrewY := currentY + 50
-		drawButton(screen, subCol2X, btnCrewY, subCol2W-10, 24, "Gérer l'équipage", btnSecondary)
+		drawButton(screen, subCol2X, btnCrewY, subCol2W-10, 34, "Gérer l'équipage", btnSecondary)
 
 		// 3. Captain Info
 		captain := g.GetCaptainForShip(ship.ID.String())
@@ -647,13 +718,13 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		btnCaptY := currentY + 5
 		if captain != nil {
 			// Upgrade
-			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 22, "Améliorer", btnPrimary)
+			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 30, "Améliorer", btnPrimary)
 
 			// Unassign
-			drawButton(screen, subCol4X, btnCaptY+25, subCol4W-5, 22, "Retirer", btnDanger)
+			drawButton(screen, subCol4X, btnCaptY+36, subCol4W-5, 30, "Retirer", btnDanger)
 		} else {
 			// Assign
-			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 22, "Assigner", btnPrimary)
+			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 30, "Assigner", btnPrimary)
 		}
 
 		currentY += lineH + 10
@@ -1053,6 +1124,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			uiPrint(screen, g.ui.TransferMessage, int(startX)+20, int(currentY)+35)
 		}
 	}
+	contentEnd = currentY + 60
 }
 
 // DrawManagementFleetList renders the left column list of fleets

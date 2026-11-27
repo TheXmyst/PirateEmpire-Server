@@ -43,6 +43,23 @@ func GetShipTier(shipType string) int {
 	}
 }
 
+// shipDockedError renvoie un message si le navire n'est pas à quai : on ne
+// peut embarquer ou débarquer des matelots que sur l'île (sinon ils se
+// téléporteraient depuis ou vers l'île en pleine mer).
+func shipDockedError(db *gorm.DB, ship *domain.Ship) string {
+	if ship.FleetID == nil {
+		return ""
+	}
+	var fleet domain.Fleet
+	if err := db.First(&fleet, "id = ?", *ship.FleetID).Error; err != nil {
+		return ""
+	}
+	if fleet.State != "" && fleet.State != domain.FleetStateIdle {
+		return "Le navire doit être à quai pour changer son équipage"
+	}
+	return ""
+}
+
 // AssignShipMilitia transfers militia from island to ship
 func AssignShipMilitia(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
@@ -76,6 +93,10 @@ func AssignShipMilitia(c echo.Context) error {
 	var island domain.Island
 	if err := db.First(&island, "id = ? AND player_id = ?", ship.IslandID, player.ID).Error; err != nil {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Accès refusé ou île introuvable"})
+	}
+
+	if msg := shipDockedError(db, &ship); msg != "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": msg})
 	}
 
 	// Check island stock
@@ -157,6 +178,10 @@ func UnassignShipMilitia(c echo.Context) error {
 	var ship domain.Ship
 	if err := db.First(&ship, "id = ?", shipID).Error; err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Navire introuvable"})
+	}
+
+	if msg := shipDockedError(db, &ship); msg != "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": msg})
 	}
 
 	// Check if ship has enough of this type

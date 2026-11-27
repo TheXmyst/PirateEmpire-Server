@@ -1335,8 +1335,25 @@ func (c *APIClient) GetPvpTargets() ([]domain.PveTarget, error) {
 	return res.Targets, nil
 }
 
+// SetActiveFleet choisit la flotte active de l'île (défense PvP, PvE par défaut).
 func (c *APIClient) SetActiveFleet(fleetID uuid.UUID) error {
-	return fmt.Errorf("not implemented")
+	reqBody, _ := json.Marshal(map[string]string{"fleet_id": fleetID.String()})
+	resp, err := c.doAuthorizedRequest("POST", "/fleets/set-active", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		var errRes struct {
+			Error string `json:"error"`
+		}
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
+			return fmt.Errorf("%s", errRes.Error)
+		}
+		return fmt.Errorf("échec activation de la flotte: %s", resp.Status)
+	}
+	return nil
 }
 
 func (c *APIClient) DevGrantCaptain(playerID uuid.UUID, templateID string) error {

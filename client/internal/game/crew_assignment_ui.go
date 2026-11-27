@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
@@ -11,499 +12,469 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-// DrawCrewAssignmentModal draws a modal to assign/unassign crew to/from a ship
+// Fenêtre « Équipage » : répartir guerriers, archers et artilleurs sur un
+// navire. Trois curseurs larges (glissables à la souris et au doigt), des
+// boutons −10 −1 +1 +10 Max, et un seul bouton Valider qui applique tous
+// les changements d'un coup.
+
+var crewTypes = [3]domain.UnitType{domain.Warrior, domain.Archer, domain.Gunner}
+
+var crewTypeLabels = [3]string{"Guerriers", "Archers", "Artilleurs"}
+var crewTypeHints = [3]string{"abordage", "tir à distance", "canons"}
+var crewTypeColors = [3]color.RGBA{
+	{192, 57, 43, 255},
+	{79, 143, 207, 255},
+	{224, 176, 74, 255},
+}
+
+// shipMilitiaCapacity : même règle que le serveur (50 × rang du navire).
+func shipMilitiaCapacity(shipType string) int {
+	switch shipType {
+	case "brigantine":
+		return 100
+	case "frigate":
+		return 150
+	case "galleon":
+		return 200
+	case "manowar":
+		return 250
+	}
+	return 50
+}
+
+// Positions de la fenêtre (partagées par Draw et Update).
+type crewLayout struct {
+	x, y, w, h       float64
+	closeCX, closeCY float64
+	closeR           float64
+	barY             float64
+	rowY             [3]float64 // haut de chaque bloc
+	ctrlY            float64    // décalage de la ligne de contrôles dans un bloc
+	ctrlH            float64
+	stepW, maxW      float64
+	m10X, m1X        float64
+	trackX, trackW   float64
+	p1X, p10X, maxX  float64
+	valueX           float64
+	btnY, btnH       float64
+	cancelX, okX     float64
+	cancelW, okW     float64
+}
+
+const crewRowH = 104.0
+
+func (g *Game) crewModalLayout() crewLayout {
+	var l crewLayout
+	l.w, l.h = 800, 620
+	l.x = float64(g.screenWidth)/2 - l.w/2
+	l.y = float64(g.screenHeight)/2 - l.h/2
+	l.closeR = 24
+	l.closeCX, l.closeCY = l.x+l.w-44, l.y+42
+	l.barY = l.y + 118
+	for i := range l.rowY {
+		l.rowY[i] = l.y + 160 + float64(i)*(crewRowH+10)
+	}
+	l.ctrlY, l.ctrlH = 40, 48
+	l.stepW, l.maxW = 54, 66
+	gap := 8.0
+	left := l.x + 24
+	right := l.x + l.w - 24
+	l.m10X = left + 14
+	l.m1X = l.m10X + l.stepW + gap
+	l.valueX = right - 14 // aligné à droite
+	l.maxX = l.valueX - 60 - l.maxW
+	l.p10X = l.maxX - gap - l.stepW
+	l.p1X = l.p10X - gap - l.stepW
+	l.trackX = l.m1X + l.stepW + 26
+	l.trackW = l.p1X - 26 - l.trackX
+	l.btnH = 50
+	l.btnY = l.y + l.h - l.btnH - 22
+	l.okW, l.cancelW = 170, 140
+	l.okX = right - l.okW
+	l.cancelX = l.okX - 14 - l.cancelW
+	return l
+}
+
+func inRect(px, py, x, y, w, h float64) bool {
+	return px >= x && px <= x+w && py >= y && py <= y+h
+}
+
+// crewModalData : le navire choisi, l'île et la flotte du navire.
+func (g *Game) crewModalData() (*domain.Ship, *domain.Island, *domain.Fleet) {
+	shipID, err := uuid.Parse(g.ui.SelectedShipForCrew)
+	if err != nil || g.player == nil || len(g.player.Islands) == 0 {
+		return nil, nil, nil
+	}
+	island := &g.player.Islands[0]
+	var ship *domain.Ship
+	for i := range island.Ships {
+		if island.Ships[i].ID == shipID {
+			ship = &island.Ships[i]
+			break
+		}
+	}
+	var fleet *domain.Fleet
+	for i := range island.Fleets {
+		f := &island.Fleets[i]
+		for j := range f.Ships {
+			if f.Ships[j].ID == shipID {
+				fleet = f
+				if ship == nil {
+					ship = &f.Ships[j]
+				}
+			}
+		}
+	}
+	if ship != nil && fleet == nil && ship.FleetID != nil {
+		for i := range island.Fleets {
+			if island.Fleets[i].ID == *ship.FleetID {
+				fleet = &island.Fleets[i]
+			}
+		}
+	}
+	return ship, island, fleet
+}
+
+// shipDocked : on ne change l'équipage qu'à quai (même règle que le serveur).
+func shipDocked(fleet *domain.Fleet) bool {
+	return fleet == nil || fleet.State == "" || fleet.State == domain.FleetStateIdle
+}
+
+func (g *Game) crewModalValues() [3]int {
+	return [3]int{g.ui.CrewModalWarriors, g.ui.CrewModalArchers, g.ui.CrewModalGunners}
+}
+
+func (g *Game) setCrewModalValues(v [3]int) {
+	g.ui.CrewModalWarriors, g.ui.CrewModalArchers, g.ui.CrewModalGunners = v[0], v[1], v[2]
+}
+
+func shipCrew(ship *domain.Ship) [3]int {
+	return [3]int{ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners}
+}
+
+func islandCrew(island *domain.Island, k int) int {
+	if island == nil || island.Crew == nil {
+		return 0
+	}
+	return island.Crew[crewTypes[k]]
+}
+
+// setCrewValue change un type en restant dans les places libres et le stock.
+func (g *Game) setCrewValue(k, n int, ship *domain.Ship, island *domain.Island) {
+	v := g.crewModalValues()
+	capacity := shipMilitiaCapacity(ship.Type)
+	others := v[0] + v[1] + v[2] - v[k]
+	limit := capacity - others
+	if avail := shipCrew(ship)[k] + islandCrew(island, k); avail < limit {
+		limit = avail
+	}
+	if n > limit {
+		n = limit
+	}
+	if n < 0 {
+		n = 0
+	}
+	v[k] = n
+	g.setCrewModalValues(v)
+}
+
+func (g *Game) closeCrewModal() {
+	g.ui.ShowCrewModal = false
+	g.ui.SelectedShipForCrew = ""
+	g.ui.CrewModalError = ""
+	g.ui.DraggingCrewWarrior = false
+	g.ui.DraggingCrewArcher = false
+	g.ui.DraggingCrewGunner = false
+}
+
+func (g *Game) crewDragging() int {
+	switch {
+	case g.ui.DraggingCrewWarrior:
+		return 0
+	case g.ui.DraggingCrewArcher:
+		return 1
+	case g.ui.DraggingCrewGunner:
+		return 2
+	}
+	return -1
+}
+
+func (g *Game) setCrewDragging(k int) {
+	g.ui.DraggingCrewWarrior = k == 0
+	g.ui.DraggingCrewArcher = k == 1
+	g.ui.DraggingCrewGunner = k == 2
+}
+
+// DrawCrewAssignmentModal dessine la fenêtre Équipage.
 func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 	if !g.ui.ShowCrewModal {
 		return
 	}
+	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
+	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 170}, vecAA)
 
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	cx, cy := w/2, h/2
-	modalW, modalH := 600.0, 550.0
-	modalX, modalY := cx-modalW/2, cy-modalH/2
+	l := g.crewModalLayout()
+	fillRoundRect(screen, l.x, l.y, l.w, l.h, 18, color.RGBA{24, 16, 9, 255}) // fond opaque : le menu flotte ne transparaît plus
+	drawThemePanel(screen, l.x, l.y, l.w, l.h, 18)
+	drawRoundButton(screen, l.closeCX, l.closeCY, l.closeR, "close", isHovered(l.closeCX-l.closeR, l.closeCY-l.closeR, 2*l.closeR, 2*l.closeR))
 
-	// Overlay
-	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
-
-	// Modal background
-	drawButton(screen, float64(modalX), float64(modalY), float64(modalW), float64(modalH), "Assignation de milice", kindFromColor(color.RGBA{40, 30, 20, 255}))
-
-	// Title
-
-	// Close button (X)
-	closeX := modalX + modalW - 30
-	closeY := modalY + 10
-	closeSize := 20.0
-	drawCloseButton(screen, float64(closeX)+float64(closeSize)/2, float64(closeY)+float64(closeSize)/2, 15)
-
-	// Get ship and island data
-	var ship *domain.Ship
-	var island *domain.Island
-	shipID, err := uuid.Parse(g.ui.SelectedShipForCrew)
-	if err == nil && g.player != nil && len(g.player.Islands) > 0 {
-		island = &g.player.Islands[0]
-		for i := range island.Ships {
-			if island.Ships[i].ID == shipID {
-				ship = &island.Ships[i]
-				break
-			}
-		}
-	}
-
+	ship, island, fleet := g.crewModalData()
 	if ship == nil {
-		uiPrint(screen, "Navire introuvable", int(modalX)+20, int(modalY)+50)
+		drawText(screen, "Navire introuvable", bodyFace(16, true), l.x+24, l.y+30, themeText, alignLeft)
 		return
 	}
+	docked := shipDocked(fleet)
 
-	// Ship info
-	contentY := modalY + 50
-	contentX := modalX + 20
-	uiPrint(screen, fmt.Sprintf("Navire: %s (%s)", ship.Name, ship.Type), int(contentX), int(contentY))
-
-	// Current crew on ship
-	currentTotal := ship.MilitiaWarriors + ship.MilitiaArchers + ship.MilitiaGunners
-	maxCrew := 50 // Default
-	switch ship.Type {
-	case "sloop":
-		maxCrew = 50
-	case "brigantine":
-		maxCrew = 100
-	case "frigate":
-		maxCrew = 150
-	case "galleon":
-		maxCrew = 200
-	case "manowar":
-		maxCrew = 250
+	drawText(screen, ellipsize("Équipage — "+ship.Name, titleFace(30), l.w-120), titleFace(30), l.x+24, l.y+18, themeGold, alignLeft)
+	where := "à quai sur l'île"
+	if !docked {
+		where = "en mer : l'équipage se change seulement à quai"
 	}
-	uiPrint(screen, fmt.Sprintf("Milice actuelle: %d/%d (G:%d A:%d Ar:%d)", currentTotal, maxCrew, ship.MilitiaWarriors, ship.MilitiaArchers, ship.MilitiaGunners), int(contentX), int(contentY)+20)
+	drawText(screen, shipTypeLabel(ship.Type)+" · "+where, bodyFace(14, false), l.x+24, l.y+60, themeMuted, alignLeft)
 
-	// Stock global disponible
-	stockY := contentY + 50
-	if island != nil {
-		uiPrint(screen, "Stock global disponible:", int(contentX), int(stockY))
-		uiPrint(screen, fmt.Sprintf("Guerriers: %d | Archers: %d | Artilleurs: %d", island.Crew[domain.Warrior], island.Crew[domain.Archer], island.Crew[domain.Gunner]), int(contentX), int(stockY)+20)
-	}
+	v := g.crewModalValues()
+	cur := shipCrew(ship)
+	capacity := shipMilitiaCapacity(ship.Type)
+	total := v[0] + v[1] + v[2]
 
-	// Separator
-	vector.StrokeLine(screen, float32(contentX), float32(stockY)+45, float32(modalX+modalW-20), float32(stockY)+45, 1, color.Gray{100}, vecAA)
-
-	// Sliders section
-	slidersY := stockY + 60
-	uiPrint(screen, "Assignation:", int(contentX), int(slidersY))
-
-	sliderX := contentX
-	sliderW := modalW - 40
-	sliderH := 20.0
-	sliderCaptureH := 30.0 // Match UpdateCrewAssignmentModal
-
-	// Get mouse position for hover detection
-	mx, my := cursorPosition()
-	fmx, fmy := float64(mx), float64(my)
-
-	// Warrior slider
-	warriorY := slidersY + 30
-	uiPrint(screen, fmt.Sprintf("Guerriers: %d", g.ui.CrewModalWarriors), int(sliderX), int(warriorY))
-	warriorSliderY := warriorY + 20
-	isWarriorHovered := fmy >= warriorSliderY-sliderCaptureH/2 && fmy <= warriorSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
-	drawCrewSlider(screen, sliderX, warriorSliderY, sliderW, sliderH, g.ui.CrewModalWarriors, 0, maxCrew, isWarriorHovered, g.ui.DraggingCrewWarrior)
-
-	// Archer slider
-	archerY := warriorY + 60
-	uiPrint(screen, fmt.Sprintf("Archers: %d", g.ui.CrewModalArchers), int(sliderX), int(archerY))
-	archerSliderY := archerY + 20
-	isArcherHovered := fmy >= archerSliderY-sliderCaptureH/2 && fmy <= archerSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
-	drawCrewSlider(screen, sliderX, archerSliderY, sliderW, sliderH, g.ui.CrewModalArchers, 0, maxCrew, isArcherHovered, g.ui.DraggingCrewArcher)
-
-	// Gunner slider
-	gunnerY := archerY + 60
-	uiPrint(screen, fmt.Sprintf("Artilleurs: %d", g.ui.CrewModalGunners), int(sliderX), int(gunnerY))
-	gunnerSliderY := gunnerY + 20
-	isGunnerHovered := fmy >= gunnerSliderY-sliderCaptureH/2 && fmy <= gunnerSliderY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW
-	drawCrewSlider(screen, sliderX, gunnerSliderY, sliderW, sliderH, g.ui.CrewModalGunners, 0, maxCrew, isGunnerHovered, g.ui.DraggingCrewGunner)
-
-	// Calculate differences (how much to assign/unassign)
-	warriorDiff := g.ui.CrewModalWarriors - ship.MilitiaWarriors
-	archerDiff := g.ui.CrewModalArchers - ship.MilitiaArchers
-	gunnerDiff := g.ui.CrewModalGunners - ship.MilitiaGunners
-
-	// Info section
-	infoY := gunnerY + 60
-	uiPrint(screen, fmt.Sprintf("Différence: G:%+d A:%+d Ar:%+d", warriorDiff, archerDiff, gunnerDiff), int(contentX), int(infoY))
-
-	// Calculate stock after (for display)
-	stockAfterW := island.Crew[domain.Warrior]
-	stockAfterA := island.Crew[domain.Archer]
-	stockAfterG := island.Crew[domain.Gunner]
-	if warriorDiff > 0 {
-		stockAfterW -= warriorDiff
-	} else {
-		stockAfterW -= warriorDiff // warriorDiff is negative, so this adds
-	}
-	if archerDiff > 0 {
-		stockAfterA -= archerDiff
-	} else {
-		stockAfterA -= archerDiff
-	}
-	if gunnerDiff > 0 {
-		stockAfterG -= gunnerDiff
-	} else {
-		stockAfterG -= gunnerDiff
-	}
-	uiPrint(screen, fmt.Sprintf("Stock après: G:%d A:%d Ar:%d", stockAfterW, stockAfterA, stockAfterG), int(contentX), int(infoY)+20)
-
-	// Buttons
-	btnY := modalY + modalH - 80
-	btnW := 120.0
-	btnH := 35.0
-	btnSpacing := 20.0
-
-	// Assign button (if positive diff)
-	hasAssign := warriorDiff > 0 || archerDiff > 0 || gunnerDiff > 0
-	assignBtnX := modalX + modalW/2 - btnW - btnSpacing/2
-	assignBtnCol := color.RGBA{0, 150, 0, 255}
-	if !hasAssign || g.ui.CrewModalBusy {
-		assignBtnCol = color.RGBA{100, 100, 100, 255}
-	}
-	drawButton(screen, float64(assignBtnX), float64(btnY), float64(btnW), float64(btnH), "Assigner", kindFromColor(assignBtnCol))
-
-	// Unassign button (if negative diff)
-	hasUnassign := warriorDiff < 0 || archerDiff < 0 || gunnerDiff < 0
-	unassignBtnX := modalX + modalW/2 + btnSpacing/2
-	unassignBtnCol := color.RGBA{150, 50, 50, 255}
-	if !hasUnassign || g.ui.CrewModalBusy {
-		unassignBtnCol = color.RGBA{100, 100, 100, 255}
-	}
-	drawButton(screen, float64(unassignBtnX), float64(btnY), float64(btnW), float64(btnH), "Retirer", kindFromColor(unassignBtnCol))
-
-	// Error display
-	if g.ui.CrewModalError != "" {
-		errorY := int(btnY) - 30
-		errorText := fmt.Sprintf("Erreur: %s", g.ui.CrewModalError)
-		maxLen := 55
-		for len(errorText) > maxLen {
-			line := errorText[:maxLen]
-			errorText = errorText[maxLen:]
-			uiPrint(screen, line, int(contentX), errorY)
-			errorY += 15
+	// Places à bord
+	drawText(screen, "Places à bord", bodyFace(15, true), l.x+24, l.barY-26, themeText, alignLeft)
+	drawText(screen, fmt.Sprintf("%d / %d · %d libres", total, capacity, capacity-total), bodyFace(15, true), l.x+l.w-24, l.barY-26, themeGreen, alignRight)
+	barX, barW := l.x+24, l.w-48
+	fillRoundRect(screen, barX, l.barY, barW, 16, 8, color.RGBA{58, 39, 20, 255})
+	bx := barX
+	for k := 0; k < 3; k++ {
+		if v[k] <= 0 || capacity <= 0 {
+			continue
 		}
-		if errorText != "" {
-			uiPrint(screen, errorText, int(contentX), errorY)
+		w := barW * float64(v[k]) / float64(capacity)
+		vector.DrawFilledRect(screen, float32(bx), float32(l.barY), float32(w), 16, crewTypeColors[k], vecAA) // pas uiFillRect : il changerait le bleu en bois
+		bx += w
+	}
+	strokeRoundRect(screen, barX, l.barY, barW, 16, 8, 1, color.RGBA{107, 74, 34, 255})
+
+	dragging := g.crewDragging()
+	for k := 0; k < 3; k++ {
+		ry := l.rowY[k]
+		fillRoundRect(screen, l.x+24, ry, l.w-48, crewRowH, 12, color.NRGBA{255, 255, 255, 10})
+		vector.DrawFilledCircle(screen, float32(l.x+46), float32(ry+20), 6, crewTypeColors[k], vecAA)
+		drawText(screen, crewTypeLabels[k], bodyFace(17, true), l.x+60, ry+9, themeText, alignLeft)
+		drawText(screen, crewTypeHints[k], bodyFace(13, false), l.x+60+textWidth(crewTypeLabels[k], bodyFace(17, true))+10, ry+13, themeMuted, alignLeft)
+		stockAfter := islandCrew(island, k) - (v[k] - cur[k])
+		drawText(screen, fmt.Sprintf("À bord : %d · Stock île après : %d", cur[k], stockAfter), bodyFace(13, false), l.x+l.w-38, ry+13, themeMuted, alignRight)
+
+		cy := ry + l.ctrlY
+		kind := btnSecondary
+		if !docked {
+			kind = btnDisabled
+		}
+		drawButton(screen, l.m10X, cy, l.stepW, l.ctrlH, "−10", kind)
+		drawButton(screen, l.m1X, cy, l.stepW, l.ctrlH, "−1", kind)
+		drawButton(screen, l.p1X, cy, l.stepW, l.ctrlH, "+1", kind)
+		drawButton(screen, l.p10X, cy, l.stepW, l.ctrlH, "+10", kind)
+		drawButton(screen, l.maxX, cy, l.maxW, l.ctrlH, "Max", kind)
+
+		// Curseur : piste épaisse + grosse poignée ronde
+		mid := cy + l.ctrlH/2
+		fillRoundRect(screen, l.trackX, mid-7, l.trackW, 14, 7, color.RGBA{58, 39, 20, 255})
+		ratio := 0.0
+		if capacity > 0 {
+			ratio = math.Min(1, float64(v[k])/float64(capacity))
+		}
+		if ratio > 0 {
+			fillRoundRect(screen, l.trackX, mid-7, math.Max(14, l.trackW*ratio), 14, 7, crewTypeColors[k])
+		}
+		strokeRoundRect(screen, l.trackX, mid-7, l.trackW, 14, 7, 1, color.RGBA{107, 74, 34, 255})
+		hx := l.trackX + l.trackW*ratio
+		r := float32(18)
+		if dragging == k {
+			r = 21
+		}
+		thumb := color.Color(themeGold)
+		if !docked {
+			thumb = themeMuted
+		}
+		vector.DrawFilledCircle(screen, float32(hx)+1, float32(mid)+3, r, color.RGBA{0, 0, 0, 90}, vecAA)
+		vector.DrawFilledCircle(screen, float32(hx), float32(mid), r, thumb, vecAA)
+		vector.StrokeCircle(screen, float32(hx), float32(mid), r, 3, themeInk, vecAA)
+
+		drawText(screen, fmt.Sprintf("%d", v[k]), bodyFace(22, true), l.valueX, cy+10, themeGold, alignRight)
+	}
+
+	// Résumé des changements
+	var parts []string
+	for k := 0; k < 3; k++ {
+		if d := v[k] - cur[k]; d != 0 {
+			parts = append(parts, fmt.Sprintf("%+d %s", d, strings.ToLower(crewTypeLabels[k])))
 		}
 	}
-
-	// Busy indicator
-	if g.ui.CrewModalBusy {
-		uiPrint(screen, "Assignation en cours...", int(contentX), int(btnY)-15)
+	msgY := l.btnY + 6
+	msgW := l.cancelX - l.x - 40
+	switch {
+	case g.ui.CrewModalBusy:
+		drawText(screen, "Envoi en cours…", bodyFace(14, false), l.x+24, msgY, themeMuted, alignLeft)
+	case g.ui.CrewModalError != "":
+		lines := wrapText("Erreur : "+g.ui.CrewModalError, bodyFace(14, false), msgW)
+		for i, ln := range lines {
+			if i > 2 {
+				break
+			}
+			drawText(screen, ln, bodyFace(14, false), l.x+24, msgY+float64(i)*17, themeOrange, alignLeft)
+		}
+	case len(parts) > 0:
+		lines := wrapText("Changements : "+strings.Join(parts, ", "), bodyFace(14, false), msgW)
+		for i, ln := range lines {
+			drawText(screen, ln, bodyFace(14, false), l.x+24, msgY+float64(i)*17, themeText, alignLeft)
+		}
+	default:
+		drawText(screen, "Aucun changement", bodyFace(14, false), l.x+24, msgY, themeMuted, alignLeft)
 	}
+
+	drawButton(screen, l.cancelX, l.btnY, l.cancelW, l.btnH, "Fermer", btnSecondary)
+	okKind := btnPrimary
+	if len(parts) == 0 || g.ui.CrewModalBusy || !docked {
+		okKind = btnDisabled
+	}
+	drawButton(screen, l.okX, l.btnY, l.okW, l.btnH, "Valider", okKind)
 }
 
-// drawCrewSlider draws a slider with bounds based on stock and capacity
-func drawCrewSlider(screen *ebiten.Image, x, y, w, h float64, value, min, max int, isHovered, isDragging bool) {
-	// Background (with hover/drag feedback)
-	bgColor := color.RGBA{50, 50, 50, 255}
-	if isDragging {
-		bgColor = color.RGBA{70, 70, 70, 255} // Lighter when dragging
-	} else if isHovered {
-		bgColor = color.RGBA{60, 60, 60, 255} // Slightly lighter when hovered
-	}
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), bgColor, vecAA)
-	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 1, color.Gray{150}, vecAA)
-
-	// Fill (value indicator) with glow effect when dragging
-	if max > min {
-		fillRatio := float64(value-min) / float64(max-min)
-		if fillRatio > 1.0 {
-			fillRatio = 1.0
-		}
-		if fillRatio < 0.0 {
-			fillRatio = 0.0
-		}
-		fillW := w * fillRatio
-		fillColor := color.RGBA{0, 150, 0, 255}
-		if isDragging {
-			fillColor = color.RGBA{0, 180, 0, 255} // Brighter green when dragging
-		}
-		uiFillRect(screen, float32(x), float32(y), float32(fillW), float32(h), fillColor, vecAA)
-	}
-
-	// Handle (draggable thumb) with enhanced visuals
-	handleW := 10.0
-	if max > min {
-		handleX := x + (w-handleW)*(float64(value-min)/float64(max-min))
-		if handleX < x {
-			handleX = x
-		}
-		if handleX > x+w-handleW {
-			handleX = x + w - handleW
-		}
-
-		// Handle color changes based on state
-		handleColor := color.RGBA{200, 200, 200, 255}
-		if isDragging {
-			handleColor = color.RGBA{255, 255, 255, 255} // White when dragging
-		} else if isHovered {
-			handleColor = color.RGBA{230, 230, 230, 255} // Lighter when hovered
-		}
-
-		uiFillRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), handleColor, vecAA)
-		uiStrokeRect(screen, float32(handleX), float32(y-2), float32(handleW), float32(h+4), 1, color.White, vecAA)
-	}
-}
-
-// UpdateCrewAssignmentModal handles input for the crew assignment modal
+// UpdateCrewAssignmentModal gère la souris / le doigt pour la fenêtre
+// Équipage. Renvoie vrai quand elle est ouverte (elle prend toutes les entrées).
 func (g *Game) UpdateCrewAssignmentModal() bool {
 	if !g.ui.ShowCrewModal {
 		return false
 	}
-
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	cx, cy := w/2, h/2
-	modalW, modalH := 600.0, 550.0
-	modalX, modalY := cx-modalW/2, cy-modalH/2
-
-	// Close on ESC
-	if isKeyJustPressed(ebiten.KeyEscape) {
-		g.ui.ShowCrewModal = false
-		g.ui.SelectedShipForCrew = ""
-		g.ui.CrewModalError = ""
-		// Reset drag state
-		g.ui.DraggingCrewWarrior = false
-		g.ui.DraggingCrewArcher = false
-		g.ui.DraggingCrewGunner = false
+	if consumeEscape() {
+		g.closeCrewModal()
 		return true
 	}
 
-	// Get ship and island data
-	var ship *domain.Ship
-	var island *domain.Island
-	shipID, err := uuid.Parse(g.ui.SelectedShipForCrew)
-	if err == nil && g.player != nil && len(g.player.Islands) > 0 {
-		island = &g.player.Islands[0]
-		for i := range island.Ships {
-			if island.Ships[i].ID == shipID {
-				ship = &island.Ships[i]
-				break
-			}
+	l := g.crewModalLayout()
+	mx, my := cursorPosition()
+	fx, fy := float64(mx), float64(my)
+	down := isPointerJustDown()
+	clicked := isMouseJustPressed(ebiten.MouseButtonLeft)
+
+	// Fermer : la croix, ou un clic / tap en dehors de la fenêtre.
+	if clicked && g.crewDragging() < 0 {
+		if math.Hypot(fx-l.closeCX, fy-l.closeCY) <= l.closeR+6 || !inRect(fx, fy, l.x, l.y, l.w, l.h) {
+			g.closeCrewModal()
+			return true
 		}
 	}
 
+	ship, island, fleet := g.crewModalData()
 	if ship == nil {
 		return true
 	}
+	docked := shipDocked(fleet)
+	capacity := shipMilitiaCapacity(ship.Type)
 
-	maxCrew := 50
-	switch ship.Type {
-	case "sloop":
-		maxCrew = 50
-	case "brigantine":
-		maxCrew = 100
-	case "frigate":
-		maxCrew = 150
-	case "galleon":
-		maxCrew = 200
-	case "manowar":
-		maxCrew = 250
-	}
-
-	mx, my := cursorPosition()
-	fmx, fmy := float64(mx), float64(my)
-
-	// Synchronized slider positions (match DrawCrewAssignmentModal)
-	contentY := modalY + 50
-	stockY := contentY + 50
-	slidersY := stockY + 60
-	sliderX := modalX + 20
-	sliderW := modalW - 40
-	sliderH := 20.0
-	sliderCaptureH := 30.0 // Larger hit area for easier clicking
-
-	warriorY := slidersY + 30 + 20 // +20 for label offset
-	archerY := warriorY + 60
-	gunnerY := archerY + 60
-
-	// Stop dragging when mouse released
 	if !isMousePressed(ebiten.MouseButtonLeft) {
-		g.ui.DraggingCrewWarrior = false
-		g.ui.DraggingCrewArcher = false
-		g.ui.DraggingCrewGunner = false
+		g.setCrewDragging(-1)
 	}
 
-	// Helper function to calculate slider value from mouse X position
-	calcSliderValue := func(mouseX float64, currentCrew int, stockCrew int) int {
-		// Calculate raw value based on mouse position
-		ratio := (mouseX - sliderX) / sliderW
-		if ratio < 0.0 {
-			ratio = 0.0
-		}
-		if ratio > 1.0 {
-			ratio = 1.0
-		}
-		value := int(ratio * float64(maxCrew))
-
-		// Clamp to available stock + current crew
-		maxAvailable := currentCrew + stockCrew
-		if value > maxAvailable {
-			value = maxAvailable
-		}
-		if value < 0 {
-			value = 0
-		}
-
-		return value
-	}
-
-	// PRIORITY 1: Handle close button FIRST (before sliders consume input)
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		closeX := modalX + modalW - 30
-		closeY := modalY + 10
-		closeSize := 20.0
-		if fmx >= closeX && fmx <= closeX+closeSize && fmy >= closeY && fmy <= closeY+closeSize {
-			g.ui.ShowCrewModal = false
-			g.ui.SelectedShipForCrew = ""
-			g.ui.CrewModalError = ""
-			g.ui.DraggingCrewWarrior = false
-			g.ui.DraggingCrewArcher = false
-			g.ui.DraggingCrewGunner = false
-			return true
-		}
-	}
-
-	// PRIORITY 2: Start dragging on mouse down over slider (EXCLUSIVE with else if)
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		// Warrior slider (expanded hit area)
-		if fmy >= warriorY-sliderCaptureH/2 && fmy <= warriorY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW {
-			g.ui.DraggingCrewWarrior = true
-			g.ui.DraggingCrewArcher = false // Disable others
-			g.ui.DraggingCrewGunner = false // Disable others
-			g.ui.CrewModalWarriors = calcSliderValue(fmx, ship.MilitiaWarriors, island.Crew[domain.Warrior])
-		} else if fmy >= archerY-sliderCaptureH/2 && fmy <= archerY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW {
-			// Archer slider (expanded hit area)
-			g.ui.DraggingCrewWarrior = false // Disable others
-			g.ui.DraggingCrewArcher = true
-			g.ui.DraggingCrewGunner = false // Disable others
-			g.ui.CrewModalArchers = calcSliderValue(fmx, ship.MilitiaArchers, island.Crew[domain.Archer])
-		} else if fmy >= gunnerY-sliderCaptureH/2 && fmy <= gunnerY+sliderH+sliderCaptureH/2 && fmx >= sliderX && fmx <= sliderX+sliderW {
-			// Gunner slider (expanded hit area)
-			g.ui.DraggingCrewWarrior = false // Disable others
-			g.ui.DraggingCrewArcher = false  // Disable others
-			g.ui.DraggingCrewGunner = true
-			g.ui.CrewModalGunners = calcSliderValue(fmx, ship.MilitiaGunners, island.Crew[domain.Gunner])
-		}
-	}
-
-	// PRIORITY 3: Continue dragging if mouse button held down
-	if isMousePressed(ebiten.MouseButtonLeft) {
-		if g.ui.DraggingCrewWarrior {
-			g.ui.CrewModalWarriors = calcSliderValue(fmx, ship.MilitiaWarriors, island.Crew[domain.Warrior])
-		} else if g.ui.DraggingCrewArcher {
-			g.ui.CrewModalArchers = calcSliderValue(fmx, ship.MilitiaArchers, island.Crew[domain.Archer])
-		} else if g.ui.DraggingCrewGunner {
-			g.ui.CrewModalGunners = calcSliderValue(fmx, ship.MilitiaGunners, island.Crew[domain.Gunner])
-		}
-	}
-
-	// PRIORITY 4: Handle buttons (only if not currently dragging)
-	if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.DraggingCrewWarrior && !g.ui.DraggingCrewArcher && !g.ui.DraggingCrewGunner {
-		btnY := modalY + modalH - 80
-		btnW := 120.0
-		btnH := 35.0
-		btnSpacing := 20.0
-
-		// Calculate differences
-		warriorDiff := g.ui.CrewModalWarriors - ship.MilitiaWarriors
-		archerDiff := g.ui.CrewModalArchers - ship.MilitiaArchers
-		gunnerDiff := g.ui.CrewModalGunners - ship.MilitiaGunners
-
-		// Assign button
-		hasAssign := warriorDiff > 0 || archerDiff > 0 || gunnerDiff > 0
-		assignBtnX := modalX + modalW/2 - btnW - btnSpacing/2
-		if hasAssign && !g.ui.CrewModalBusy {
-			if fmx >= assignBtnX && fmx <= assignBtnX+btnW && fmy >= btnY && fmy <= btnY+btnH {
-				g.assignCrewToShip(shipID, warriorDiff, archerDiff, gunnerDiff)
-				return true
+	if docked && !g.ui.CrewModalBusy {
+		// Début du glisser : le doigt / le bouton se pose sur la piste.
+		if down {
+			for k := 0; k < 3; k++ {
+				cy := l.rowY[k] + l.ctrlY
+				if inRect(fx, fy, l.trackX-20, cy-6, l.trackW+40, l.ctrlH+12) {
+					g.setCrewDragging(k)
+					break
+				}
 			}
 		}
-
-		// Unassign button
-		hasUnassign := warriorDiff < 0 || archerDiff < 0 || gunnerDiff < 0
-		unassignBtnX := modalX + modalW/2 + btnSpacing/2
-		if hasUnassign && !g.ui.CrewModalBusy {
-			if fmx >= unassignBtnX && fmx <= unassignBtnX+btnW && fmy >= btnY && fmy <= btnY+btnH {
-				// Unassign: use positive values
-				unassignW := -warriorDiff
-				unassignA := -archerDiff
-				unassignG := -gunnerDiff
-				g.unassignCrewFromShip(shipID, unassignW, unassignA, unassignG)
-				return true
-			}
+		if k := g.crewDragging(); k >= 0 && isMousePressed(ebiten.MouseButtonLeft) {
+			ratio := (fx - l.trackX) / l.trackW
+			ratio = math.Max(0, math.Min(1, ratio))
+			g.setCrewValue(k, int(math.Round(ratio*float64(capacity))), ship, island)
+			return true
 		}
 
-		// Click inside modal (consume input)
-		if fmx >= modalX && fmx <= modalX+modalW && fmy >= modalY && fmy <= modalY+modalH {
-			return true
+		if clicked {
+			v := g.crewModalValues()
+			for k := 0; k < 3; k++ {
+				cy := l.rowY[k] + l.ctrlY
+				if fy < cy || fy > cy+l.ctrlH {
+					continue
+				}
+				switch {
+				case inRect(fx, fy, l.m10X, cy, l.stepW, l.ctrlH):
+					g.setCrewValue(k, v[k]-10, ship, island)
+				case inRect(fx, fy, l.m1X, cy, l.stepW, l.ctrlH):
+					g.setCrewValue(k, v[k]-1, ship, island)
+				case inRect(fx, fy, l.p1X, cy, l.stepW, l.ctrlH):
+					g.setCrewValue(k, v[k]+1, ship, island)
+				case inRect(fx, fy, l.p10X, cy, l.stepW, l.ctrlH):
+					g.setCrewValue(k, v[k]+10, ship, island)
+				case inRect(fx, fy, l.maxX, cy, l.maxW, l.ctrlH):
+					g.setCrewValue(k, math.MaxInt32, ship, island)
+				}
+			}
 		}
 	}
 
-	// Always consume input when modal is open
+	if clicked && inRect(fx, fy, l.cancelX, l.btnY, l.cancelW, l.btnH) {
+		g.closeCrewModal()
+		return true
+	}
+	if clicked && docked && !g.ui.CrewModalBusy && inRect(fx, fy, l.okX, l.btnY, l.okW, l.btnH) {
+		v := g.crewModalValues()
+		cur := shipCrew(ship)
+		var add, remove [3]int
+		changed := false
+		for k := 0; k < 3; k++ {
+			d := v[k] - cur[k]
+			if d > 0 {
+				add[k] = d
+			} else if d < 0 {
+				remove[k] = -d
+			}
+			changed = changed || d != 0
+		}
+		if changed {
+			g.applyCrewChanges(ship.ID, add, remove)
+		}
+	}
 	return true
 }
 
-// assignCrewToShip assigns crew from island stock to a ship
-func (g *Game) assignCrewToShip(shipID uuid.UUID, warriors, archers, gunners int) {
-	if warriors <= 0 && archers <= 0 && gunners <= 0 {
-		return
-	}
-
+// applyCrewChanges retire d'abord (ça libère des places), puis ajoute.
+// En cas de succès la fenêtre se ferme ; sinon l'erreur reste affichée.
+func (g *Game) applyCrewChanges(shipID uuid.UUID, add, remove [3]int) {
 	g.ui.CrewModalBusy = true
 	g.ui.CrewModalError = ""
-
 	go func() {
-		defer func() {
-			g.ui.CrewModalBusy = false
-		}()
-
-		err := g.api.AssignCrew(shipID, warriors, archers, gunners)
-		if err != nil {
-			g.ui.CrewModalError = err.Error()
-			if strings.Contains(err.Error(), "session expirée") {
-				g.ui.CrewModalError = "Session expirée, veuillez vous reconnecter"
+		defer func() { g.ui.CrewModalBusy = false }()
+		fail := func(err error) {
+			msg := err.Error()
+			for k, t := range crewTypes {
+				msg = strings.Replace(msg, string(t)+": ", crewTypeLabels[k]+" : ", 1)
 			}
-			g.Log("Crew assign error: %v", err)
-			return
-		}
-
-		// Success - refresh status
-		g.refreshStatusAfterDevAction()
-		g.Log("Crew assigned: ship=%s warriors=%d archers=%d gunners=%d", shipID.String()[:8], warriors, archers, gunners)
-	}()
-}
-
-// unassignCrewFromShip removes crew from a ship and returns it to island stock
-func (g *Game) unassignCrewFromShip(shipID uuid.UUID, warriors, archers, gunners int) {
-	if warriors <= 0 && archers <= 0 && gunners <= 0 {
-		return
-	}
-
-	g.ui.CrewModalBusy = true
-	g.ui.CrewModalError = ""
-
-	go func() {
-		defer func() {
-			g.ui.CrewModalBusy = false
-		}()
-
-		err := g.api.UnassignCrew(shipID, warriors, archers, gunners)
-		if err != nil {
-			g.ui.CrewModalError = err.Error()
-			if strings.Contains(err.Error(), "session expirée") {
-				g.ui.CrewModalError = "Session expirée, veuillez vous reconnecter"
+			if strings.Contains(msg, "session expirée") {
+				msg = "Session expirée, veuillez vous reconnecter"
 			}
-			g.Log("Crew unassign error: %v", err)
-			return
+			g.ui.CrewModalError = msg
+			g.Log("Crew change error: %v", err)
+			g.refreshStatusAfterDevAction()
 		}
-
-		// Success - refresh status
+		if remove[0]+remove[1]+remove[2] > 0 {
+			if err := g.api.UnassignCrew(shipID, remove[0], remove[1], remove[2]); err != nil {
+				fail(err)
+				return
+			}
+		}
+		if add[0]+add[1]+add[2] > 0 {
+			if err := g.api.AssignCrew(shipID, add[0], add[1], add[2]); err != nil {
+				fail(err)
+				return
+			}
+		}
 		g.refreshStatusAfterDevAction()
-		g.Log("Crew unassigned: ship=%s warriors=%d archers=%d gunners=%d", shipID.String()[:8], warriors, archers, gunners)
+		if g.ui.SelectedShipForCrew == shipID.String() {
+			g.closeCrewModal()
+		}
+		g.Log("Crew changed: ship=%s +%v -%v", shipID.String()[:8], add, remove)
 	}()
 }
