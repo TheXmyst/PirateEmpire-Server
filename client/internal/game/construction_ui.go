@@ -185,10 +185,8 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		}
 
 		// Dynamic Cost
-		realCost := item.Cost // Default for Lvl 1
-		if isUpgrade {
-			realCost = g.getBuildingCost(item.Type, currentLevel) // Cost to get to L+1
-		}
+		// Coût réel (envoyé par le serveur) : construction ou niveau suivant
+		realCost := g.getBuildingCost(item.Type, currentLevel)
 
 		// Cost Check - use fixed order to prevent flickering
 		canAfford := true
@@ -335,10 +333,7 @@ func (g *Game) UpdateConstructionMenu() {
 					if isUpgrade {
 						currentLevel = existing.Level
 					}
-					realCost := item.Cost
-					if isUpgrade {
-						realCost = g.getBuildingCost(item.Type, currentLevel)
-					}
+					realCost := g.getBuildingCost(item.Type, currentLevel)
 
 					// Check Cost
 					for r, amt := range realCost {

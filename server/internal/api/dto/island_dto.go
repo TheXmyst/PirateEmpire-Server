@@ -28,6 +28,9 @@ type IslandDTO struct {
 	MilitiaRecruitWarriors int                    `json:"militia_recruit_warriors"`
 	MilitiaRecruitArchers int                     `json:"militia_recruit_archers"`
 	MilitiaRecruitGunners int                     `json:"militia_recruit_gunners"`
+	// BuildCosts : coût de construction (niveau 1) de chaque type de bâtiment,
+	// calculé par le serveur pour que le client affiche les vrais prix.
+	BuildCosts map[string]ResourceMap `json:"build_costs,omitempty"`
 }
 
 // BuildingDTO represents a building for API responses with string UUIDs
@@ -40,4 +43,6 @@ type BuildingDTO struct {
 	Y            float64   `json:"y"`
 	Constructing bool      `json:"constructing"`
 	FinishTime   time.Time `json:"finish_time"`
+	// NextLevelCost : coût réel du niveau suivant (vide au niveau maximum).
+	NextLevelCost ResourceMap `json:"next_level_cost,omitempty"`
 }

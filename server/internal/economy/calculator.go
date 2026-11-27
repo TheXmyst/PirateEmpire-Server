@@ -202,3 +202,14 @@ func ComputeProductionPerHour(cfg BuildingConfig, level int, bonusPercent float6
 	base := cfg.BaseProduction * prodMult
 	return math.Round(base * (1.0 + bonusPercent))
 }
+
+// BuildingTypes renvoie la liste des types de bâtiments de la configuration.
+func BuildingTypes() []string {
+	mu.RLock()
+	defer mu.RUnlock()
+	types := make([]string, 0, len(config.Buildings))
+	for name := range config.Buildings {
+		types = append(types, name)
+	}
+	return types
+}

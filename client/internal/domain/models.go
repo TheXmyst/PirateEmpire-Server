@@ -158,6 +158,9 @@ type Island struct {
 	// Resource generation transient fields
 	ResourceGenerationBase  map[ResourceType]float64 `json:"resource_generation_base,omitempty"`
 	ResourceGenerationBonus map[ResourceType]float64 `json:"resource_generation_bonus,omitempty"`
+
+	// BuildCosts : coût de construction (niveau 1) par type, calculé par le serveur.
+	BuildCosts map[string]map[ResourceType]float64 `json:"build_costs,omitempty"`
 }
 
 // Fleet represents a group of ships
@@ -218,6 +221,8 @@ type Building struct {
 	Y            float64   `json:"y"`
 	Constructing bool      `json:"constructing"`
 	FinishTime   time.Time `json:"finish_time"`
+	// NextLevelCost : coût réel du niveau suivant, calculé par le serveur.
+	NextLevelCost map[ResourceType]float64 `json:"next_level_cost,omitempty"`
 
 	ConstructionTotalDuration float64 `json:"-"`
 }

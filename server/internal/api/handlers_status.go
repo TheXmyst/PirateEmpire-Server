@@ -107,6 +107,7 @@ func GetStatus(c echo.Context) error {
 		//    des copies : une fois le verrou rendu, le tick peut modifier l'île
 		//    sans risque pour la réponse en cours d'envoi.
 		islandDTO := island.ToDTO()
+		fillBuildingCosts(islandDTO)
 		captainDTOs := make([]dto.CaptainDTO, len(island.Player.Captains))
 		for i, captain := range island.Player.Captains {
 			captainDTOs[i] = captain.ToDTO()
