@@ -18,203 +18,24 @@ import (
 // No logic or behavior changes were made - only code organization.
 
 func (g *Game) DrawWorldMap(screen *ebiten.Image) {
-	if g.waterShader != nil {
-		op := &ebiten.DrawRectShaderOptions{}
-		op.Uniforms = map[string]interface{}{
-			"Time":         float32(time.Now().UnixMilli()%100000) / 1000.0,
-			"CameraPos":    []float32{float32(g.camX), float32(g.camY)},
-			"CameraZoom":   float32(g.camZoom),
-			"ScreenCenter": []float32{float32(g.screenWidth / 2), float32(g.screenHeight / 2)},
+	// Mer en fausse 3D (sea_render.go). L'ancien shader ne sert plus que de secours.
+	if !g.drawSeaWater(screen) {
+		if g.waterShader != nil {
+			op := &ebiten.DrawRectShaderOptions{}
+			op.Uniforms = map[string]interface{}{
+				"Time":         float32(time.Now().UnixMilli()%100000) / 1000.0,
+				"CameraPos":    []float32{float32(g.camX), float32(g.camY)},
+				"CameraZoom":   float32(g.camZoom),
+				"ScreenCenter": []float32{float32(g.screenWidth / 2), float32(g.screenHeight / 2)},
+			}
+			screen.DrawRectShader(g.screenWidth, g.screenHeight, g.waterShader, op)
+		} else {
+			screen.Fill(color.RGBA{10, 30, 80, 255})
 		}
-		screen.DrawRectShader(g.screenWidth, g.screenHeight, g.waterShader, op)
-	} else {
-		screen.Fill(color.RGBA{10, 30, 80, 255})
 	}
 
 	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	isModalOpen := g.IsModalOpen()
-
-	if g.player != nil && len(g.player.Islands) > 0 {
-		myIsland := g.player.Islands[0]
-		sx := (float64(myIsland.X)-g.camX)*g.camZoom + w/2
-		sy := (float64(myIsland.Y)-g.camY)*g.camZoom + h/2
-
-		if g.imgIsland != nil {
-			op := &ebiten.DrawImageOptions{}
-			scale := 0.1 * g.camZoom
-			bounds := g.imgIsland.Bounds()
-			iw, ih := bounds.Dx(), bounds.Dy()
-			op.GeoM.Scale(scale, scale)
-			op.GeoM.Translate(sx-(float64(iw)*scale)/2, sy-(float64(ih)*scale)/2)
-			screen.DrawImage(g.imgIsland, op)
-		} else {
-			ebitenutil.DrawRect(screen, sx-10, sy-10, 20, 20, color.RGBA{0, 255, 0, 255})
-		}
-		uiPrint(screen, myIsland.Name, int(sx)-20, int(sy)-40)
-	}
-
-	// Draw PVE targets
-	if len(g.ui.PveTargets) > 0 {
-		for _, target := range g.ui.PveTargets {
-			tx := (target.RealX-g.camX)*g.camZoom + w/2
-			ty := (target.RealY-g.camY)*g.camZoom + h/2
-
-			// Draw target icon (small fleet icon)
-			targetSize := 15.0 * g.camZoom
-			if targetSize < 5 {
-				targetSize = 5
-			}
-			if targetSize > 30 {
-				targetSize = 30
-			}
-
-			// Color based on tier
-			targetColor := color.RGBA{150, 150, 150, 255} // Tier 1: gray
-			switch target.Tier {
-			case 2:
-				targetColor = color.RGBA{100, 150, 255, 255} // Tier 2: blue
-			case 3:
-				targetColor = color.RGBA{255, 200, 0, 255} // Tier 3: gold
-			}
-
-			// Highlight on hover
-			if !isModalOpen && g.ui.HoverPveTarget == target.ID {
-				targetColor = color.RGBA{255, 255, 255, 255} // White on hover
-			}
-
-			uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
-			uiStrokeRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), 1, color.White, vecAA)
-
-			// Draw name and tier above
-			nameY := ty - targetSize/2 - 20
-			if nameY > 20 {
-				uiPrint(screen, target.Name, int(tx)-40, int(nameY))
-				uiPrint(screen, fmt.Sprintf("Tier %d", target.Tier), int(tx)-20, int(nameY)+15)
-
-				// DANGER RATING (Hover only)
-				if !isModalOpen && g.ui.HoverPveTarget == target.ID {
-					// Find active fleet for calculation
-					var activeFleet *domain.Fleet
-
-					// Retrieve active fleet logic
-					if g.player != nil && len(g.player.Islands) > 0 {
-						island := g.player.Islands[0]
-						if island.ActiveFleetID != nil {
-							for _, f := range island.Fleets {
-								if f.ID == *island.ActiveFleetID {
-									activeFleet = &f
-									break
-								}
-							}
-						}
-					}
-
-					// Get Rating
-					rating := GetDangerRating(activeFleet, target)
-
-					// Draw Rating Text
-					ratingY := int(nameY) + 35
-					textW := len(rating.Label) * 6
-					textX := int(tx) - textW/2
-
-					uiFillRect(screen, float32(textX-5), float32(ratingY-2), float32(textW+10), 16, color.RGBA{0, 0, 0, 200}, vecAA)
-					uiPrint(screen, rating.Label, textX, ratingY)
-					uiFillRect(screen, float32(textX-15), float32(ratingY+2), 8, 8, rating.Color, vecAA)
-				}
-			}
-		}
-	}
-
-	// Draw PVP targets (RED)
-	if len(g.ui.PvpTargets) > 0 {
-		// Debug print count on screen (top left or near center)
-		uiPrint(screen, fmt.Sprintf("PvP Targets: %d", len(g.ui.PvpTargets)), 10, 50)
-
-		for _, target := range g.ui.PvpTargets {
-			tx := (float64(target.X)-g.camX)*g.camZoom + w/2
-			ty := (float64(target.Y)-g.camY)*g.camZoom + h/2
-
-			// Draw target icon (small fleet icon)
-			targetSize := 18.0 * g.camZoom // Slightly bigger than PvE
-			if targetSize < 8 {
-				targetSize = 8
-			}
-			if targetSize > 35 {
-				targetSize = 35
-			}
-
-			// Color: RED for PvP
-			targetColor := color.RGBA{255, 50, 50, 255}
-
-			// Highlight on hover
-			if !isModalOpen && g.ui.HoverPvpTarget == target.ID {
-				targetColor = color.RGBA{255, 100, 100, 255}
-			}
-
-			// Render Sprite
-			if target.IsFleet {
-				// Fleet Icon (Square or Ship Sprite)
-				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
-				// Small arrow if moving
-				if target.Speed > 0 && target.TargetX != nil && target.TargetY != nil {
-					// Draw simple dir line
-					dx := *target.TargetX - target.RealX
-					dy := *target.TargetY - target.RealY
-					dist := math.Sqrt(dx*dx + dy*dy)
-					if dist > 0 {
-						lineLen := 10.0
-						vector.StrokeLine(screen, float32(tx), float32(ty), float32(tx+(dx/dist)*lineLen), float32(ty+(dy/dist)*lineLen), 2, color.RGBA{255, 255, 255, 200}, vecAA)
-					}
-				}
-			} else if g.imgIsland != nil {
-				op := &ebiten.DrawImageOptions{}
-				scale := 0.1 * g.camZoom
-				bounds := g.imgIsland.Bounds()
-				iw, ih := bounds.Dx(), bounds.Dy()
-				op.GeoM.Scale(scale, scale)
-				op.GeoM.Translate(tx-(float64(iw)*scale)/2, ty-(float64(ih)*scale)/2)
-				screen.DrawImage(g.imgIsland, op)
-			} else {
-				uiFillRect(screen, float32(tx-targetSize/2), float32(ty-targetSize/2), float32(targetSize), float32(targetSize), targetColor, vecAA)
-			}
-
-			// Show tooltip on hover instead of white border
-			// Fix: Ensure ID is not empty to avoid matching default "empty hover" state
-			if !isModalOpen && g.ui.HoverPvpTarget == target.ID && target.ID != "" {
-				// Guard: Don't show tooltip for own island or empty data
-				if (g.player != nil && target.Name == g.player.Username) || target.Name == "" || target.Tier == 0 {
-					continue
-				}
-
-				// Tooltip background
-				tooltipW := 220.0
-				tooltipH := 70.0 // Taller for 3 lines
-				tooltipX := tx + targetSize/2 + 10
-				tooltipY := ty - tooltipH/2
-
-				uiFillRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), color.RGBA{20, 20, 30, 230}, vecAA)
-				uiStrokeRect(screen, float32(tooltipX), float32(tooltipY), float32(tooltipW), float32(tooltipH), 2, color.RGBA{218, 165, 32, 255}, vecAA)
-
-				// Tooltip content
-				uiPrint(screen, fmt.Sprintf("Joueur: %s", target.Name), int(tooltipX)+10, int(tooltipY)+10)
-				uiPrint(screen, fmt.Sprintf("TH Niveau: %d", target.Tier), int(tooltipX)+10, int(tooltipY)+25)
-				lootClass := g.computeLootClass(target.Tier)
-				uiPrint(screen, fmt.Sprintf("Butin: %s", lootClass), int(tooltipX)+10, int(tooltipY)+40)
-				// Note: Scouting info will be added later
-			}
-
-			nameY := ty - targetSize/2 - 25
-			if nameY > 20 {
-				displayName := target.Name
-				if displayName == "" {
-					displayName = "Unknown"
-				}
-				uiPrint(screen, fmt.Sprintf("%s (Lvl %d)", displayName, target.Tier), int(tx)-40, int(nameY))
-			}
-		}
-	} else {
-		uiPrint(screen, "No PvP Targets Loaded", 10, 50)
-	}
 
 	// Draw Resource Nodes
 	g.ui.ResourceNodesMutex.RLock()
@@ -259,31 +80,8 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 	}
 	g.ui.ResourceNodesMutex.RUnlock()
 
-	// Draw Player Fleets (Moving/Returning only) - PROTECTED BY MUTEX
-	g.ui.PlayerMutex.RLock()
-	if g.player != nil && len(g.player.Islands) > 0 {
-		for _, f := range g.player.Islands[0].Fleets {
-			// Draw fleets that are traveling or stationed at sea
-			if (f.IsMoving() || f.State == domain.FleetStateSeaStationed) && len(f.Ships) > 0 {
-				// Use First Ship visual position
-				s := f.Ships[0]
-				tx := (s.RealX-g.camX)*g.camZoom + w/2
-				ty := (s.RealY-g.camY)*g.camZoom + h/2
-
-				size := 12.0 * g.camZoom
-
-				// Draw Square
-				col := color.RGBA{0, 200, 0, 255} // Green
-				uiFillRect(screen, float32(tx-size/2), float32(ty-size/2), float32(size), float32(size), col, vecAA)
-
-				// Optional: Name
-				if g.camZoom > 0.5 {
-					uiPrint(screen, f.Name, int(tx), int(ty)-20)
-				}
-			}
-		}
-	}
-	g.ui.PlayerMutex.RUnlock()
+	// Îles, flottes (les tiennes, PvE, PvP), sillages, nuages et étiquettes.
+	g.drawSeaScene(screen, isModalOpen)
 
 	// Draw Wind Indicator
 	g.DrawWindIndicator(screen)
@@ -403,6 +201,10 @@ func (g *Game) DrawStationMenu(screen *ebiten.Image) {
 
 // UpdateWorldMapLogic handles logic/simulation for the World Map screen (Always runs).
 func (g *Game) UpdateWorldMapLogic() {
+	// Mer rouverte après un moment : les flottes sont replacées directement
+	// à leur position actuelle au lieu de foncer pour la rattraper.
+	g.seaResyncIfReopened()
+
 	// 1. Load Data (Always check polling)
 	if len(g.ui.PveTargets) == 0 && !g.ui.PveTargetsBusy && g.player != nil && len(g.player.Islands) > 0 {
 		g.loadPveTargets()
@@ -713,15 +515,8 @@ func (g *Game) UpdateWorldMapInteraction() {
 			t := &g.ui.PveTargets[i]
 			tx := (t.RealX-g.camX)*g.camZoom + w/2
 			ty := (t.RealY-g.camY)*g.camZoom + h/2
-			targetSize := 15.0 * g.camZoom
-			if targetSize < 5 {
-				targetSize = 5
-			}
-			if targetSize > 30 {
-				targetSize = 30
-			}
 
-			if fmx >= tx-targetSize/2 && fmx <= tx+targetSize/2 && fmy >= ty-targetSize/2 && fmy <= ty+targetSize/2 {
+			if g.seaShipHit(tx, ty, fmx, fmy) {
 				if g.ui.HoverPveTarget != t.ID {
 					// Log new hover (SSOT Check)
 					// g.Log("[UI_TARGET] hover name=\"%s\" id=%s", t.Name, t.ID)
@@ -765,15 +560,12 @@ func (g *Game) UpdateWorldMapInteraction() {
 			for _, target := range g.ui.PvpTargets {
 				tx := (float64(target.X)-g.camX)*g.camZoom + w/2
 				ty := (float64(target.Y)-g.camY)*g.camZoom + h/2
-				targetSize := 18.0 * g.camZoom
-				if targetSize < 8 {
-					targetSize = 8
-				}
-				if targetSize > 35 {
-					targetSize = 35
+				hit := g.seaShipHit(tx, ty, fmx, fmy)
+				if !target.IsFleet {
+					hit = g.seaIslandHit(tx, ty, fmx, fmy)
 				}
 
-				if fmx >= tx-targetSize/2 && fmx <= tx+targetSize/2 && fmy >= ty-targetSize/2 && fmy <= ty+targetSize/2 {
+				if hit {
 					newHoverPvp = target.ID
 					break
 				}
@@ -1007,7 +799,7 @@ func (g *Game) loadPveTargets() {
 					dy := serverY - oldRealY
 					dist := math.Sqrt(dx*dx + dy*dy)
 
-					if dist > 300 {
+					if dist > 300 || g.seaSnapping() {
 						// Hard Snap for respawns
 						finalTargets[i].RealX = serverX
 						finalTargets[i].RealY = serverY
@@ -1610,7 +1402,7 @@ func (g *Game) loadPlayerData() {
 							}
 						}
 
-						if os.RealX != 0 || os.RealY != 0 {
+						if (os.RealX != 0 || os.RealY != 0) && !g.seaSnapping() {
 							ns.RealX = os.RealX
 							ns.RealY = os.RealY
 						} else {

@@ -161,7 +161,8 @@ type Game struct {
 	socialStatePlayerID uuid.UUID
 
 	// World Map Assets
-	imgIsland *ebiten.Image
+	// Carte de la mer en fausse 3D (sea_render.go)
+	sea seaGfx
 
 	// Inspection
 	selectedBuilding *domain.Building

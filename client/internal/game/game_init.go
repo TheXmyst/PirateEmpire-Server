@@ -218,9 +218,6 @@ func (g *Game) loadAssets() {
 		}
 	}
 
-	// Load island image for World Map
-	g.imgIsland = loadImage("resources/sea/island_asset/island_full.png")
-
 	// Load Pirate UI Atlas (Overrides)
 	g.loadUIAtlas()
 }
