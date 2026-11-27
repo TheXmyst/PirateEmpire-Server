@@ -25,8 +25,8 @@ func TestQuestConfigShape(t *testing.T) {
 		count[d.Family]++
 		tickets += d.Reward.Tickets
 	}
-	if count[QuestFamilyStory] != 15 || count[QuestFamilyBuilding] != 95 || count[QuestFamilyChallenge] != 24 {
-		t.Errorf("familles : %v (attendu 15 / 95 / 24)", count)
+	if count[QuestFamilyStory] != 15 || count[QuestFamilyBuilding] != 96 || count[QuestFamilyChallenge] != 24 {
+		t.Errorf("familles : %v (attendu 15 / 96 / 24)", count)
 	}
 	if tickets != 13 {
 		t.Errorf("tickets : %d (attendu 13)", tickets)
@@ -72,7 +72,6 @@ func TestQuestRewardBudget(t *testing.T) {
 
 func newQuestState() *QuestPlayerState {
 	return &QuestPlayerState{
-		Buildings: []domain.Building{{Type: "Hôtel de Ville", Level: 1}},
 		PveWins:   map[int]int{},
 		Counters:  map[string]float64{},
 		Claimed:   map[string]bool{},
@@ -101,8 +100,11 @@ func TestQuestVisibilityNewPlayer(t *testing.T) {
 		t.Error("la deuxième quête Histoire ne doit pas encore être visible")
 	}
 	// Bâtiments : le niveau suivant de chaque bâtiment, verrouillé si besoin.
-	if q, ok := v["bld:Scierie:1"]; !ok || q.Locked {
-		t.Errorf("Scierie 1 doit être visible et disponible : %+v", q)
+	if q, ok := v["bld:Hôtel de Ville:1"]; !ok || q.Locked {
+		t.Errorf("Hôtel de Ville 1 doit être visible et disponible : %+v", q)
+	}
+	if q, ok := v["bld:Scierie:1"]; !ok || !q.Locked {
+		t.Errorf("Scierie 1 doit attendre l'Hôtel de Ville : %+v", q)
 	}
 	if q, ok := v["bld:Académie:1"]; !ok || !q.Locked || q.Hint == "" {
 		t.Errorf("Académie 1 doit être verrouillée avec un indice : %+v", q)
@@ -125,7 +127,7 @@ func TestQuestVisibilityNewPlayer(t *testing.T) {
 func TestQuestProgressAndStoryChain(t *testing.T) {
 	loadQuestTestConfig(t)
 	s := newQuestState()
-	s.Buildings = append(s.Buildings, domain.Building{Type: "Scierie", Level: 3})
+	s.Buildings = []domain.Building{{Type: "Hôtel de Ville", Level: 1}, {Type: "Scierie", Level: 3}}
 
 	claimable := map[string]bool{}
 	for _, d := range ClaimableQuests(s) {

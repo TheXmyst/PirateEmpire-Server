@@ -91,9 +91,9 @@ func TestClaimQuestFlow(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("GET /quests : %d %v", code, out)
 	}
-	// Histoire 1 + Scierie 1 et 2.
-	if n := out["claimable"].(float64); n != 3 {
-		t.Errorf("claimable = %v, attendu 3", n)
+	// Histoire 1 + Hôtel de Ville 1 + Scierie 1 et 2.
+	if n := out["claimable"].(float64); n != 4 {
+		t.Errorf("claimable = %v, attendu 4", n)
 	}
 
 	// Une quête pas terminée est refusée.
@@ -117,13 +117,13 @@ func TestClaimQuestFlow(t *testing.T) {
 		t.Errorf("le bois a changé après une double réclamation : %.0f", w)
 	}
 
-	// Tout réclamer : Histoire 1 (300 bois) + Scierie 2 (70 bois).
+	// Tout réclamer : Histoire 1 (300 bois) + HdV 1 (100 bois) + Scierie 2 (70 bois).
 	code, out = questCall(t, ClaimQuest, p, `{"all":true}`)
-	if code != 200 || len(out["claimed"].([]interface{})) != 2 {
+	if code != 200 || len(out["claimed"].([]interface{})) != 3 {
 		t.Fatalf("claim all : %d %v", code, out)
 	}
-	if w := islandWood(t, island.ID); w != 1420 {
-		t.Errorf("bois après tout réclamer : %.0f, attendu 1420", w)
+	if w := islandWood(t, island.ID); w != 1520 {
+		t.Errorf("bois après tout réclamer : %.0f, attendu 1520", w)
 	}
 	if n := out["claimable"].(float64); n != 0 {
 		t.Errorf("il ne doit plus rien rester à réclamer, obtenu %v", n)

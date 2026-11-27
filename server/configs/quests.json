@@ -12,9 +12,9 @@
     {
       "id": "story_first_building", "family": "story", "phase": 1,
       "title": "Poser la première pierre",
-      "description": "Ouvre le menu Construire et bâtis ton premier bâtiment, par exemple la Scierie.",
-      "tutorial": "Chaque bâtiment se construit avec du bois, de la pierre et parfois de l'or. Les bâtiments de production (Scierie, Carrière, Mine d'Or, Distillerie) remplissent tes réserves toutes seules, même quand tu n'es pas connecté. Les quêtes « Bâtiments » te remboursent une partie de chaque construction : pense à réclamer tes récompenses !",
-      "objective": {"type": "buildings_built", "count": 1},
+      "description": "Ouvre le menu Construire et bâtis l'Hôtel de Ville : c'est lui qui débloque tous les autres bâtiments.",
+      "tutorial": "Tout commence par l'Hôtel de Ville : son niveau décide des bâtiments que tu peux construire et du niveau qu'ils peuvent atteindre. Chaque bâtiment se construit avec du bois, de la pierre et parfois de l'or. Les bâtiments de production (Scierie, Carrière, Mine d'Or, Distillerie) remplissent tes réserves toutes seules, même quand tu n'es pas connecté. Les quêtes « Bâtiments » te remboursent une partie de chaque construction : pense à réclamer tes récompenses !",
+      "objective": {"type": "building_level", "building": "Hôtel de Ville", "level": 1},
       "reward": {"wood": 300, "stone": 300, "gold": 300}
     },
     {

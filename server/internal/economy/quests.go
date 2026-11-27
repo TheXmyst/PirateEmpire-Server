@@ -57,7 +57,7 @@ var knownQuestCounters = map[string]bool{
 var knownObjectiveTypes = map[string]bool{
 	"building_level":    true, // building + level
 	"buildings_level":   true, // buildings (ou ["all"]) + level
-	"buildings_built":   true, // count bâtiments construits (hors Hôtel de Ville)
+	"buildings_built":   true, // count bâtiments construits (Hôtel de Ville compris)
 	"tech_count":        true, // count recherches terminées
 	"tech":              true, // tech (identifiant)
 	"ships_owned":       true, // count navires terminés (ship_type optionnel)
@@ -252,13 +252,11 @@ func generateBuildingQuests(r BuildingQuestRules) ([]QuestDef, error) {
 		if !ok {
 			return nil, fmt.Errorf("building quests: unknown building %q (buildings.json loaded?)", btype)
 		}
-		first := 1
 		earlyMax := r.EarlyMaxLevel
 		if btype == "Hôtel de Ville" {
-			first = 2 // l'Hôtel de Ville existe dès le départ
 			earlyMax = r.TownHallEarlyMaxLevel
 		}
-		for lvl := first; lvl <= r.MaxLevel; lvl++ {
+		for lvl := 1; lvl <= r.MaxLevel; lvl++ {
 			rate, phase := r.EarlyRefund, 1
 			if lvl > earlyMax {
 				rate, phase = r.LateRefund, 2
@@ -401,8 +399,8 @@ func QuestProgress(d QuestDef, s *QuestPlayerState) (progress, target float64) {
 		return float64(ok), float64(len(names))
 	case "buildings_built":
 		n := 0
-		for t, l := range levels {
-			if t != "Hôtel de Ville" && l >= 1 {
+		for _, l := range levels {
+			if l >= 1 {
 				n++
 			}
 		}

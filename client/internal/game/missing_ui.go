@@ -30,7 +30,7 @@ func (g *Game) anyWindowOpen() bool {
 	return u.ShowConstruction || u.ShowShipyard || u.ShowTechUI || u.ShowFleetUI ||
 		u.ShowCaptainUI || u.ShowSocialUI || u.ShowTavernUI || u.ShowMilitiaUI ||
 		u.ShowInfirmaryUI || u.ShowPrereqModal || u.ShowCrewModal || u.ShowCaptainModal ||
-		g.selectedBuilding != nil || (g.techUI != nil && g.techUI.Visible)
+		g.selectedBuilding != nil || (g.techUI != nil && g.techUI.Visible) || g.quest.open
 }
 
 // buildingDisplayName : nom français d'un type de bâtiment.
@@ -114,7 +114,7 @@ func (g *Game) DrawDashboard(screen *ebiten.Image) {
 
 	const w, rowH = 250.0, 44.0
 	x := hudMargin
-	y := hudMargin + topBarH + 10
+	y := g.questTrackerBottom() // sous l'encart des quêtes
 	h := 40 + float64(len(jobs))*rowH
 	drawThemePanel(screen, x, y, w, h, 14)
 	drawText(screen, "En cours", titleFace(20), x+12, y+6, themeGold, alignLeft)
