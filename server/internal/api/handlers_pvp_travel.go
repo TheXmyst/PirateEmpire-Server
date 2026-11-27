@@ -36,18 +36,18 @@ func SendPvpAttack(c echo.Context) error {
 	// Parse request
 	var req SendPvpAttackRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Validate UUIDs
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid fleet ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
 	targetIslandID, err := uuid.Parse(req.TargetIslandID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid target island ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île cible invalide"})
 	}
 
 	db := repository.GetDB()

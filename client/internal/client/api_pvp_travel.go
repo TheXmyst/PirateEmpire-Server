@@ -30,7 +30,7 @@ func (c *APIClient) SendPvpAttack(fleetID, targetIslandID string) (travelTimeMin
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return 0, 0, fmt.Errorf("%s", errRes.Error)
 		}
-		return 0, 0, fmt.Errorf("échec envoi attaque: %s", resp.Status)
+		return 0, 0, serverError(resp, nil)
 	}
 
 	var response struct {
@@ -67,7 +67,7 @@ func (c *APIClient) SendPveAttack(fleetID, targetPveID string) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec envoi attaque: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil

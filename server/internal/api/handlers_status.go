@@ -33,7 +33,7 @@ func GetStatus(c echo.Context) error {
 	// paramètre envoyé par le client : on ne peut lire que son propre état.
 	playerID := auth.GetTokenPlayerID(c)
 	if playerID == uuid.Nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 
 	var response dto.StatusResponse
@@ -150,7 +150,7 @@ func getStatusWithoutIsland(c echo.Context, playerID uuid.UUID) error {
 		return nil
 	})
 	if notFound {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 	captainDTOs := make([]dto.CaptainDTO, len(player.Captains))
 	for i, captain := range player.Captains {

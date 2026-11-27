@@ -163,7 +163,7 @@ func (g *Game) loadCaptainsForUI() {
 
 		captains, err := g.api.GetCaptains()
 		if err != nil {
-			g.ui.CaptainUIError = err.Error()
+			g.ui.CaptainUIError = friendlyError(err)
 			if strings.Contains(err.Error(), "session expirée") {
 				g.ui.CaptainUIError = "Session expirée, veuillez vous reconnecter"
 			}

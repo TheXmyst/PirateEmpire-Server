@@ -243,7 +243,7 @@ func (g *Game) runSocialSearch() {
 	// Call API
 	results, err := g.api.SearchFriends(q)
 	if err != nil {
-		g.ui.SocialStatus = fmt.Sprintf("Erreur: %v", err)
+		g.ui.SocialStatus = "Erreur : " + friendlyError(err)
 		return
 	}
 
@@ -276,7 +276,7 @@ func (g *Game) addFriend(p SocialProfile) {
 	// Call API
 	err := g.api.AddFriend(p.ID)
 	if err != nil {
-		g.ui.SocialInfo = fmt.Sprintf("Erreur: %v", err)
+		g.ui.SocialInfo = "Erreur : " + friendlyError(err)
 		return
 	}
 
@@ -295,7 +295,7 @@ func (g *Game) createGuildFromInput() {
 	// Call API
 	guildInfo, err := g.api.CreateGuild(name)
 	if err != nil {
-		g.ui.SocialGuildError = fmt.Sprintf("Erreur: %v", err)
+		g.ui.SocialGuildError = "Erreur : " + friendlyError(err)
 		return
 	}
 
@@ -503,7 +503,7 @@ func (g *Game) removeFriend(friendID uuid.UUID) {
 		defer func() { g.ui.SocialSearchBusy = false }()
 		err := g.api.RemoveFriend(friendID)
 		if err != nil {
-			g.ui.SocialStatus = fmt.Sprintf("Erreur: %v", err)
+			g.ui.SocialStatus = "Erreur : " + friendlyError(err)
 			return
 		}
 
@@ -526,7 +526,7 @@ func (g *Game) leaveGuild() {
 		defer func() { g.ui.SocialGuildBusy = false }()
 		err := g.api.LeaveGuild()
 		if err != nil {
-			g.ui.SocialStatus = fmt.Sprintf("Erreur: %v", err)
+			g.ui.SocialStatus = "Erreur : " + friendlyError(err)
 			return
 		}
 

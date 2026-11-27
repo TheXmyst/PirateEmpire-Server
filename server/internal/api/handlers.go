@@ -94,7 +94,7 @@ func validUsername(name string) bool { return usernamePattern.MatchString(name) 
 func Register(c echo.Context) error {
 	req := new(RegisterRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Input validation
@@ -103,16 +103,16 @@ func Register(c echo.Context) error {
 	req.Email = strings.TrimSpace(req.Email)
 
 	if req.Username == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Username is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le nom de capitaine est obligatoire"})
 	}
 	if !validUsername(req.Username) {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le pseudo doit faire 3 à 20 caractères : lettres, chiffres, _ ou -"})
 	}
 	if req.Password == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Password is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le mot de passe est obligatoire"})
 	}
 	if len(req.Password) < 6 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Password must be at least 6 characters"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le mot de passe doit faire au moins 6 caractères"})
 	}
 
 	db := repository.GetDB()
@@ -120,13 +120,13 @@ func Register(c echo.Context) error {
 	// Check if username already exists
 	var existingPlayer domain.Player
 	if err := db.Where("username = ?", req.Username).First(&existingPlayer).Error; err == nil {
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Username already exists"})
+		return c.JSON(http.StatusConflict, map[string]string{"error": "Ce nom de capitaine est déjà pris"})
 	}
 
 	// Hash password before storing
 	hashedPassword, err := auth.HashPassword(req.Password)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process password"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	// 1. Create Player
@@ -167,7 +167,7 @@ func Register(c echo.Context) error {
 			CreatedAt: time.Now(),
 		}
 		if err := db.Create(&newSea).Error; err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to generate world"})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 		}
 		targetSeaID = newSea.ID
 		targetIslands = []domain.Island{} // Empty
@@ -265,7 +265,7 @@ func Register(c echo.Context) error {
 func Login(c echo.Context) error {
 	req := new(LoginRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Input validation
@@ -273,15 +273,15 @@ func Login(c echo.Context) error {
 	req.Password = strings.TrimSpace(req.Password)
 
 	if req.Username == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Username is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le nom de capitaine est obligatoire"})
 	}
 	if req.Password == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Password is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le mot de passe est obligatoire"})
 	}
 
 	// STRICT: Enforce minimum password length for ALL users (including admin)
 	if len(req.Password) < 6 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Password must be at least 6 characters"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le mot de passe doit faire au moins 6 caractères"})
 	}
 
 	db := repository.GetDB()
@@ -289,7 +289,7 @@ func Login(c echo.Context) error {
 
 	// Find Player
 	if err := db.Where("username = ?", req.Username).First(&player).Error; err != nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Nom de capitaine ou mot de passe incorrect"})
 	}
 
 	// Le statut admin vient uniquement de la base (posé par admin_tool grant),
@@ -301,7 +301,7 @@ func Login(c echo.Context) error {
 		if err != nil {
 			// Admin login failed - log it (without leaking sensitive data)
 			fmt.Printf("Admin login failed: invalid password for user %s\n", player.Username)
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Nom de capitaine ou mot de passe incorrect"})
 		}
 	} else {
 		// NON-ADMIN: Support bcrypt and safe legacy plaintext migration
@@ -320,19 +320,19 @@ func Login(c echo.Context) error {
 				hashedPassword, hashErr := auth.HashPassword(req.Password)
 				if hashErr != nil {
 					// Hashing failed - do NOT log in the user
-					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to process password"})
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 				}
 				// Migration successful - update password and allow login
 				player.Password = hashedPassword
 				if err := db.Save(&player).Error; err != nil {
-					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update password"})
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 				}
 				passwordValid = true
 			}
 		}
 
 		if !passwordValid {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Nom de capitaine ou mot de passe incorrect"})
 		}
 	}
 
@@ -349,7 +349,7 @@ func Login(c echo.Context) error {
 func ResumeSession(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	return loginSuccess(c, repository.GetDB(), player, auth.RememberTokenTTL)
 }
@@ -360,7 +360,7 @@ func loginSuccess(c echo.Context, db *gorm.DB, player *domain.Player, ttl time.D
 	// Get Island
 	var island domain.Island
 	if err := db.Where("player_id = ?", player.ID).First(&island).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Player has no island!"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Aucune île trouvée pour ce joueur"})
 	}
 
 	// Ensure player has 3 fleets (migration path for old accounts)
@@ -396,21 +396,21 @@ func loginSuccess(c echo.Context, db *gorm.DB, player *domain.Player, ttl time.D
 func SendChat(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 
 	var req struct {
 		Message string `json:"message"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 	req.Message = strings.TrimSpace(req.Message)
 	if req.Message == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Message is empty"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le message est vide"})
 	}
 	if len(req.Message) > 256 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Message too long (max 256)"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Message trop long (256 caractères maximum)"})
 	}
 
 	if containsBannedWord(req.Message) {
@@ -455,7 +455,7 @@ func SendChat(c echo.Context) error {
 func GetChat(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 
 	sinceParam := c.QueryParam("since")
@@ -652,7 +652,7 @@ func Build(c echo.Context) error {
 			errorMsg := fmt.Sprintf("Not enough resources: need %.0f %s, have %.0f", amount, res, island.Resources[res])
 			fmt.Printf("Build failed: player_id=%s, island_id=%s, building_type=%s, reason=%s\n",
 				playerID, req.IslandID, req.Type, errorMsg)
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Not enough resources"})
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez %s (il en faut %.0f, tu en as %.0f)", economy.ResourceNameFR(res), amount, island.Resources[res])})
 		}
 	}
 
@@ -716,14 +716,14 @@ type UpgradeRequest struct {
 func Upgrade(c echo.Context) error {
 	req := new(UpgradeRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
@@ -739,26 +739,26 @@ func Upgrade(c echo.Context) error {
 	// Find Island with Player and Buildings (for checks)
 	var island domain.Island
 	if err := db.Preload("Player").Preload("Buildings").First(&island, "id = ?", building.IslandID).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Île introuvable"})
 	}
 	// Use authenticated playerID, not req.PlayerID from client
 	if island.PlayerID != playerID {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Not your building"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Ce bâtiment ne t'appartient pas"})
 	}
 
 	if building.Constructing {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Already under construction"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Ce bâtiment est déjà en construction"})
 	}
 
 	// CHECK: Tavern cannot be upgraded
 	if building.Type == "Tavern" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tavern cannot be upgraded."})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La Taverne ne peut pas être améliorée"})
 	}
 
 	// CHECK GLOBAL CONSTRUCTION LIMIT (New Rule)
 	for _, b := range island.Buildings {
 		if b.Constructing {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Another building is already under construction"})
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Un autre bâtiment est déjà en construction"})
 		}
 	}
 
@@ -784,7 +784,7 @@ func Upgrade(c echo.Context) error {
 	// Check Resources
 	for res, amount := range stats.Cost {
 		if island.Resources[res] < amount {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Not enough %s", res)})
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez %s", economy.ResourceNameFR(res))})
 		}
 	}
 
@@ -818,11 +818,11 @@ func Upgrade(c echo.Context) error {
 
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save resources"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 	if err := tx.Save(&building).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save building"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -1053,14 +1053,14 @@ type AddResourcesRequest struct {
 func AddResources(c echo.Context) error {
 	req := new(AddResourcesRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
@@ -1077,7 +1077,7 @@ func AddResources(c echo.Context) error {
 	var island domain.Island
 	if err := tx.Where("player_id = ?", playerID).First(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Add 1000 to each resource
@@ -1091,7 +1091,7 @@ func AddResources(c echo.Context) error {
 
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save resources"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -1109,14 +1109,14 @@ type StartResearchRequest struct {
 func StartResearch(c echo.Context) error {
 	req := new(StartResearchRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	authenticatedPlayer := auth.GetAuthenticatedPlayer(c)
 	if authenticatedPlayer == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := authenticatedPlayer.ID
 
@@ -1132,7 +1132,7 @@ func StartResearch(c echo.Context) error {
 	var island domain.Island
 	if err := tx.Preload("Player").Preload("Buildings").Where("player_id = ?", playerID).First(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	player := &island.Player
@@ -1140,14 +1140,14 @@ func StartResearch(c echo.Context) error {
 	// 2. Check Busy
 	if player.ResearchingTechID != "" {
 		tx.Rollback()
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Research already in progress"})
+		return c.JSON(http.StatusConflict, map[string]string{"error": "Une recherche est déjà en cours"})
 	}
 
 	// 3. Load Tech Config
 	tech, err := economy.GetTech(req.TechID)
 	if err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid Tech ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Technologie inconnue"})
 	}
 
 	// 4. Check Already Unlocked
@@ -1158,7 +1158,7 @@ func StartResearch(c echo.Context) error {
 	for _, id := range unlocked {
 		if id == req.TechID {
 			tx.Rollback()
-			return c.JSON(http.StatusConflict, map[string]string{"error": "Tech already unlocked"})
+			return c.JSON(http.StatusConflict, map[string]string{"error": "Cette technologie est déjà recherchée"})
 		}
 	}
 
@@ -1178,11 +1178,11 @@ func StartResearch(c echo.Context) error {
 
 	if maxTH < tech.ReqTH {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires TownHall Level %d", tech.ReqTH)})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Hôtel de Ville niveau %d requis pour cette recherche", tech.ReqTH)})
 	}
 	if maxAcad < tech.ReqAcad {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires Academy Level %d", tech.ReqAcad)})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Académie niveau %d requise pour cette recherche", tech.ReqAcad)})
 	}
 
 	// 6. Check Resources
@@ -1192,7 +1192,7 @@ func StartResearch(c echo.Context) error {
 		island.Resources[domain.Gold] < cost.Gold ||
 		island.Resources[domain.Rum] < cost.Rum {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Insufficient resources"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Pas assez de ressources"})
 	}
 
 	// 7. Deduct Resources
@@ -1234,11 +1234,11 @@ func StartResearch(c echo.Context) error {
 
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save resources"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 	if err := tx.Save(player).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save player research"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -1260,14 +1260,14 @@ type StartShipConstructionRequest struct {
 func StartShipConstruction(c echo.Context) error {
 	req := new(StartShipConstructionRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
@@ -1283,14 +1283,14 @@ func StartShipConstruction(c echo.Context) error {
 	var island domain.Island
 	if err := tx.Preload("Player").Preload("Buildings").Preload("Ships").First(&island, "id = ? AND player_id = ?", req.IslandID, playerID).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// 2. Load Ship Config & Validate Requirements
 	config, err := economy.GetShipStats(req.ShipType)
 	if err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ship type: " + req.ShipType})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Type de navire inconnu : " + req.ShipType})
 	}
 
 	// 3. Check Prerequisite: Shipyard Level
@@ -1306,12 +1306,12 @@ func StartShipConstruction(c echo.Context) error {
 
 	if !hasShipyard {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Shipyard required to build ships"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Construis d'abord un Chantier naval pour fabriquer des navires"})
 	}
 
 	if shipyardLevel < config.RequiredShipyardLevel {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires Shipyard Level %d", config.RequiredShipyardLevel)})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Chantier naval niveau %d requis pour ce navire", config.RequiredShipyardLevel)})
 	}
 
 	// 4. Check Prerequisite: Technology
@@ -1345,7 +1345,7 @@ func StartShipConstruction(c echo.Context) error {
 		if !hasTech {
 			tx.Rollback()
 			// Improve error message if possible to show Tech Name, but ID is safe for now
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Requires technology: %s", config.RequiredTechID)})
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Technologie requise : %s (à rechercher à l'Académie)", economy.TechNameFR(config.RequiredTechID))})
 		}
 	}
 
@@ -1358,14 +1358,14 @@ func StartShipConstruction(c echo.Context) error {
 	}
 	if activeShips >= 20 {
 		tx.Rollback()
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Global ship limit reached (Max 20)"})
+		return c.JSON(http.StatusConflict, map[string]string{"error": "Tu as atteint la limite de 20 navires"})
 	}
 
 	// 4. Check Construction Queue (Max 1 at a time)
 	for _, s := range island.Ships {
 		if s.State == "UnderConstruction" {
 			tx.Rollback()
-			return c.JSON(http.StatusConflict, map[string]string{"error": "Shipyard busy"})
+			return c.JSON(http.StatusConflict, map[string]string{"error": "Le Chantier naval construit déjà un navire"})
 		}
 	}
 
@@ -1373,14 +1373,14 @@ func StartShipConstruction(c echo.Context) error {
 	stats, err := economy.GetShipStats(req.ShipType)
 	if err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid ship type"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Type de navire inconnu"})
 	}
 
 	// 5.5 Validate Prerequisites (Level & Tech)
 	// Check Shipyard Level
 	if shipyardLevel < stats.RequiredShipyardLevel {
 		tx.Rollback()
-		return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Shipyard Level %d required", stats.RequiredShipyardLevel)})
+		return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Chantier naval niveau %d requis pour ce navire", stats.RequiredShipyardLevel)})
 	}
 
 	// Check Tech
@@ -1398,7 +1398,7 @@ func StartShipConstruction(c echo.Context) error {
 		}
 		if !hasTech {
 			tx.Rollback()
-			return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Technology %s required", stats.RequiredTechID)})
+			return c.JSON(http.StatusForbidden, map[string]string{"error": fmt.Sprintf("Technologie requise : %s (à rechercher à l'Académie)", economy.TechNameFR(stats.RequiredTechID))})
 		}
 	}
 
@@ -1406,7 +1406,7 @@ func StartShipConstruction(c echo.Context) error {
 	for res, amount := range stats.Cost {
 		if island.Resources[res] < amount {
 			tx.Rollback()
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Not enough %s", res)})
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Pas assez %s", economy.ResourceNameFR(res))})
 		}
 	}
 
@@ -1442,13 +1442,13 @@ func StartShipConstruction(c echo.Context) error {
 
 	if err := tx.Create(&ship).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create ship"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	// Save Resources
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save resources"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -1472,21 +1472,21 @@ type CreateFleetRequest struct {
 func CreateFleet(c echo.Context) error {
 	req := new(CreateFleetRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
 	// Do NOT trust req.PlayerID from client - use authenticated player only
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	db := repository.GetDB()
 	var island domain.Island
 	if err := db.Preload("Buildings").Preload("Fleets").First(&island, "id = ? AND player_id = ?", req.IslandID, playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// 1. Check Max Fleets
@@ -1500,7 +1500,7 @@ func CreateFleet(c echo.Context) error {
 
 	maxFleets := economy.GetMaxFleets(shipyardLevel)
 	if len(island.Fleets) >= maxFleets {
-		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Max fleets reached (%d/%d)", len(island.Fleets), maxFleets)})
+		return c.JSON(http.StatusConflict, map[string]string{"error": fmt.Sprintf("Nombre maximum de flottes atteint (%d/%d)", len(island.Fleets), maxFleets)})
 	}
 
 	// 2. Create Fleet
@@ -1514,7 +1514,7 @@ func CreateFleet(c echo.Context) error {
 	}
 
 	if err := db.Create(&fleet).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create fleet"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de créer la flotte"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -1658,26 +1658,26 @@ func GetFleets(c echo.Context) error {
 	// Get authenticated player from context (set by RequireAuth middleware)
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	islandIDStr := c.QueryParam("island_id")
 	islandID, err := uuid.Parse(islandIDStr)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid island_id"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île invalide"})
 	}
 
 	// Verify island ownership before returning fleets
 	db := repository.GetDB()
 	var island domain.Island
 	if err := db.First(&island, "id = ? AND player_id = ?", islandID, playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	var fleets []domain.Fleet
 	if err := db.Preload("Ships").Where("island_id = ?", islandID).Find(&fleets).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch fleets"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de charger les flottes"})
 	}
 
 	// Ensure player has 3 fleets (create missing ones)
@@ -1688,7 +1688,7 @@ func GetFleets(c echo.Context) error {
 
 	// Reload fleets after ensuring they exist
 	if err := db.Preload("Ships").Where("island_id = ?", islandID).Find(&fleets).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch fleets"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de charger les flottes"})
 	}
 
 	// Sort fleets by name to ensure consistent order (Flotte 1, 2, 3)
@@ -1845,7 +1845,7 @@ func checkDevAdmin(player *domain.Player) error {
 func DevAddResources(c echo.Context) error {
 	req := new(DevRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
@@ -1859,7 +1859,7 @@ func DevAddResources(c echo.Context) error {
 	db := repository.GetDB()
 	var island domain.Island
 	if err := db.First(&island, "player_id = ?", playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Add Resources (1000 default if amount 0, else amount)
@@ -1883,7 +1883,7 @@ func DevAddResources(c echo.Context) error {
 	island.Resources[domain.Gold] += amt
 
 	if err := db.Save(&island).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "Resources Added"})
@@ -1892,7 +1892,7 @@ func DevAddResources(c echo.Context) error {
 func DevFinishBuilding(c echo.Context) error {
 	req := new(DevRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
@@ -1922,7 +1922,7 @@ func DevFinishBuilding(c echo.Context) error {
 	b.FinishTime = time.Time{} // Clear finish time
 
 	if err := db.Save(&b).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": fmt.Sprintf("Finished building %s (Level %d)", b.Type, b.Level)})
@@ -1931,7 +1931,7 @@ func DevFinishBuilding(c echo.Context) error {
 func DevFinishResearch(c echo.Context) error {
 	req := new(DevRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
@@ -1954,7 +1954,7 @@ func DevFinishResearch(c echo.Context) error {
 func DevFinishShip(c echo.Context) error {
 	req := new(DevRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context (set by RequireAuth middleware)
@@ -1980,7 +1980,7 @@ func DevFinishShip(c echo.Context) error {
 func DevTimeSkip(c echo.Context) error {
 	req := new(DevRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 	hours := 1
 	if req.Hours > 0 {
@@ -2102,7 +2102,7 @@ type GrantTicketsRequest struct {
 func DevGrantTickets(c echo.Context) error {
 	req := new(GrantTicketsRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context
@@ -2113,7 +2113,7 @@ func DevGrantTickets(c echo.Context) error {
 	playerID := player.ID
 
 	if req.Amount <= 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Amount must be positive"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La quantité doit être positive"})
 	}
 	// Support bulk grants (up to 10000 for testing)
 	if req.Amount > 10000 {
@@ -2123,7 +2123,7 @@ func DevGrantTickets(c echo.Context) error {
 	db := repository.GetDB()
 	var island domain.Island
 	if err := db.First(&island, "player_id = ?", playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Ensure Resources map exists
@@ -2137,7 +2137,7 @@ func DevGrantTickets(c echo.Context) error {
 
 	if err := db.Save(&island).Error; err != nil {
 		fmt.Printf("[TAVERN] DevGrantTickets: Failed to save island: %v\n", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant tickets"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	fmt.Printf("[TAVERN] DevGrantTickets: Granted %d tickets to player %s (new total: %.0f)\n", req.Amount, playerID, island.Resources[domain.CaptainTicket])
@@ -2474,7 +2474,7 @@ type SummonCaptainRequest struct {
 func SummonCaptain(c echo.Context) error {
 	req := new(SummonCaptainRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Validate count: only 1 or 10 allowed
@@ -2512,14 +2512,14 @@ func SummonCaptain(c echo.Context) error {
 	var playerWithPity domain.Player
 	if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&playerWithPity, "id = ?", playerID).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 
 	// Load island with buildings
 	var island domain.Island
 	if err := tx.Preload("Buildings").First(&island, "player_id = ?", playerID).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Ensure Resources map exists
@@ -2537,7 +2537,7 @@ func SummonCaptain(c echo.Context) error {
 	}
 	if !tavernFound {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tavern required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Taverne requise"})
 	}
 
 	// Check ticket count
@@ -2545,7 +2545,7 @@ func SummonCaptain(c echo.Context) error {
 	requiredTickets := float64(req.Count)
 	if currentTickets < requiredTickets {
 		tx.Rollback()
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Not enough tickets"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Pas assez de tickets"})
 	}
 
 	ticketsBefore := int(currentTickets)
@@ -2573,7 +2573,7 @@ func SummonCaptain(c echo.Context) error {
 		if err != nil {
 			tx.Rollback()
 			fmt.Printf("[TAVERN] SummonCaptain: Failed to pick template: %v\n", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to roll captain"})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 		}
 
 		// Check for duplicate
@@ -2581,7 +2581,7 @@ func SummonCaptain(c echo.Context) error {
 		if err := tx.Where("player_id = ? AND template_id = ?", playerID, template.TemplateID).Find(&existingCaptains).Error; err != nil {
 			tx.Rollback()
 			fmt.Printf("[TAVERN] SummonCaptain: Failed to check duplicates: %v\n", err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to check duplicates"})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 		}
 
 		isDuplicate := len(existingCaptains) > 0
@@ -2615,7 +2615,7 @@ func SummonCaptain(c echo.Context) error {
 				if err := tx.Create(&wallet).Error; err != nil {
 					tx.Rollback()
 					fmt.Printf("[TAVERN] SummonCaptain: Failed to create shard wallet: %v\n", err)
-					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant shards"})
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 				}
 			} else {
 				// Update existing wallet
@@ -2624,7 +2624,7 @@ func SummonCaptain(c echo.Context) error {
 				if err := tx.Save(&wallet).Error; err != nil {
 					tx.Rollback()
 					fmt.Printf("[TAVERN] SummonCaptain: Failed to update shard wallet: %v\n", err)
-					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to grant shards"})
+					return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 				}
 			}
 			totalShardsGranted += shardsGranted
@@ -2648,7 +2648,7 @@ func SummonCaptain(c echo.Context) error {
 			if err := tx.Create(&newCaptain).Error; err != nil {
 				tx.Rollback()
 				fmt.Printf("[TAVERN] SummonCaptain: Failed to create captain: %v\n", err)
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create captain"})
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 			}
 
 			captain = &newCaptain
@@ -2685,14 +2685,14 @@ func SummonCaptain(c echo.Context) error {
 	if err := tx.Save(&playerWithPity).Error; err != nil {
 		tx.Rollback()
 		fmt.Printf("[TAVERN] SummonCaptain: Failed to save player: %v\n", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save player"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	// Save island (with updated ticket count)
 	if err := tx.Save(&island).Error; err != nil {
 		tx.Rollback()
 		fmt.Printf("[TAVERN] SummonCaptain: Failed to save island: %v\n", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save island"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -2731,7 +2731,7 @@ type UpgradeStarsRequest struct {
 func UpgradeCaptainStars(c echo.Context) error {
 	req := new(UpgradeStarsRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Get authenticated player from context
@@ -2849,7 +2849,7 @@ type ExchangeShardsRequest struct {
 func ExchangeShards(c echo.Context) error {
 	req := new(ExchangeShardsRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Validate rarity (legendary exchange is disabled)
@@ -3001,7 +3001,7 @@ func ExchangeShards(c echo.Context) error {
 	var island domain.Island
 	if err := tx.First(&island, "player_id = ?", playerID).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 	if island.Resources == nil {
 		island.Resources = make(map[domain.ResourceType]float64)
@@ -3501,24 +3501,24 @@ type LeaderboardEntry struct {
 func SearchFriends(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	req := new(SearchFriendsRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Query is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tape quelque chose à rechercher"})
 	}
 
 	db := repository.GetDB()
 	var players []domain.Player
 	if err := db.Where("username LIKE ?", "%"+query+"%").Limit(50).Find(&players).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Search failed"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "La recherche a échoué"})
 	}
 
 	result := make([]PlayerSummary, 0, len(players))
@@ -3539,13 +3539,13 @@ func SearchFriends(c echo.Context) error {
 func AddFriend(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	req := new(AddFriendRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	if req.FriendID == playerID {
@@ -3560,7 +3560,7 @@ func AddFriend(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Database error"})
 	}
 	if friendCount == 0 {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 
 	// Check if already friends
@@ -3577,7 +3577,7 @@ func AddFriend(c echo.Context) error {
 		CreatedAt: time.Now(),
 	}
 	if err := db.Create(&friend).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to add friend"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible d'ajouter cet ami"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "Friend added"})
@@ -3587,18 +3587,18 @@ func AddFriend(c echo.Context) error {
 func RemoveFriend(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	req := new(RemoveFriendRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	db := repository.GetDB()
 	if err := db.Where("player_id = ? AND friend_id = ?", playerID, req.FriendID).Delete(&domain.Friend{}).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to remove friend"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de retirer cet ami"})
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "Friend removed"})
@@ -3608,14 +3608,14 @@ func RemoveFriend(c echo.Context) error {
 func ListFriends(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	db := repository.GetDB()
 	var friends []domain.Friend
 	if err := db.Where("player_id = ?", playerID).Find(&friends).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to load friends"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de charger tes amis"})
 	}
 
 	result := make([]PlayerSummary, 0, len(friends))
@@ -3637,21 +3637,21 @@ func ListFriends(c echo.Context) error {
 func CreateGuild(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
 	req := new(CreateGuildRequest)
 	if err := c.Bind(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Guild name is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Le nom de la guilde est obligatoire"})
 	}
 	if len(name) > 50 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Guild name too long"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Nom de guilde trop long"})
 	}
 
 	db := repository.GetDB()
@@ -3659,19 +3659,19 @@ func CreateGuild(c echo.Context) error {
 	// Check if player already in a guild
 	var playerData domain.Player
 	if err := db.Select("id, guild_id, guild_ticket").First(&playerData, "id = ?", playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 	if playerData.GuildID != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Already in a guild"})
 	}
 	if playerData.GuildTicket < 1 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "No guild tickets available"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Aucun ticket de guilde disponible"})
 	}
 
 	// Check if guild name exists
 	var existingGuild domain.Guild
 	if err := db.Where("name = ?", name).First(&existingGuild).Error; err == nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Guild name already taken"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Ce nom de guilde est déjà pris"})
 	}
 
 	// Create guild
@@ -3683,7 +3683,7 @@ func CreateGuild(c echo.Context) error {
 		UpdatedAt: time.Now(),
 	}
 	if err := db.Create(&guild).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create guild"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de créer la guilde"})
 	}
 
 	// Add creator as member
@@ -3693,7 +3693,7 @@ func CreateGuild(c echo.Context) error {
 		JoinedAt: time.Now(),
 	}
 	if err := db.Create(&member).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to add founder"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	// Deduct ticket and update player's guild_id
@@ -3701,7 +3701,7 @@ func CreateGuild(c echo.Context) error {
 		"guild_id":     guild.ID,
 		"guild_ticket": gorm.Expr("guild_ticket - 1"),
 	}).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update player"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	return c.JSON(http.StatusOK, GuildSummary{
@@ -3718,7 +3718,7 @@ func CreateGuild(c echo.Context) error {
 func GetGuild(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
@@ -3727,16 +3727,16 @@ func GetGuild(c echo.Context) error {
 	// Get player's guild
 	var playerData domain.Player
 	if err := db.Select("id, guild_id").First(&playerData, "id = ?", playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 	if playerData.GuildID == nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Not in a guild"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tu n'es dans aucune guilde"})
 	}
 
 	// Get guild
 	var guild domain.Guild
 	if err := db.First(&guild, "id = ?", playerData.GuildID).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Guild not found"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Guilde introuvable"})
 	}
 
 	// Get members
@@ -3768,7 +3768,7 @@ func GetGuild(c echo.Context) error {
 func LeaveGuild(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Connexion requise, reconnecte-toi"})
 	}
 	playerID := player.ID
 
@@ -3777,22 +3777,22 @@ func LeaveGuild(c echo.Context) error {
 	// Get player's guild
 	var playerData domain.Player
 	if err := db.Select("id, guild_id").First(&playerData, "id = ?", playerID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Player not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Joueur introuvable"})
 	}
 	if playerData.GuildID == nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Not in a guild"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Tu n'es dans aucune guilde"})
 	}
 
 	guildID := *playerData.GuildID
 
 	// Remove from guild_members
 	if err := db.Where("guild_id = ? AND player_id = ?", guildID, playerID).Delete(&domain.GuildMember{}).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to leave guild"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de quitter la guilde"})
 	}
 
 	// Update player guild_id to null
 	if err := db.Model(&domain.Player{}).Where("id = ?", playerID).Update("guild_id", nil).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update player"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 	}
 
 	// If owner, try to disband guild (simplest approach: just leave it empty)
@@ -3807,7 +3807,7 @@ func GetLeaderboardPlayers(c echo.Context) error {
 
 	var players []domain.Player
 	if err := db.Select("id, username, reputation").Find(&players).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to load leaderboard"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de charger le classement"})
 	}
 
 	// Use reputation field from player
@@ -3855,7 +3855,7 @@ func GetLeaderboardGuilds(c echo.Context) error {
 
 	var guilds []domain.Guild
 	if err := db.Find(&guilds).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to load leaderboard"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de charger le classement"})
 	}
 
 	// Calculate reputation for each guild (sum of members' reputation)

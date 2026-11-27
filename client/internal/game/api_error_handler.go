@@ -1,8 +1,11 @@
 package game
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
@@ -38,7 +41,7 @@ func (g *Game) handleAPIError(err error, action string) bool {
 					Kind:    "other",
 					ID:      action,
 					Name:    action,
-					Message: err.Error(),
+					Message: friendlyError(err),
 				},
 			}
 			fmt.Printf("[PREREQ] fallback action=%s msg=%s\n", action, err.Error())
@@ -49,4 +52,42 @@ func (g *Game) handleAPIError(err error, action string) bool {
 
 	// Not a prerequisites error - return false to allow standard error handling
 	return false
+}
+
+var (
+	reHTTPStatus  = regexp.MustCompile(`\(?\b[1-5]\d\d [A-Z][A-Za-z' ]*\)?( - )?`)
+	reTechPrefix  = regexp.MustCompile(`^[a-zA-Z ]+ failed: *`)
+	reJSONMessage = regexp.MustCompile(`\{.*\}`)
+)
+
+// friendlyError : le message d'une erreur, propre pour un joueur. Il enlève
+// les codes HTTP (« 400 Bad Request »), les préfixes techniques en anglais
+// (« upgrade failed: ») et garde seulement la phrase du serveur.
+func friendlyError(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	if m := reJSONMessage.FindString(msg); m != "" {
+		var e struct {
+			Error   string `json:"error"`
+			Message string `json:"message"`
+		}
+		if json.Unmarshal([]byte(m), &e) == nil {
+			if e.Error != "" {
+				msg = e.Error
+			} else if e.Message != "" {
+				msg = e.Message
+			}
+		}
+	}
+	msg = reTechPrefix.ReplaceAllString(msg, "")
+	msg = reHTTPStatus.ReplaceAllString(msg, "")
+	msg = strings.Trim(msg, " \t:-")
+	if msg == "" {
+		return "Action impossible pour le moment"
+	}
+	r := []rune(msg)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
 }

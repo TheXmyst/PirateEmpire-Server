@@ -21,37 +21,37 @@ type NavigateFleetRequest struct {
 func NavigateFleet(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non autorisé"})
 	}
 
 	var req NavigateFleetRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid payload"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid Fleet ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
 	db := repository.GetDB()
 	var fleet domain.Fleet
 	if err := db.Preload("Ships").First(&fleet, "id = ?", fleetID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Fleet not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
 	// Validate Ownership
 	var island domain.Island
 	if err := db.First(&island, "id = ?", fleet.IslandID).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Island link broken"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Île introuvable"})
 	}
 	if island.PlayerID != player.ID {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Not your fleet"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Cette flotte ne t'appartient pas"})
 	}
 
 	// Validate current state (Locked states block navigation)
 	if fleet.BlocksOrders() {
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Fleet is busy with a combat mission"})
+		return c.JSON(http.StatusConflict, map[string]string{"error": "La flotte est occupée par un combat"})
 	}
 
 	// Update Fleet State and Target
@@ -90,13 +90,13 @@ func NavigateFleet(c echo.Context) error {
 		}
 		if err := tx.Save(s).Error; err != nil {
 			tx.Rollback()
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to sync ship positions"})
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 		}
 	}
 
 	if err := tx.Save(&fleet).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save fleet state"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()

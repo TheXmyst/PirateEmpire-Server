@@ -2,39 +2,83 @@ package game
 
 import (
 	"fmt"
+	"image"
 	"image/color"
+	"math"
 	"strings"
 	"unicode"
 
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
-// prereqModalRect : position de la fenêtre des prérequis, adaptée au nombre de lignes.
-func (g *Game) prereqModalRect() (x, y, w, h float64) {
-	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
-	w = 560.0
-	h = 190 + float64(len(g.ui.PrereqModalReqs))*prereqRowH
-	if g.ui.PrereqModalSubtitle != "" {
-		h += 24
-	}
-	if h < 240 {
-		h = 240
-	}
-	if h > 500 {
-		h = 500
-	}
-	return (sw - w) / 2, (sh - h) / 2, w, h
+// Fenêtre « Prérequis manquants ». Chaque prérequis est écrit en entier :
+// les phrases longues passent à la ligne et la fenêtre grandit avec le
+// texte (elle défile seulement si elle ne tient plus à l'écran).
+
+const (
+	prereqW       = 620.0
+	prereqPadding = 22.0
+	prereqLineH   = 22.0
+	prereqRowGap  = 6.0
+)
+
+func prereqFace() text.Face { return bodyFace(17, false) }
+
+// prereqLayout : lignes de texte de chaque prérequis et géométrie de la fenêtre.
+type prereqLayoutT struct {
+	x, y, w, h float64
+	subLines   []string
+	rows       [][]string
+	listTop    float64
+	listH      float64
+	contentH   float64
+	rowW       float64
 }
 
-const prereqRowH = 30.0
-
-// prereqListTop : ordonnée du début de la liste.
-func (g *Game) prereqListTop(y float64) float64 {
+func (g *Game) prereqLayout() prereqLayoutT {
+	var l prereqLayoutT
+	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
+	l.w = prereqW
+	l.rowW = l.w - 2*prereqPadding
+	face := prereqFace()
 	if g.ui.PrereqModalSubtitle != "" {
-		return y + 96
+		l.subLines = wrapText(g.ui.PrereqModalSubtitle, bodyFace(14, false), l.rowW)
 	}
-	return y + 70
+	for _, req := range g.ui.PrereqModalReqs {
+		lines := wrapText(stripUnsupported(formatRequirement(req)), face, l.rowW-50)
+		if len(lines) == 0 {
+			lines = []string{""}
+		}
+		l.rows = append(l.rows, lines)
+		l.contentH += prereqRowH(len(lines)) + prereqRowGap
+	}
+	if len(l.rows) == 0 {
+		l.contentH = 30
+	}
+	top := 66.0 + float64(len(l.subLines))*18
+	if len(l.subLines) > 0 {
+		top += 8
+	}
+	l.h = top + l.contentH + 78
+	maxH := sh - 30
+	if l.h > maxH {
+		l.h = maxH
+	}
+	if l.h < 220 {
+		l.h = 220
+	}
+	l.x, l.y = (sw-l.w)/2, (sh-l.h)/2
+	l.listTop = l.y + top
+	l.listH = l.y + l.h - 70 - l.listTop
+	return l
+}
+
+func prereqRowH(lines int) float64 { return 14 + float64(lines)*prereqLineH }
+
+func (l prereqLayoutT) maxScroll() float64 {
+	return math.Max(0, l.contentH-l.listH)
 }
 
 // DrawPrereqModal draws the prerequisites modal
@@ -42,71 +86,50 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 	if !g.ui.ShowPrereqModal {
 		return
 	}
-
-	x, y, w, h := g.prereqModalRect()
-	padding := 22.0
+	l := g.prereqLayout()
+	x, y, w, h := l.x, l.y, l.w, l.h
 
 	drawDimBackground(screen, 170)
 	drawWindowFrame(screen, x, y, w, h, niceTitle(g.ui.PrereqModalTitle, "Prérequis manquants"))
 	drawCloseButton(screen, x+w-30, y+27, 15)
 
-	if g.ui.PrereqModalSubtitle != "" {
-		drawText(screen, ellipsize(g.ui.PrereqModalSubtitle, bodyFace(14, false), w-2*padding), bodyFace(14, false), x+padding, y+60, themeMuted, alignLeft)
+	for i, ln := range l.subLines {
+		drawText(screen, ln, bodyFace(14, false), x+prereqPadding, y+60+float64(i)*18, themeMuted, alignLeft)
 	}
 
-	listStartY := g.prereqListTop(y)
-	listEndY := y + h - 70
-	listHeight := listEndY - listStartY
-	maxVisibleItems := int(listHeight / prereqRowH)
-	if maxVisibleItems < 1 {
-		maxVisibleItems = 1
-	}
-
-	totalItems := len(g.ui.PrereqModalReqs)
-	maxScroll := 0
-	if totalItems > maxVisibleItems {
-		maxScroll = totalItems - maxVisibleItems
-	}
-	if g.ui.PrereqModalScroll < 0 {
-		g.ui.PrereqModalScroll = 0
-	}
-	if g.ui.PrereqModalScroll > float64(maxScroll) {
-		g.ui.PrereqModalScroll = float64(maxScroll)
-	}
-
-	face := bodyFace(14, false)
-	if totalItems == 0 {
-		drawText(screen, "Aucun prérequis indiqué.", face, x+padding, listStartY+4, themeMuted, alignLeft)
+	g.ui.PrereqModalScroll = math.Max(0, math.Min(g.ui.PrereqModalScroll, l.maxScroll()))
+	face := prereqFace()
+	if len(l.rows) == 0 {
+		drawText(screen, "Aucun prérequis indiqué.", face, x+prereqPadding, l.listTop+4, themeMuted, alignLeft)
 	} else {
-		startIdx := int(g.ui.PrereqModalScroll)
-		endIdx := startIdx + maxVisibleItems
-		if endIdx > totalItems {
-			endIdx = totalItems
-		}
-		rowW := w - 2*padding
-		if maxScroll > 0 {
+		clip := screen.SubImage(image.Rect(int(x), int(l.listTop), int(x+w), int(l.listTop+l.listH))).(*ebiten.Image)
+		rowW := l.rowW
+		if l.maxScroll() > 0 {
 			rowW -= 14
 		}
-		currentY := listStartY
-		for i := startIdx; i < endIdx; i++ {
-			req := g.ui.PrereqModalReqs[i]
-			drawInset(screen, x+padding, currentY, rowW, prereqRowH-4)
-			fillRoundRect(screen, x+padding+12, currentY+(prereqRowH-4)/2-3, 6, 6, 3, themeRed)
-			drawText(screen, ellipsize(formatRequirement(req), face, rowW-40), face, x+padding+28, currentY+5, themeText, alignLeft)
-			currentY += prereqRowH
+		cy := l.listTop - g.ui.PrereqModalScroll
+		for _, lines := range l.rows {
+			rh := prereqRowH(len(lines))
+			if cy+rh >= l.listTop && cy <= l.listTop+l.listH {
+				drawInset(clip, x+prereqPadding, cy, rowW, rh)
+				fillRoundRect(clip, x+prereqPadding+14, cy+7+prereqLineH/2-3, 7, 7, 3.5, themeRed)
+				for i, ln := range lines {
+					drawText(clip, ln, face, x+prereqPadding+32, cy+7+float64(i)*prereqLineH, themeText, alignLeft)
+				}
+			}
+			cy += rh + prereqRowGap
 		}
-
-		if maxScroll > 0 {
-			barX := x + w - padding - 6
-			fillRoundRect(screen, barX, listStartY, 6, listHeight, 3, color.NRGBA{255, 255, 255, 20})
-			thumbH := float64(maxVisibleItems) / float64(totalItems) * listHeight
-			thumbY := listStartY + (g.ui.PrereqModalScroll/float64(maxScroll))*(listHeight-thumbH)
+		if ms := l.maxScroll(); ms > 0 {
+			barX := x + w - prereqPadding - 6
+			fillRoundRect(screen, barX, l.listTop, 6, l.listH, 3, color.NRGBA{255, 255, 255, 20})
+			thumbH := math.Max(24, l.listH*l.listH/l.contentH)
+			thumbY := l.listTop + (g.ui.PrereqModalScroll/ms)*(l.listH-thumbH)
 			fillRoundRect(screen, barX, thumbY, 6, thumbH, 3, themeGoldDim)
 		}
 	}
 
-	btnW, btnH := 140.0, 38.0
-	drawButton(screen, x+w/2-btnW/2, y+h-54, btnW, btnH, "Compris", btnPrimary)
+	btnW, btnH := 160.0, 44.0
+	drawButton(screen, x+w/2-btnW/2, y+h-58, btnW, btnH, "Compris", btnPrimary)
 }
 
 // niceTitle : un titre écrit en majuscules passe en casse normale.
@@ -151,86 +174,44 @@ func (g *Game) UpdatePrereqModal() bool {
 		return false
 	}
 
-	x, y, w, h := g.prereqModalRect()
-	listHeight := (y + h - 70) - g.prereqListTop(y)
+	l := g.prereqLayout()
+	x, y, w, h := l.x, l.y, l.w, l.h
 
 	// Close on ESC
-	if isKeyJustPressed(ebiten.KeyEscape) {
+	if consumeEscape() {
 		g.closePrereqModal()
 		return true
 	}
 
-	// Handle mouse clicks
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		mx, my := cursorPosition()
 		fmx, fmy := float64(mx), float64(my)
 
-		// Close button (X)
-		if fmx >= x+w-47 && fmx <= x+w-13 && fmy >= y+10 && fmy <= y+44 {
+		// Croix, bouton « Compris », ou clic en dehors : on ferme.
+		onClose := fmx >= x+w-50 && fmx <= x+w-10 && fmy >= y+6 && fmy <= y+48
+		btnW, btnH := 160.0, 44.0
+		btnX, btnY := x+w/2-btnW/2, y+h-58
+		onOK := fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH
+		outside := fmx < x || fmx > x+w || fmy < y || fmy > y+h
+		if onClose || onOK || outside {
 			g.closePrereqModal()
-			return true
 		}
-
-		// OK button
-		btnY := y + h - 54
-		btnW := 140.0
-		btnH := 38.0
-		btnX := x + w/2 - btnW/2
-		if fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH {
-			g.closePrereqModal()
-			return true
-		}
-
-		// Click outside modal (close)
-		if fmx < x || fmx > x+w || fmy < y || fmy > y+h {
-			g.closePrereqModal()
-			return true
-		}
-
-		// Click inside modal (consume input)
 		return true
 	}
 
-	// Mouse wheel scrolling
-	_, dy := wheelDelta()
-	if dy != 0 {
-		totalItems := len(g.ui.PrereqModalReqs)
-		maxVisibleItems := int(listHeight / prereqRowH)
-		maxScroll := 0
-		if totalItems > maxVisibleItems {
-			maxScroll = totalItems - maxVisibleItems
-		}
-
-		if maxScroll > 0 {
-			g.ui.PrereqModalScroll -= dy * 3 // Scroll speed
-			if g.ui.PrereqModalScroll < 0 {
-				g.ui.PrereqModalScroll = 0
-			}
-			if g.ui.PrereqModalScroll > float64(maxScroll) {
-				g.ui.PrereqModalScroll = float64(maxScroll)
-			}
-			return true
-		}
+	// Molette / doigt / flèches : défilement en pixels
+	step := 0.0
+	if _, dy := wheelDelta(); dy != 0 {
+		step = -dy * 40
 	}
-
-	// Arrow keys for scrolling
 	if isKeyJustPressed(ebiten.KeyArrowDown) {
-		totalItems := len(g.ui.PrereqModalReqs)
-		maxVisibleItems := int(listHeight / prereqRowH)
-		maxScroll := 0
-		if totalItems > maxVisibleItems {
-			maxScroll = totalItems - maxVisibleItems
-		}
-		if g.ui.PrereqModalScroll < float64(maxScroll) {
-			g.ui.PrereqModalScroll++
-		}
-		return true
+		step = 40
 	}
 	if isKeyJustPressed(ebiten.KeyArrowUp) {
-		if g.ui.PrereqModalScroll > 0 {
-			g.ui.PrereqModalScroll--
-		}
-		return true
+		step = -40
+	}
+	if step != 0 {
+		g.ui.PrereqModalScroll = math.Max(0, math.Min(g.ui.PrereqModalScroll+step, l.maxScroll()))
 	}
 
 	return true // Always consume input when modal is open

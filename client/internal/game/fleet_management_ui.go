@@ -140,7 +140,7 @@ func (g *Game) fleetAction(okMsg string, call func() error) {
 		}
 		g.refreshStatusAfterDevAction()
 		if err != nil {
-			g.ui.FleetMessage = "Erreur : " + err.Error()
+			g.ui.FleetMessage = "Erreur : " + friendlyError(err)
 			g.ui.FleetMessageErr = true
 			return
 		}
@@ -1051,7 +1051,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 					g.api.IslandID = iid
 					resp, err := g.api.TransferToFleet(fid, selRes, amount)
 					if err != nil {
-						g.ui.TransferMessage = fmt.Sprintf("Erreur: %v", err)
+						g.ui.TransferMessage = "Erreur : " + friendlyError(err)
 					} else {
 						g.ui.TransferMessage = resp.Message
 						// Update master state
@@ -1096,7 +1096,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 					g.api.IslandID = iid
 					resp, err := g.api.TransferToIsland(fid, selRes, amount)
 					if err != nil {
-						g.ui.TransferMessage = fmt.Sprintf("Erreur: %v", err)
+						g.ui.TransferMessage = "Erreur : " + friendlyError(err)
 					} else {
 						g.ui.TransferMessage = resp.Message
 						for i := range g.player.Islands {

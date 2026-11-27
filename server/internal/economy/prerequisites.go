@@ -10,7 +10,7 @@ import (
 func CheckPrerequisites(player *domain.Player, buildingType string, targetLevel int) error {
 	cfg, ok := GetBuildingConfig(buildingType)
 	if !ok {
-		return fmt.Errorf("unknown building type: %s", buildingType)
+		return fmt.Errorf("Bâtiment inconnu : %s", buildingType)
 	}
 
 	// 0. Base Check: TownHall Cap
@@ -35,7 +35,7 @@ func CheckPrerequisites(player *domain.Player, buildingType string, targetLevel 
 	if buildingType != "Hôtel de Ville" {
 		maxLvl := GetMaxLevelAllowedByTH(thLevel)
 		if targetLevel > maxLvl {
-			return fmt.Errorf("requires TownHall level to increase max limit (Current Max: %d)", maxLvl)
+			return fmt.Errorf("Hôtel de Ville niveau %d requis pour monter ce bâtiment au niveau %d (niveau maximum actuel : %d)", RequiredTHForLevel(targetLevel), targetLevel, maxLvl)
 		}
 	}
 
@@ -69,7 +69,7 @@ func validateReq(player *domain.Player, req Requirement, currentTH int) error {
 	// a) TownHall Level
 	if req.ReqTownHall > 0 {
 		if currentTH < req.ReqTownHall {
-			return fmt.Errorf("requires TownHall Level %d", req.ReqTownHall)
+			return fmt.Errorf("Hôtel de Ville niveau %d requis", req.ReqTownHall)
 		}
 	}
 
@@ -83,7 +83,7 @@ func validateReq(player *domain.Player, req Requirement, currentTH int) error {
 			}
 		}
 		if !hasTech {
-			return fmt.Errorf("requires technology: %s", req.ReqTech)
+			return fmt.Errorf("Technologie requise : %s (à rechercher à l'Académie)", TechNameFR(req.ReqTech))
 		}
 	}
 
@@ -105,7 +105,7 @@ func validateReq(player *domain.Player, req Requirement, currentTH int) error {
 			}
 		}
 		if !found {
-			return fmt.Errorf("requires building %s (Level %d+)", req.ReqBuilding, minLvl)
+			return fmt.Errorf("%s niveau %d requis", req.ReqBuilding, minLvl)
 		}
 	}
 

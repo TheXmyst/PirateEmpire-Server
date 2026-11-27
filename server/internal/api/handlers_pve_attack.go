@@ -34,18 +34,18 @@ func SendPveAttack(c echo.Context) error {
 	// Parse request
 	var req SendPveAttackRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	// Validate UUIDs
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid fleet ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
 	targetPveID, err := uuid.Parse(req.TargetPveID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid target PVE ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Cible invalide"})
 	}
 
 	db := repository.GetDB()

@@ -34,6 +34,36 @@ func (e *ErrRequirementsNotMet) Error() string {
 	return e.Title
 }
 
+// serverError transforme un refus du serveur en message lisible par le
+// joueur : la phrase envoyée par le serveur ({"error": "..."}), sans code
+// HTTP ni détail technique. body peut être nil (il est alors lu ici).
+func serverError(resp *http.Response, body []byte) error {
+	if body == nil {
+		body, _ = io.ReadAll(resp.Body)
+	}
+	var e struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &e) == nil {
+		if e.Error != "" {
+			return fmt.Errorf("%s", e.Error)
+		}
+		if e.Message != "" {
+			return fmt.Errorf("%s", e.Message)
+		}
+	}
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized:
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
+	case resp.StatusCode == http.StatusTooManyRequests:
+		return fmt.Errorf("trop de demandes, attends un instant")
+	case resp.StatusCode >= 500:
+		return fmt.Errorf("le serveur a rencontré un problème, réessaie dans un instant")
+	}
+	return fmt.Errorf("action refusée par le serveur")
+}
+
 func NewAPIClient(baseURL string) *APIClient {
 	return &APIClient{BaseURL: baseURL}
 }
@@ -117,7 +147,7 @@ func accountError(resp *http.Response) error {
 		if resp.StatusCode == http.StatusUnauthorized {
 			return fmt.Errorf("pseudo ou mot de passe incorrect")
 		}
-		return fmt.Errorf("le serveur a refusé (%s)", resp.Status)
+		return fmt.Errorf("le serveur a refusé la demande, réessaie")
 	}
 	return fmt.Errorf("%s", e.Error)
 }
@@ -204,7 +234,7 @@ func (c *APIClient) GetStatus() (*domain.Player, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	// The server returns a StatusResponse wrapper { player, islands, captains }
@@ -249,7 +279,7 @@ func (c *APIClient) SendChat(message string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("chat send failed: %s", string(body))
+		return serverError(resp, body)
 	}
 	return nil
 }
@@ -269,7 +299,7 @@ func (c *APIClient) FetchChat(since time.Time) ([]domain.ChatMessage, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("chat fetch failed: %s", string(body))
+		return nil, serverError(resp, body)
 	}
 	var out struct {
 		Messages   []domain.ChatMessage `json:"messages"`
@@ -301,7 +331,7 @@ func (c *APIClient) FetchChatBefore(before time.Time, limit int) ([]domain.ChatM
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, "", fmt.Errorf("chat fetch failed: %s", string(body))
+		return nil, "", serverError(resp, body)
 	}
 	var out struct {
 		Messages   []domain.ChatMessage `json:"messages"`
@@ -329,8 +359,7 @@ func (c *APIClient) Build(buildingType string, x, y float64) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
 		// Try to parse error message from JSON response
@@ -342,7 +371,7 @@ func (c *APIClient) Build(buildingType string, x, y float64) error {
 			return fmt.Errorf("%s", errorResp.Error)
 		}
 		// Fallback to generic error if JSON parsing fails
-		return fmt.Errorf("construction impossible: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -359,11 +388,10 @@ func (c *APIClient) ResetProgress() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("reset failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -381,12 +409,11 @@ func (c *APIClient) Upgrade(playerID, buildingID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("upgrade failed: %s - %s", resp.Status, string(body))
+		return serverError(resp, body)
 	}
 	return nil
 }
@@ -403,11 +430,10 @@ func (c *APIClient) AddResources() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("add resources failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -429,7 +455,7 @@ func (c *APIClient) StartResearch(techID string) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -439,9 +465,9 @@ func (c *APIClient) StartResearch(techID string) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("research failed: %s", errRes.Error)
+			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("research failed: %s - %s", resp.Status, string(bodyBytes))
+		return serverError(resp, bodyBytes)
 	}
 	return nil
 }
@@ -461,12 +487,11 @@ func (c *APIClient) BuildShip(shipType string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("ship build failed: %s - %s", resp.Status, string(body))
+		return serverError(resp, body)
 	}
 	return nil
 }
@@ -491,7 +516,7 @@ func (c *APIClient) AddShipToFleet(fleetID, shipID uuid.UUID) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -503,7 +528,7 @@ func (c *APIClient) AddShipToFleet(fleetID, shipID uuid.UUID) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec assignation: %s - %s", resp.Status, string(bodyBytes))
+		return serverError(resp, bodyBytes)
 	}
 	return nil
 }
@@ -554,7 +579,7 @@ func (c *APIClient) GetCaptains() ([]Captain, error) {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -567,7 +592,7 @@ func (c *APIClient) GetCaptains() ([]Captain, error) {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec récupération capitaines: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var captains []Captain
@@ -596,7 +621,7 @@ func (c *APIClient) AssignCaptain(captainID, shipID string) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -609,7 +634,7 @@ func (c *APIClient) AssignCaptain(captainID, shipID string) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec assignation capitaine: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -632,7 +657,7 @@ func (c *APIClient) UnassignCaptain(captainID string) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -645,7 +670,7 @@ func (c *APIClient) UnassignCaptain(captainID string) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec retrait capitaine: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -663,11 +688,10 @@ func (c *APIClient) DevAddResources(amount float64) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -680,11 +704,10 @@ func (c *APIClient) DevFinishBuilding() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -697,11 +720,10 @@ func (c *APIClient) DevFinishResearch() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -714,11 +736,10 @@ func (c *APIClient) DevFinishShip() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -734,11 +755,10 @@ func (c *APIClient) DevTimeSkip(hours int) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -766,7 +786,7 @@ func (c *APIClient) SimulateEngagement(fleetAID, fleetBID string) (*domain.Engag
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -795,7 +815,7 @@ func (c *APIClient) SimulateEngagement(fleetAID, fleetBID string) (*domain.Engag
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec simulation engagement: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result domain.EngagementResult
@@ -850,7 +870,7 @@ func (c *APIClient) SummonCaptain(count int) (*SummonCaptainResponse, error) {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -863,7 +883,7 @@ func (c *APIClient) SummonCaptain(count int) (*SummonCaptainResponse, error) {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec recrutement: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result SummonCaptainResponse
@@ -886,8 +906,7 @@ func (c *APIClient) GrantTickets(amount int) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", string(body))
+		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -898,7 +917,7 @@ func (c *APIClient) GrantTickets(amount int) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec attribution tickets: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -921,7 +940,7 @@ func (c *APIClient) UpgradeCaptainStars(captainID uuid.UUID) error {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -934,7 +953,7 @@ func (c *APIClient) UpgradeCaptainStars(captainID uuid.UUID) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec amélioration: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -967,7 +986,7 @@ func (c *APIClient) ExchangeShards(rarity string, count int) (*ExchangeShardsRes
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -980,7 +999,7 @@ func (c *APIClient) ExchangeShards(rarity string, count int) (*ExchangeShardsRes
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec échange: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result ExchangeShardsResponse
@@ -1011,7 +1030,7 @@ func (c *APIClient) SetShipCrew(shipID string, warriors, archers, gunners int) e
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -1024,7 +1043,7 @@ func (c *APIClient) SetShipCrew(shipID string, warriors, archers, gunners int) e
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec mise à jour équipage: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -1046,7 +1065,7 @@ func (c *APIClient) GetPveTargets() ([]domain.PveTarget, error) {
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -1059,7 +1078,7 @@ func (c *APIClient) GetPveTargets() ([]domain.PveTarget, error) {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec récupération cibles PVE: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var response struct {
@@ -1095,7 +1114,7 @@ func (c *APIClient) EngagePve(fleetID uuid.UUID, targetID string, seed *int64) (
 		}
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
-			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter: %s", errRes.Error)
+			return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 		}
 		return nil, fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
@@ -1119,7 +1138,7 @@ func (c *APIClient) EngagePve(fleetID uuid.UUID, targetID string, seed *int64) (
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec engagement PVE: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var response struct {
@@ -1161,7 +1180,7 @@ func (c *APIClient) AssignCrew(shipID uuid.UUID, warriors, archers, gunners int)
 			if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 				return fmt.Errorf("%s: %s", unitType, errRes.Error)
 			}
-			return fmt.Errorf("échec assignation %s: %s", unitType, resp.Status)
+			return serverError(resp, bodyBytes)
 		}
 	}
 	return nil
@@ -1196,7 +1215,7 @@ func (c *APIClient) UnassignCrew(shipID uuid.UUID, warriors, archers, gunners in
 			if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 				return fmt.Errorf("%s: %s", unitType, errRes.Error)
 			}
-			return fmt.Errorf("échec retrait %s: %s", unitType, resp.Status)
+			return serverError(resp, bodyBytes)
 		}
 	}
 	return nil
@@ -1227,7 +1246,7 @@ func (c *APIClient) MilitiaRecruit(islandID uuid.UUID, warriors, archers, gunner
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("échec recrutement: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var res RecruitResponse
@@ -1256,7 +1275,7 @@ func (c *APIClient) StationFleet(fleetID string, nodeID string) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("station fleet failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1279,7 +1298,7 @@ func (c *APIClient) RecallFleet(fleetID string) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("recall fleet failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1306,7 +1325,7 @@ func (c *APIClient) NavigateFleet(fleetID string, x, y int) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("navigation failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1319,7 +1338,7 @@ func (c *APIClient) GetWeather() (float64, time.Time, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, time.Time{}, fmt.Errorf("weather failed: %s", resp.Status)
+		return 0, time.Time{}, serverError(resp, nil)
 	}
 
 	var res struct {
@@ -1341,7 +1360,7 @@ func (c *APIClient) GetResourceNodes() ([]domain.ResourceNode, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get resource nodes failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var res struct {
@@ -1361,7 +1380,7 @@ func (c *APIClient) GetPvpTargets() ([]domain.PveTarget, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("pvp targets failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var res struct {
@@ -1390,7 +1409,7 @@ func (c *APIClient) SetActiveFleet(fleetID uuid.UUID) error {
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("échec activation de la flotte: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1444,7 +1463,7 @@ func (c *APIClient) TransferToFleet(fleetID uuid.UUID, resource domain.ResourceT
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("transfer failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var res CargoTransferResponse
@@ -1482,7 +1501,7 @@ func (c *APIClient) TransferToIsland(fleetID uuid.UUID, resource domain.Resource
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("transfer failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var res CargoTransferResponse
@@ -1514,7 +1533,7 @@ func (c *APIClient) StartIntercept(attackerFleetID, targetFleetID string) error 
 		if err := json.Unmarshal(bodyBytes, &errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("intercept failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1532,7 +1551,7 @@ func (c *APIClient) AbortIntercept(fleetID string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("abort failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 	return nil
 }
@@ -1574,7 +1593,7 @@ func (c *APIClient) SearchFriends(query string) ([]PlayerSummary, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("search failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result []PlayerSummary
@@ -1602,7 +1621,7 @@ func (c *APIClient) AddFriend(friendID uuid.UUID) error {
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("add friend failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -1619,7 +1638,7 @@ func (c *APIClient) RemoveFriend(friendID uuid.UUID) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("remove friend failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -1634,7 +1653,7 @@ func (c *APIClient) ListFriends() ([]PlayerSummary, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list friends failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result []PlayerSummary
@@ -1662,7 +1681,7 @@ func (c *APIClient) CreateGuild(name string) (*GuildInfo, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("create guild failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result GuildInfo
@@ -1688,7 +1707,7 @@ func (c *APIClient) GetGuild() (*GuildInfo, error) {
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
 			return nil, fmt.Errorf("%s", errRes.Error)
 		}
-		return nil, fmt.Errorf("get guild failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result GuildInfo
@@ -1714,7 +1733,7 @@ func (c *APIClient) LeaveGuild() error {
 		if err := json.NewDecoder(resp.Body).Decode(&errRes); err == nil && errRes.Error != "" {
 			return fmt.Errorf("%s", errRes.Error)
 		}
-		return fmt.Errorf("leave guild failed: %s", resp.Status)
+		return serverError(resp, nil)
 	}
 
 	return nil
@@ -1729,7 +1748,7 @@ func (c *APIClient) GetLeaderboardPlayers() ([]LeaderboardEntry, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get leaderboard failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result []LeaderboardEntry
@@ -1749,7 +1768,7 @@ func (c *APIClient) GetLeaderboardGuilds() ([]LeaderboardEntry, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("get leaderboard failed: %s", resp.Status)
+		return nil, serverError(resp, nil)
 	}
 
 	var result []LeaderboardEntry
