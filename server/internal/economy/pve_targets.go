@@ -315,7 +315,7 @@ func GenerateNpcFleet(tier int, targetID string) domain.Fleet {
 	}
 
 	// Set morale (NPC fleets have fixed morale based on tier)
-	morale := 40 + tier*10 // Tier 1: 50, Tier 2: 60, Tier 3: 70
+	morale := 25 + tier*15 // Tier 1: 40, Tier 2: 55, Tier 3: 70
 	fleet.MoraleCruise = &morale
 	return fleet
 }
@@ -376,9 +376,10 @@ func UpdatePveTargetSimulation(delta float64, islands []domain.Island) {
 					windMultiplier = GlobalWeather.GetWindFactor(angleDeg)
 				}
 
-				// 3. Calculate Captain Multiplier
-				isFavorable := windMultiplier > 1.0
-				captainMultiplier := CalculateCaptainSpeedMultiplier(t.Captain, isFavorable)
+				// 3. Captain (vent + vitesse)
+				capEff := ComputeCaptainEffects(&t.Captain)
+				windMultiplier = ApplyWindWithCaptain(capEff, windMultiplier)
+				captainMultiplier := CaptainSpeedMultiplier(capEff, DefaultFleetMorale, false)
 
 				// 4. Combine all modifiers: base * tech * captain * wind
 				effectiveSpeed := t.Speed * techMultiplier * captainMultiplier * windMultiplier

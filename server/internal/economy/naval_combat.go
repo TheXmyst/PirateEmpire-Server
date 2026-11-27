@@ -96,18 +96,14 @@ func ExecuteNavalCombat(
 		ship := &fleetA.Ships[i]
 		// Only include ships that are not destroyed
 		if ship.State != "Destroyed" {
-			// Compute combat stats (only flagship gets captain bonuses)
-			var captain *domain.Captain
-			if flagshipA != nil && ship.ID == flagshipA.ID {
-				captain = captA
-			}
-			combatStats, err := ComputeShipCombatStatsWithCaptain(ship, captain)
+			// Le capitaine de la flotte agit sur tous ses navires
+			combatStats, err := ComputeShipCombatStatsWithCaptain(ship, captA)
 			if err != nil {
 				return result, fmt.Errorf("failed to compute combat stats for ship %s: %w", ship.ID, err)
 			}
 			shipsA = append(shipsA, &ShipCombatState{
 				Ship:           ship,
-				CurrentHealth:  ship.Health,
+				CurrentHealth:  ship.Health + (combatStats.EffectiveHP - combatStats.BaseHP),
 				EffectiveSpeed: combatStats.EffectiveSpeed,
 				EffectiveDR:    combatStats.EffectiveDamageReduction,
 				IsDestroyed:    false,
@@ -121,18 +117,14 @@ func ExecuteNavalCombat(
 		ship := &fleetB.Ships[i]
 		// Only include ships that are not destroyed
 		if ship.State != "Destroyed" {
-			// Compute combat stats (only flagship gets captain bonuses)
-			var captain *domain.Captain
-			if flagshipB != nil && ship.ID == flagshipB.ID {
-				captain = captB
-			}
-			combatStats, err := ComputeShipCombatStatsWithCaptain(ship, captain)
+			// Le capitaine de la flotte agit sur tous ses navires
+			combatStats, err := ComputeShipCombatStatsWithCaptain(ship, captB)
 			if err != nil {
 				return result, fmt.Errorf("failed to compute combat stats for ship %s: %w", ship.ID, err)
 			}
 			shipsB = append(shipsB, &ShipCombatState{
 				Ship:           ship,
-				CurrentHealth:  ship.Health,
+				CurrentHealth:  ship.Health + (combatStats.EffectiveHP - combatStats.BaseHP),
 				EffectiveSpeed: combatStats.EffectiveSpeed,
 				EffectiveDR:    combatStats.EffectiveDamageReduction,
 				IsDestroyed:    false,
@@ -398,23 +390,32 @@ func executeAttack(
 		attack.EngagementMult = engagementResult.AtkMultB
 	}
 
-	// Get captain bonus (only if attacker is flagship)
-	var captainBonus float64 = 1.0
-	if isAttackerInFleetA && flagshipA != nil && attacker.Ship.ID == flagshipA.ID && captA != nil {
-		// Use naval bonuses from captain stars (HP bonus as damage bonus approximation)
-		navalBonuses := ComputeNavalBonuses(*captA)
-		captainBonus = 1.0 + navalBonuses.NavalHPBonusPct // Use HP bonus as damage multiplier
-		attack.Applied = append(attack.Applied, fmt.Sprintf("Captain bonus: +%.1f%%", navalBonuses.NavalHPBonusPct*100))
-	} else if !isAttackerInFleetA && flagshipB != nil && attacker.Ship.ID == flagshipB.ID && captB != nil {
-		navalBonuses := ComputeNavalBonuses(*captB)
-		captainBonus = 1.0 + navalBonuses.NavalHPBonusPct
-		attack.Applied = append(attack.Applied, fmt.Sprintf("Captain bonus: +%.1f%%", navalBonuses.NavalHPBonusPct*100))
+	// Bonus de dégâts du capitaine de la flotte de l'attaquant
+	attackerCaptain, flagship := captB, flagshipB
+	if isAttackerInFleetA {
+		attackerCaptain, flagship = captA, flagshipA
+	}
+	eff := ComputeCaptainEffects(attackerCaptain)
+	attackerDominant := GetDominantCrewType(attacker.Ship)
+	targetDominant := GetDominantCrewType(target.Ship)
+
+	captainBonus := 1.0 + eff.FleetDamagePct + eff.CrewTypeDamagePct[attackerDominant]
+	if flagship != nil && attacker.Ship.ID == flagship.ID {
+		captainBonus += eff.FlagshipDamagePct
+	}
+	if target.Ship.FleetID == nil {
+		captainBonus += eff.VsNpcDamagePct // navire PNJ (généré à la volée)
+	}
+	attack.CaptainBonus = captainBonus
+	if captainBonus != 1.0 {
+		attack.Applied = append(attack.Applied, fmt.Sprintf("Captain bonus: x%.2f", captainBonus))
 	}
 
 	// Get RPS multiplier
-	attackerDominant := GetDominantCrewType(attacker.Ship)
-	targetDominant := GetDominantCrewType(target.Ship)
 	attack.RPSMultiplier = computeRPSMultiplierByType(attackerDominant, targetDominant)
+	if attack.RPSMultiplier > 1.0 && eff.RPSAdvantageBonus > 0 {
+		attack.RPSMultiplier += eff.RPSAdvantageBonus
+	}
 	if attack.RPSMultiplier != 1.0 {
 		attack.Applied = append(attack.Applied, fmt.Sprintf("RPS: attacker=%s defender=%s mult=%.2fx", attackerDominant, targetDominant, attack.RPSMultiplier))
 	} else if attackerDominant != "none" || targetDominant != "none" {
@@ -575,6 +576,8 @@ func GetCaptainInjuryDuration(rarity domain.CaptainRarity) time.Duration {
 		return 2 * time.Hour
 	case domain.RarityLegendary:
 		return 5 * time.Hour
+	case domain.RarityUltra:
+		return 8 * time.Hour
 	default:
 		return 30 * time.Minute // Default to common
 	}

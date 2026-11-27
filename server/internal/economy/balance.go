@@ -146,13 +146,20 @@ func BeginnerProtectionEndsAt(player *domain.Player) time.Time {
 // ressources au-dessus de la réserve protégée, le tout plafonné par la place
 // libre dans la cale de l'attaquant (répartie au prorata entre ressources).
 func ComputePvpLoot(defender map[domain.ResourceType]float64, defenderTownHall int, freeCargo float64) map[domain.ResourceType]float64 {
+	return ComputePvpLootWithBonus(defender, defenderTownHall, freeCargo, 0)
+}
+
+// ComputePvpLootWithBonus : comme ComputePvpLoot, avec un bonus de butin du
+// capitaine (0.20 = 25 % × 1,2 des ressources pillables, jamais plus que tout).
+func ComputePvpLootWithBonus(defender map[domain.ResourceType]float64, defenderTownHall int, freeCargo, lootBonus float64) map[domain.ResourceType]float64 {
+	rate := math.Min(1, PvpLootRate*(1+lootBonus))
 	loot := make(map[domain.ResourceType]float64)
 	safe := float64(defenderTownHall) * PvpSafePerTownHall
 	total := 0.0
 	for _, res := range lootableResources {
 		available := defender[res] - safe
 		if available > 0 {
-			stolen := available * PvpLootRate
+			stolen := available * rate
 			loot[res] = stolen
 			total += stolen
 		}

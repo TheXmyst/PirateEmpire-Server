@@ -164,6 +164,9 @@ func tickIsland(w *World, island *domain.Island, now time.Time) {
 		w.markDirty(island.ID, DirtyPlayer)
 	}
 
+	// Moral de croisière + XP des capitaines en mer
+	updateFleetMoraleAndXP(w, island, deltaSeconds)
+
 	// Sync again after movement to ensure the list we might save is fresh
 	SyncIslandShipCoordinates(island)
 }
@@ -226,8 +229,13 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 			changed = true
 		}
 
+		// Capitaine de la flotte (navire amiral) et ses effets
+		captain := economy.FleetCaptain(f, island.Player.Captains)
+		capEff := economy.ComputeCaptainEffects(captain)
+
 		// Fleet Speed: Calculate based on ship composition (weighted average)
 		baseSpeed := economy.CalculateFleetSpeed(f)
+		baseSpeed *= economy.CaptainSpeedMultiplier(capEff, economy.FleetMorale(f), false)
 
 		// Apply Tech Bonuses on top of ship-type speed
 		if island.Player.ID != uuid.Nil {
@@ -262,24 +270,8 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 			consumption := consPerSec * deltaSeconds
 
 			// Captain Bonus
-			var captain *domain.Captain
-			if island.Player.ID != uuid.Nil {
-				for _, s := range f.Ships {
-					for k := range island.Player.Captains {
-						c := &island.Player.Captains[k]
-						if c.AssignedShipID != nil && *c.AssignedShipID == s.ID {
-							captain = c
-							break
-						}
-					}
-					if captain != nil {
-						break
-					}
-				}
-			}
-
 			if captain != nil {
-				reduc := economy.CaptainRumConsumptionReductionPct(captain)
+				reduc := capEff.RumReductionPct
 				if reduc > 0 {
 					consumption *= (1.0 - reduc)
 					// Log (Throttled ~1%)
@@ -386,6 +378,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 					if economy.GlobalWeather != nil {
 						windMod = economy.GlobalWeather.GetWindFactor(angleDeg)
 					}
+					windMod = economy.ApplyWindWithCaptain(capEff, windMod)
 
 					// Move
 					currentSpeed := baseSpeed * windMod
@@ -408,7 +401,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 		} else if f.State == domain.FleetStateStationed && f.StationedAt != nil {
 			// Gathering Logic
 			// 1. Capacité de cale (configs/ships.json)
-			capacity := economy.FleetCargoCapacity(f)
+			capacity := economy.FleetCargoCapacity(f) * (1 + capEff.CargoPct)
 
 			// 2. Débit de récolte (ressource, richesse du nœud, durée)
 			resType := domain.ResourceType(f.StoredResource)
@@ -416,7 +409,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 				resType = domain.Wood // Fallback
 			}
 			minutesStationed := time.Since(*f.StationedAt).Minutes()
-			ratePerSec := economy.NodeHarvestRatePerSec(resType, f.NodeRichness, minutesStationed)
+			ratePerSec := economy.NodeHarvestRatePerSec(resType, f.NodeRichness, minutesStationed) * (1 + capEff.HarvestPct)
 			amountToAdd := ratePerSec * deltaSeconds
 
 			// 3. Add to Cargo (Initialize if nil)
@@ -506,6 +499,7 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 					if economy.GlobalWeather != nil {
 						windMod = economy.GlobalWeather.GetWindFactor(angleDeg)
 					}
+					windMod = economy.ApplyWindWithCaptain(capEff, windMod)
 
 					// Move
 					currentSpeed := baseSpeed * windMod
@@ -663,6 +657,59 @@ func SyncIslandShipCoordinates(island *domain.Island) {
 		if fs, ok := fleetShipMap[s.ID]; ok {
 			s.X = fs.X
 			s.Y = fs.Y
+		}
+	}
+}
+
+// updateFleetMoraleAndXP fait vivre le moral des flottes (remonte au port,
+// baisse en mer), donne le moral de départ du capitaine, et l'XP de navigation
+// (1 par minute en mer, versée au retour au port).
+func updateFleetMoraleAndXP(w *World, island *domain.Island, deltaSeconds float64) {
+	if w.moraleFrac == nil {
+		w.moraleFrac = make(map[uuid.UUID]float64)
+		w.seaSeconds = make(map[uuid.UUID]float64)
+		w.prevState = make(map[uuid.UUID]domain.FleetState)
+	}
+	for i := range island.Fleets {
+		f := &island.Fleets[i]
+		captain := economy.FleetCaptain(f, island.Player.Captains)
+		eff := economy.ComputeCaptainEffects(captain)
+		before := economy.FleetMorale(f)
+		morale := before
+
+		prev, known := w.prevState[f.ID]
+		w.prevState[f.ID] = f.State
+		atPort := f.State == domain.FleetStateIdle
+
+		// Départ du port : bonus de moral du capitaine
+		if known && prev == domain.FleetStateIdle && !atPort && eff.DepartureMorale > 0 {
+			morale += eff.DepartureMorale
+		}
+
+		// Moral continu
+		frac := w.moraleFrac[f.ID] + economy.MoraleRatePerSecond(f, eff)*deltaSeconds
+		whole := math.Trunc(frac)
+		morale += int(whole)
+		w.moraleFrac[f.ID] = frac - whole
+		if morale >= 100 || morale <= 0 {
+			w.moraleFrac[f.ID] = 0
+		}
+
+		if morale != before || f.MoraleCruise == nil {
+			economy.SetFleetMorale(f, morale)
+			w.markDirty(island.ID, DirtyFleets)
+		}
+
+		// XP de navigation
+		if !atPort {
+			w.seaSeconds[f.ID] += deltaSeconds
+		} else if secs := w.seaSeconds[f.ID]; secs > 0 {
+			w.seaSeconds[f.ID] = 0
+			xp := int(secs / 60 * economy.CaptainXPPerMinuteAtSea)
+			if captain != nil && xp > 0 {
+				economy.AddCaptainXP(captain, xp)
+				w.markDirty(island.ID, DirtyCaptains)
+			}
 		}
 	}
 }

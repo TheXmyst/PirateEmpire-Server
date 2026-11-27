@@ -504,6 +504,8 @@ func QuestProgress(d QuestDef, s *QuestPlayerState) (progress, target float64) {
 
 func rarityRank(r string) int {
 	switch r {
+	case string(domain.RarityUltra):
+		return 4
 	case string(domain.RarityLegendary):
 		return 3
 	case string(domain.RarityRare):

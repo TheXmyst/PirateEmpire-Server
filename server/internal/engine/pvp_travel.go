@@ -61,18 +61,19 @@ func (w *World) processTravelFleets() {
 	var events []uuid.UUID
 	for i := range w.islands {
 		island := &w.islands[i]
+		caps := island.Player.Captains
 		for j := range island.Fleets {
 			f := &island.Fleets[j]
 			var needsEvent bool
 			switch f.State {
 			case domain.FleetStateTravelingToAttack:
-				needsEvent = stepTowardFixedTarget(f, f.TargetIslandID == nil)
+				needsEvent = stepTowardFixedTarget(f, f.TargetIslandID == nil, caps)
 			case domain.FleetStateReturningFromAttack:
-				needsEvent = stepTowardFixedTarget(f, false)
+				needsEvent = stepTowardFixedTarget(f, false, caps)
 			case domain.FleetStateChasingPvE:
-				needsEvent = stepChasingPvE(f, island.PlayerID)
+				needsEvent = stepChasingPvE(f, island.PlayerID, caps)
 			case domain.FleetStateChasingPvP:
-				needsEvent = stepChasingPvP(f, findFleet)
+				needsEvent = stepChasingPvP(f, findFleet, caps)
 			default:
 				continue
 			}
@@ -150,15 +151,21 @@ func ProcessPvpTravelFleets(db *gorm.DB) {
 
 // consumeTravelRum applique la pénalité de vitesse sans rhum et consomme le
 // rhum d'un tick (0,1 s). Renvoie la vitesse par tick.
-func consumeTravelRum(fleet *domain.Fleet) float64 {
+//
+// captains = capitaines du joueur : celui du navire amiral modifie la vitesse
+// (bonus de poursuite pendant une attaque) et la consommation de rhum.
+func consumeTravelRum(fleet *domain.Fleet, captains []domain.Captain) float64 {
+	eff := economy.ComputeCaptainEffects(economy.FleetCaptain(fleet, captains))
+	pursuing := fleet.State != domain.FleetStateReturningFromAttack
 	speed := economy.ComputeTravelSpeed(fleet, false) * 0.1 // isNPC=false, per tick (0.1s)
+	speed *= economy.CaptainSpeedMultiplier(eff, economy.FleetMorale(fleet), pursuing)
 
 	hasRum := fleet.Cargo != nil && fleet.Cargo[domain.Rum] > 0
 	if !hasRum {
 		speed *= 0.8
 	}
 
-	consPerTick := economy.ComputeRumConsumption(len(fleet.Ships), false) * 0.1
+	consPerTick := economy.ComputeRumConsumption(len(fleet.Ships), false) * 0.1 * (1 - eff.RumReductionPct)
 	if fleet.Cargo == nil {
 		fleet.Cargo = make(map[domain.ResourceType]float64)
 	}
@@ -186,7 +193,7 @@ func moveEachShipToward(fleet *domain.Fleet, speed float64) {
 }
 
 // stepTowardFixedTarget : attaque d'île ou retour au port.
-func stepTowardFixedTarget(fleet *domain.Fleet, invalidTarget bool) bool {
+func stepTowardFixedTarget(fleet *domain.Fleet, invalidTarget bool, captains []domain.Captain) bool {
 	if fleet.TargetX == nil || fleet.TargetY == nil || invalidTarget || len(fleet.Ships) == 0 {
 		return true
 	}
@@ -196,13 +203,13 @@ func stepTowardFixedTarget(fleet *domain.Fleet, invalidTarget bool) bool {
 	if math.Sqrt(dx*dx+dy*dy) <= 5 {
 		return true // arrivé : combat ou dépôt du butin
 	}
-	speed := consumeTravelRum(fleet)
+	speed := consumeTravelRum(fleet, captains)
 	moveEachShipToward(fleet, speed)
 	return false
 }
 
 // stepChasingPvE : poursuite d'une cible PvE qui bouge.
-func stepChasingPvE(fleet *domain.Fleet, playerID uuid.UUID) bool {
+func stepChasingPvE(fleet *domain.Fleet, playerID uuid.UUID, captains []domain.Captain) bool {
 	if fleet.TargetPveID == nil {
 		return true
 	}
@@ -224,7 +231,7 @@ func stepChasingPvE(fleet *domain.Fleet, playerID uuid.UUID) bool {
 	if distance < 5.0 {
 		return true // contact : combat
 	}
-	speed := consumeTravelRum(fleet)
+	speed := consumeTravelRum(fleet, captains)
 	if distance > 0 {
 		for i := range fleet.Ships {
 			fleet.Ships[i].X += (dx / distance) * speed
@@ -235,7 +242,7 @@ func stepChasingPvE(fleet *domain.Fleet, playerID uuid.UUID) bool {
 }
 
 // stepChasingPvP : interception de la flotte d'un autre joueur.
-func stepChasingPvP(fleet *domain.Fleet, findFleet func(uuid.UUID) *domain.Fleet) bool {
+func stepChasingPvP(fleet *domain.Fleet, findFleet func(uuid.UUID) *domain.Fleet, captains []domain.Captain) bool {
 	if fleet.ChasingFleetID == nil {
 		return true
 	}
@@ -265,13 +272,13 @@ func stepChasingPvP(fleet *domain.Fleet, findFleet func(uuid.UUID) *domain.Fleet
 	if distance <= CONTACT_RADIUS {
 		return true // contact : combat
 	}
-	applyPvpMovement(fleet, dx, dy, distance)
+	applyPvpMovement(fleet, dx, dy, distance, captains)
 	return false
 }
 
 // applyPvpMovement : déplacement d'une poursuite PvP (sans écrire en base).
-func applyPvpMovement(fleet *domain.Fleet, dx, dy, distance float64) {
-	speed := consumeTravelRum(fleet)
+func applyPvpMovement(fleet *domain.Fleet, dx, dy, distance float64, captains []domain.Captain) {
+	speed := consumeTravelRum(fleet, captains)
 	if distance > 0 {
 		ratio := speed / distance
 		if ratio > 1 {
@@ -374,7 +381,7 @@ func handleChasingPvE(db *gorm.DB, fleet *domain.Fleet) {
 	}
 
 	// Move Fleet (normalement fait en mémoire par stepChasingPvE)
-	speed := consumeTravelRum(fleet)
+	speed := consumeTravelRum(fleet, fleet.Island.Player.Captains)
 	if distance > 0 {
 		for i := range fleet.Ships {
 			s := &fleet.Ships[i]
@@ -422,10 +429,8 @@ func executePveCombat(db *gorm.DB, attackerFleet *domain.Fleet, target *economy.
 	// But ExecuteNavalCombat expects *domain.Captain
 	// We can use target.Captain directly
 
-	var attackerCaptain *domain.Captain
-	// Load attacker captain
-	// Simple lookup for now
-	// TODO: Proper captain assignment lookup
+	// Capitaine du navire amiral de l'attaquant
+	attackerCaptain := economy.FleetCaptain(attackerFleet, fleetPlayerCaptains(db, attackerFleet))
 
 	// Engage
 	engResult := economy.ComputeEngagementMorale(*attackerFleet, npcFleet, attackerCaptain, &target.Captain)
@@ -451,7 +456,18 @@ func executePveCombat(db *gorm.DB, attackerFleet *domain.Fleet, target *economy.
 		if rand.Float64() < economy.PveTicketDropChance[target.Tier] {
 			loot[domain.CaptainTicket] = 1
 		}
+		applyLootBonus(loot, attackerCaptain)
 	}
+
+	// Moral, XP du capitaine, matelots sauvés (avant de couler les navires)
+	applyCombatOutcome(db, combatSide{
+		fleet:     attackerFleet,
+		captain:   attackerCaptain,
+		destroyed: combatRes.ShipsDestroyedA,
+		won:       combatRes.Winner == "fleet_a",
+		lost:      combatRes.Winner == "fleet_b",
+		winXP:     economy.CaptainXPPvEVictory[target.Tier],
+	})
 
 	// Destroy Attacker Ships (if any)
 	for _, id := range combatRes.ShipsDestroyedA {
@@ -497,9 +513,12 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 		}
 	}
 
-	// Get captains
-	var attackerCaptain, defenderCaptain *domain.Captain
-	// TODO: Load actual captains if needed
+	// Capitaines des deux navires amiraux
+	attackerCaptain := economy.FleetCaptain(attackerFleet, fleetPlayerCaptains(db, attackerFleet))
+	var defenderCaptain *domain.Captain
+	if hasDefenderFleet {
+		defenderCaptain = economy.FleetCaptain(&defenderFleet, loadPlayerCaptains(db, targetIsland.PlayerID))
+	}
 
 	// Compute engagement
 	engResult := economy.ComputeEngagementMorale(*attackerFleet, defenderFleet, attackerCaptain, defenderCaptain)
@@ -520,9 +539,12 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 			json.Unmarshal(targetIsland.ResourcesJSON, &targetIsland.Resources)
 		}
 
-		// Butin : 25 % au-dessus de la réserve, plafonné par la cale libre
-		_, _, freeCargo := economy.ComputeFleetPayload(attackerFleet)
-		loot = economy.ComputePvpLoot(targetIsland.Resources, defenderTH, freeCargo)
+		// Butin : 25 % au-dessus de la réserve (+ bonus du capitaine),
+		// plafonné par la cale libre (+ bonus de cargaison du capitaine)
+		attEff := economy.ComputeCaptainEffects(attackerCaptain)
+		capacity, used, _ := economy.ComputeFleetPayload(attackerFleet)
+		freeCargo := capacity*(1+attEff.CargoPct) - used
+		loot = economy.ComputePvpLootWithBonus(targetIsland.Resources, defenderTH, freeCargo, attEff.LootPct)
 		for res, stolen := range loot {
 			targetIsland.Resources[res] -= stolen
 		}
@@ -535,6 +557,26 @@ func executePvpCombat(db *gorm.DB, attackerFleet *domain.Fleet, targetIslandID u
 		resJSON, _ := json.Marshal(targetIsland.Resources)
 		targetIsland.ResourcesJSON = resJSON
 		db.Save(&targetIsland)
+	}
+
+	// Moral, XP des capitaines, matelots sauvés (avant de couler les navires)
+	applyCombatOutcome(db, combatSide{
+		fleet:     attackerFleet,
+		captain:   attackerCaptain,
+		destroyed: combatRes.ShipsDestroyedA,
+		won:       combatRes.Winner == "fleet_a",
+		lost:      combatRes.Winner == "fleet_b",
+		winXP:     economy.CaptainXPPvPVictory,
+	})
+	if hasDefenderFleet {
+		applyCombatOutcome(db, combatSide{
+			fleet:   &defenderFleet,
+			captain: defenderCaptain,
+			won:     combatRes.Winner == "fleet_b",
+			lost:    combatRes.Winner == "fleet_a",
+			winXP:   economy.CaptainXPPvPVictory,
+		})
+		db.Model(&domain.Fleet{}).Where("id = ?", defenderFleet.ID).Update("morale_cruise", economy.FleetMorale(&defenderFleet))
 	}
 
 	// Destroy ships (attacker only in this simplified version)
@@ -593,7 +635,7 @@ func handleTravelingToAttack(db *gorm.DB, fleet *domain.Fleet) {
 	if distance > 5 {
 		// (Le moteur fait normalement ce déplacement en mémoire, voir
 		// stepTowardFixedTarget. Ce chemin ne sert plus qu'à l'entrée base.)
-		speed := consumeTravelRum(fleet)
+		speed := consumeTravelRum(fleet, fleet.Island.Player.Captains)
 		moveEachShipToward(fleet, speed)
 		for i := range fleet.Ships {
 			db.Save(&fleet.Ships[i])
@@ -704,7 +746,7 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 	if distance > 5 {
 		// (Le moteur fait normalement ce déplacement en mémoire, voir
 		// stepTowardFixedTarget. Ce chemin ne sert plus qu'à l'entrée base.)
-		speed := consumeTravelRum(fleet)
+		speed := consumeTravelRum(fleet, fleet.Island.Player.Captains)
 		moveEachShipToward(fleet, speed)
 		for i := range fleet.Ships {
 			db.Save(&fleet.Ships[i])
@@ -882,7 +924,7 @@ func handleChasingPvP(db *gorm.DB, fleet *domain.Fleet) {
 
 // handlePvpMovement : déplacement + sauvegarde (entrée base uniquement).
 func handlePvpMovement(db *gorm.DB, fleet *domain.Fleet, dx, dy, distance float64) {
-	applyPvpMovement(fleet, dx, dy, distance)
+	applyPvpMovement(fleet, dx, dy, distance, fleet.Island.Player.Captains)
 	for i := range fleet.Ships {
 		db.Save(&fleet.Ships[i])
 	}

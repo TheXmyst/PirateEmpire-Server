@@ -117,55 +117,11 @@ func ComputeCaptainPassive(c domain.Captain) CaptainPassiveEffect {
 	return effect
 }
 
-// CalculateCaptainSpeedMultiplier returns the speed multiplier based on captain skills
-func CalculateCaptainSpeedMultiplier(c domain.Captain, isFavorableWind bool) float64 {
-	multiplier := 1.0
-	passive := ComputeCaptainPassive(c)
-
-	switch c.SkillID {
-	case "wind_favorable_speed_bonus":
-		if isFavorableWind {
-			multiplier += passive.Value
-		}
-	case "wind_never_unfavorable":
-		if isFavorableWind {
-			multiplier += passive.Value // +10% at max level as per ComputeCaptainPassive
-		}
-	case "low_morale_speed_bonus":
-		// For NPC fleets, we could assume they are always at good morale
-		// or random. V1 simplification: Skip morale-based speed in random walk.
-	}
-
-	return multiplier
-}
-
-// CaptainRumConsumptionReductionPct calculates the total percentage reduction for Rum consumption
-// It combines Passive effects (Traits) and Star Bonuses.
-// Returns a value between 0.0 and 0.30 (30% max).
+// CaptainRumConsumptionReductionPct : réduction totale de consommation de
+// rhum (talent + étoiles), plafonnée à 30 %.
 func CaptainRumConsumptionReductionPct(c *domain.Captain) float64 {
 	if c == nil {
 		return 0.0
 	}
-
-	total := 0.0
-
-	// 1. Passive / Skill
-	passive := ComputeCaptainPassive(*c)
-	if passive.ID == "rum_consumption_reduction" {
-		total += passive.Value
-	}
-
-	// 2. Star Bonuses
-	starBonuses := ComputeNavalBonuses(*c)
-	total += starBonuses.RumConsumptionReductionPct
-
-	// CLAMP
-	if total > 0.30 {
-		total = 0.30
-	}
-	if total < 0 {
-		total = 0
-	}
-
-	return total
+	return ComputeCaptainEffects(c).RumReductionPct
 }
