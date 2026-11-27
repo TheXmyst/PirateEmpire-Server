@@ -108,6 +108,17 @@ func writeUserFile(name string, data []byte) (err error) {
 	return nil
 }
 
+// removeUserFile efface une donnée du joueur gardée par le navigateur.
+func removeUserFile(name string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("stockage du navigateur indisponible: %v", r)
+		}
+	}()
+	localStorage().Call("removeItem", storagePrefix+name)
+	return nil
+}
+
 // loadPlatformConfig : dans le navigateur, le serveur de jeu est le site qui
 // a envoyé la page (https://seadogs.duckdns.org). Pas de config.json.
 func loadPlatformConfig(cfg *Config) {

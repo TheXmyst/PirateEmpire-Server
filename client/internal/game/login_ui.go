@@ -2,15 +2,19 @@ package game
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/TheXmyst/Sea-Dogs/client/internal/client"
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // login_ui.go contains all login-related UI and logic.
@@ -60,16 +64,10 @@ func (g *Game) UpdateLogin() error {
 		return false
 	}
 
-	// Check Hover on Connect Button
+	// Survol du bouton principal (le clic est traité juste en dessous : avant,
+	// il était traité ici ET en dessous, ce qui envoyait deux connexions).
 	btnX, btnY := cx-100, loginY+100
-	if cmx >= btnX && cmx <= btnX+200 && cmy >= btnY && cmy <= btnY+50 {
-		g.ui.HoverButton = true
-		if isMouseJustPressed(ebiten.MouseButtonLeft) {
-			g.attemptLogin()
-		}
-	} else {
-		g.ui.HoverButton = false
-	}
+	g.ui.HoverButton = cmx >= btnX && cmx <= btnX+200 && cmy >= btnY && cmy <= btnY+50
 
 	// Main Action Button (Connect or Register): cx-100, loginY+100 (200x50)
 	if checkClick(cx-100, loginY+100, 200, 50) {
@@ -104,17 +102,22 @@ func (g *Game) UpdateLogin() error {
 		}
 	}
 
-	// Checkbox "Remember Me": cx-150, loginY+180 (20x20)
-	if checkClick(cx-150, loginY+180, 20, 20) {
+	// Case « Se souvenir de moi » + son texte. Même position que dans
+	// DrawLogin (rememberBox) : avant, la zone de clic était 40 px trop haut
+	// et chevauchait « CREATE ACCOUNT ».
+	if bx, by, bw, bh := rememberBox(cx, loginY); checkClick(bx, by, bw, bh) {
 		g.ui.RememberMe = !g.ui.RememberMe
-	}
-	// Also allow clicking the text
-	if checkClick(cx-120, loginY+180, 150, 20) {
-		g.ui.RememberMe = !g.ui.RememberMe
+		if !g.ui.RememberMe {
+			g.forgetSession()
+		}
 	}
 
 	if isKeyJustPressed(ebiten.KeyEnter) || isKeyJustPressed(ebiten.KeyKPEnter) {
-		g.attemptLogin()
+		if g.ui.IsRegisterMode {
+			g.attemptRegister()
+		} else {
+			g.attemptLogin()
+		}
 	}
 	if isKeyJustPressed(ebiten.KeyTab) {
 		if g.ui.IsTypingUser {
@@ -143,20 +146,55 @@ func loginErrorText(err error) string {
 	return msg
 }
 
+// rememberBox : case « Se souvenir de moi » et son texte (zone cliquable).
+func rememberBox(cx, loginY float64) (x, y, w, h float64) {
+	return cx - 150, loginY + 218, 200, 24
+}
+
+// canResumeSession : « SET SAIL » peut reprendre la session mémorisée (même
+// pseudo, mot de passe pas retapé).
+func (g *Game) canResumeSession() bool {
+	return g.ui.SavedToken != "" && g.ui.Password == "" &&
+		strings.EqualFold(strings.TrimSpace(g.ui.Username), g.ui.SavedUser)
+}
+
 func (g *Game) attemptLogin() {
-	if g.ui.Username == "" || g.ui.Password == "" {
+	if g.ui.LoginBusy {
+		return
+	}
+	resume := g.canResumeSession()
+	if g.ui.Username == "" || (g.ui.Password == "" && !resume) {
 		g.ui.LoginError = "Champs vides"
 		return
 	}
 
 	g.ui.LoginError = "Connexion..."
+	g.ui.LoginBusy = true
+	username, password, remember, token := g.ui.Username, g.ui.Password, g.ui.RememberMe, g.ui.SavedToken
 
 	go func() {
-		resp, err := g.api.Login(g.ui.Username, g.ui.Password)
+		defer func() { g.ui.LoginBusy = false }()
+		var resp *client.LoginResponse
+		var err error
+		if resume {
+			resp, err = g.api.ResumeSession(token)
+			if errors.Is(err, client.ErrSessionExpired) {
+				g.forgetSession()
+				g.ui.RememberMe = remember
+				g.ui.IsTypingUser = false
+				g.ui.IsTypingPass = true
+			}
+		} else {
+			resp, err = g.api.Login(username, password, remember)
+		}
 		if err != nil {
 			g.ui.LoginError = loginErrorText(err)
 			g.Log("Login Failed: %v", err)
 			return
+		}
+		if resume {
+			// Le pseudo exact (majuscules) vient de la session mémorisée.
+			username = g.ui.SavedUser
 		}
 
 		if g.player == nil {
@@ -164,7 +202,7 @@ func (g *Game) attemptLogin() {
 		}
 
 		g.player.ID = resp.PlayerID
-		g.player.Username = g.ui.Username
+		g.player.Username = username
 		g.player.IsAdmin = resp.IsAdmin
 		if resp.Role != "" {
 			g.player.Role = resp.Role
@@ -176,24 +214,31 @@ func (g *Game) attemptLogin() {
 		g.startPolling()
 		g.state = StatePlaying
 
-		if g.ui.RememberMe {
-			saveCredentials(g.ui.Username, g.ui.Password)
+		if remember && resp.Token != "" {
+			g.saveSession(username, resp.Token)
+		} else {
+			g.forgetSession()
 		}
+		g.ui.Password = "" // inutile de le garder en mémoire une fois connecté
 	}()
 }
 
-// saveCredentials saves username and password to a local file.
-func saveCredentials(u, p string) {
-	if IsWebBuild {
-		// Dans le navigateur, on ne garde jamais le mot de passe : seulement
-		// le pseudo, pour le préremplir.
-		p = ""
-	}
-	data, err := json.Marshal(Credentials{Username: u, Password: p})
+// saveSession garde le pseudo et le jeton de 30 jours (jamais le mot de passe).
+func (g *Game) saveSession(username, token string) {
+	g.ui.SavedUser, g.ui.SavedToken = username, token
+	data, err := json.Marshal(Credentials{Username: username, Token: token})
 	if err != nil {
 		return
 	}
-	_ = writeUserFile("credentials.json", data)
+	if err := writeUserFile("credentials.json", data); err != nil {
+		g.Log("[LOGIN] Impossible de mémoriser la session: %v", err)
+	}
+}
+
+// forgetSession efface la session mémorisée (case décochée, jeton expiré).
+func (g *Game) forgetSession() {
+	g.ui.SavedUser, g.ui.SavedToken = "", ""
+	_ = removeUserFile("credentials.json")
 }
 
 func (g *Game) attemptRegister() {
@@ -248,12 +293,21 @@ func (g *Game) handleTextInput() {
 	}
 
 	if isKeyJustPressed(ebiten.KeyBackspace) {
-		if g.ui.IsTypingUser && len(g.ui.Username) > 0 {
-			g.ui.Username = g.ui.Username[:len(g.ui.Username)-1]
-		} else if g.ui.IsTypingPass && len(g.ui.Password) > 0 {
-			g.ui.Password = g.ui.Password[:len(g.ui.Password)-1]
+		// On retire une lettre entière (é, ç... prennent plusieurs octets).
+		if g.ui.IsTypingUser {
+			g.ui.Username = dropLastRune(g.ui.Username)
+		} else if g.ui.IsTypingPass {
+			g.ui.Password = dropLastRune(g.ui.Password)
 		}
 	}
+}
+
+func dropLastRune(s string) string {
+	if s == "" {
+		return s
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size]
 }
 
 func (g *Game) DrawLogin(screen *ebiten.Image) {
@@ -321,14 +375,7 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 		uiFillRect(screen, float32(cx-150), float32(loginY+20), 300, 50, color.RGBA{20, 30, 40, 200}, vecAA)
 	}
 
-	ptxt := ""
-	for range g.ui.Password {
-		ptxt += "*"
-	}
-	if g.ui.IsTypingPass && (g.ui.CaretTimer/30)%2 == 0 {
-		ptxt += "|"
-	}
-	uiPrint(screen, ptxt, int(cx)-140, int(loginY)+35)
+	g.drawPasswordDots(screen, cx-140, loginY+20, 280, 50)
 
 	// Main Action Button (Connect or Register)
 	// Gold Style - SET SAIL / REGISTER
@@ -386,7 +433,8 @@ func (g *Game) DrawLogin(screen *ebiten.Image) {
 	// We'll just draw centered text for now
 	uiPrint(screen, toggleLabel, int(btnX)+45, int(regBtnY))
 
-	checkboxX, checkboxY := cx-150, float64(regBtnY)+60
+	checkboxX, checkboxY, _, _ := rememberBox(cx, loginY)
+	checkboxY += 2
 	ebitenutil.DrawRect(screen, checkboxX, checkboxY, 20, 20, color.RGBA{200, 200, 200, 255})
 	if g.ui.RememberMe {
 		uiFillRect(screen, float32(checkboxX+4), float32(checkboxY+4), 12, 12, color.RGBA{0, 200, 0, 255}, vecAA)
@@ -462,4 +510,49 @@ func (g *Game) drawUpdateModal(screen *ebiten.Image) {
 	}
 	drawText(screen, label, titleFace(26), cx, install.y+9, themeInk, alignCenter)
 	drawText(screen, "Plus tard", bodyFace(14, false), cx, later.y+7, themeMuted, alignCenter)
+}
+
+// Mot de passe masqué : des points dessinés un par un, tous identiques.
+// (Avant, une ligne d'astérisques : la police en décalait certains en hauteur
+// selon leurs voisins, et au-delà de ~40 caractères ils sortaient du cadre.)
+const (
+	passDotGap    = 10.0 // distance entre deux points
+	passDotRadius = 3.2
+)
+
+// drawPasswordDots dessine le contenu du champ mot de passe (x, w : zone de
+// texte à l'intérieur du cadre ; y, h : le cadre).
+func (g *Game) drawPasswordDots(screen *ebiten.Image, x, y, w, h float64) {
+	midY := y + h/2
+	caretOn := g.ui.IsTypingPass && (g.ui.CaretTimer/30)%2 == 0
+	n := utf8.RuneCountInString(g.ui.Password)
+
+	if n == 0 && g.canResumeSession() {
+		// Session mémorisée : pas besoin de retaper le mot de passe.
+		f := bodyFace(uiTextSize, false)
+		drawText(screen, "Mot de passe mémorisé", f, x, midY-8, color.RGBA{200, 185, 150, 170}, alignLeft)
+		if caretOn {
+			uiFillRect(screen, float32(x+textWidth("Mot de passe mémorisé", f)+4), float32(midY-8), 1.5, 16, themeText, vecAA)
+		}
+		return
+	}
+
+	// Mot de passe long : on montre les derniers points, comme un vrai champ
+	// qui défile.
+	maxDots := int((w - 12) / passDotGap)
+	shown := n
+	if shown > maxDots {
+		shown = maxDots
+	}
+	for i := 0; i < shown; i++ {
+		dx := x + passDotRadius + float64(i)*passDotGap
+		vector.DrawFilledCircle(screen, float32(dx), float32(midY), passDotRadius, themeText, vecAA)
+	}
+	if caretOn {
+		caretX := x + float64(shown)*passDotGap
+		if shown == 0 {
+			caretX = x
+		}
+		uiFillRect(screen, float32(caretX), float32(midY-8), 1.5, 16, themeText, vecAA)
+	}
 }

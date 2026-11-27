@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -129,10 +130,13 @@ type LoginResponse struct {
 	Token    string    `json:"token,omitempty"` // Auth token for Bearer authentication
 }
 
-func (c *APIClient) Login(username, password string) (*LoginResponse, error) {
-	reqBody, _ := json.Marshal(map[string]string{
+// Login se connecte avec pseudo et mot de passe. remember demande au serveur
+// un jeton de 30 jours (case « Se souvenir de moi »).
+func (c *APIClient) Login(username, password string, remember bool) (*LoginResponse, error) {
+	reqBody, _ := json.Marshal(map[string]any{
 		"username": username,
 		"password": password,
+		"remember": remember,
 	})
 
 	resp, err := http.Post(c.BaseURL+"/login", "application/json", bytes.NewBuffer(reqBody))
@@ -155,6 +159,41 @@ func (c *APIClient) Login(username, password string) (*LoginResponse, error) {
 	c.Token = res.Token // Store token for authenticated requests
 	return &res, nil
 }
+
+// ResumeSession se reconnecte avec un jeton gardé par « Se souvenir de moi »,
+// sans mot de passe. Le serveur renvoie un jeton neuf de 30 jours.
+func (c *APIClient) ResumeSession(token string) (*LoginResponse, error) {
+	c.Token = token
+	resp, err := c.doAuthorizedRequest(http.MethodPost, "/session/resume", nil)
+	if err != nil {
+		c.Token = ""
+		return nil, c.unreachable(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		c.Token = ""
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, ErrSessionExpired
+		}
+		return nil, accountError(resp)
+	}
+
+	var res LoginResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		c.Token = ""
+		return nil, err
+	}
+
+	c.PlayerID = res.PlayerID
+	c.IslandID = res.IslandID
+	c.Token = res.Token
+	return &res, nil
+}
+
+// ErrSessionExpired : le jeton mémorisé n'est plus valable (plus de 30 jours
+// sans jouer, ou clé du serveur changée). Il faut retaper son mot de passe.
+var ErrSessionExpired = errors.New("session expirée, retape ton mot de passe")
 
 func (c *APIClient) GetStatus() (*domain.Player, error) {
 	// Le serveur reconnaît le joueur grâce au jeton de connexion (plus de player_id dans l'URL).
@@ -1507,21 +1546,21 @@ type PlayerSummary struct {
 }
 
 type GuildInfo struct {
-	ID          uuid.UUID      `json:"id"`
-	Name        string         `json:"name"`
-	OwnerID     uuid.UUID      `json:"owner_id"`
+	ID          uuid.UUID       `json:"id"`
+	Name        string          `json:"name"`
+	OwnerID     uuid.UUID       `json:"owner_id"`
 	Members     []PlayerSummary `json:"members"`
-	MemberCount int            `json:"member_count"`
-	CreatedAt   time.Time      `json:"created_at"`
+	MemberCount int             `json:"member_count"`
+	CreatedAt   time.Time       `json:"created_at"`
 }
 
 type LeaderboardEntry struct {
-	Rank     int       `json:"rank"`
-	ID       uuid.UUID `json:"id"`
-	Name     string    `json:"name"`
-	Reputation int    `json:"reputation"`
-	Members  int       `json:"members,omitempty"`
-	Username string    `json:"username,omitempty"`
+	Rank       int       `json:"rank"`
+	ID         uuid.UUID `json:"id"`
+	Name       string    `json:"name"`
+	Reputation int       `json:"reputation"`
+	Members    int       `json:"members,omitempty"`
+	Username   string    `json:"username,omitempty"`
 }
 
 // SearchFriends searches for players by username
@@ -1720,4 +1759,3 @@ func (c *APIClient) GetLeaderboardGuilds() ([]LeaderboardEntry, error) {
 
 	return result, nil
 }
-

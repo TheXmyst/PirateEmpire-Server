@@ -40,6 +40,8 @@ type RegisterResponse struct {
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	// Remember : « Se souvenir de moi » coché, le jeton dure 30 jours.
+	Remember bool `json:"remember,omitempty"`
 }
 
 type LoginResponse struct {
@@ -334,6 +336,27 @@ func Login(c echo.Context) error {
 		}
 	}
 
+	ttl := auth.TokenTTL
+	if req.Remember {
+		ttl = auth.RememberTokenTTL
+	}
+	return loginSuccess(c, db, &player, ttl)
+}
+
+// ResumeSession reconnecte un joueur avec le jeton gardé par « Se souvenir de
+// moi », sans redemander le mot de passe. Il renvoie un jeton neuf de 30 jours :
+// tant que le joueur revient au moins une fois par mois, il reste connecté.
+func ResumeSession(c echo.Context) error {
+	player := auth.GetAuthenticatedPlayer(c)
+	if player == nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+	}
+	return loginSuccess(c, repository.GetDB(), player, auth.RememberTokenTTL)
+}
+
+// loginSuccess : tout ce qui suit une connexion réussie (île, flottes, tickets
+// du jour, jeton), commun à /login et /session/resume.
+func loginSuccess(c echo.Context, db *gorm.DB, player *domain.Player, ttl time.Duration) error {
 	// Get Island
 	var island domain.Island
 	if err := db.Where("player_id = ?", player.ID).First(&island).Error; err != nil {
@@ -353,9 +376,8 @@ func Login(c echo.Context) error {
 	}
 
 	// Generate auth token
-	token, err := auth.GenerateToken(player.ID, player.Username, player.IsAdmin)
+	token, err := auth.GenerateTokenTTL(player.ID, player.Username, player.IsAdmin, ttl)
 	if err != nil {
-		// Log error but don't fail login - token is optional for backward compatibility
 		fmt.Printf("Warning: Failed to generate auth token: %v\n", err)
 	}
 
@@ -364,7 +386,7 @@ func Login(c echo.Context) error {
 		IslandID: island.ID,
 		Role:     player.Role,
 		IsAdmin:  player.IsAdmin,
-		Token:    token, // Optional token for Bearer auth
+		Token:    token,
 
 		TicketsGranted: ticketRewards.Total(),
 	})
