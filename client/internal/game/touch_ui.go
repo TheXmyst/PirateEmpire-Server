@@ -43,6 +43,7 @@ func scaledLayout(outsideWidth, outsideHeight int) (int, int) {
 func (g *Game) Update() error {
 	t0 := time.Now()
 	g.updatePointer()
+	applyScrollZones()
 	// Un clic vu par cette mise à jour reste visible jusqu'au prochain Draw :
 	// quand le jeu affiche moins d'images qu'il ne fait de mises à jour, les
 	// boutons gérés dans Draw ne le ratent plus.
@@ -71,7 +72,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	t0 := time.Now()
 	beginTextFieldFrame()
 	inDraw = true
+	beginScrollZones()
 	g.drawGame(screen)
+	endScrollZones()
 	g.drawTouchButtons(screen)
 	inDraw = false
 	pointer.clickForDraw = false

@@ -356,14 +356,8 @@ func (g *Game) drawQuestUI(screen *ebiten.Image) {
 		g.drawQuestCard(clip, c, q.busy)
 	}
 
-	// Barre de défilement
-	if L.contentH > L.list.h {
-		track := L.list.h - 20
-		barH := math.Max(40, track*L.list.h/L.contentH)
-		maxScroll := L.contentH - L.list.h
-		by := L.list.y + 10 + (track-barH)*(q.scrollY/maxScroll)
-		fillRoundRect(screen, L.list.x+L.list.w-8, by, 4, barH, 2, themeGoldDim)
-	}
+	// Défilement (molette ou doigt) et sa barre : ui_scroll.go
+	scrollRegion(screen, &q.scrollY, L.list.x, L.list.y, L.list.w, L.list.h, L.contentH)
 
 	if q.err != "" {
 		drawText(screen, ellipsize(q.err, bodyFace(13, true), L.list.w), bodyFace(13, true), L.list.x+L.list.w/2, L.win.y+L.win.h-18, themeOrange, alignCenter)
@@ -569,10 +563,6 @@ func (g *Game) UpdateQuestUI() bool {
 	}
 
 	L := g.questLayout()
-	if _, wy := wheelDelta(); wy != 0 {
-		maxScroll := math.Max(0, L.contentH-L.list.h)
-		q.scrollY = math.Max(0, math.Min(maxScroll, q.scrollY-wy*40))
-	}
 	if !isMouseJustPressed(ebiten.MouseButtonLeft) {
 		return true
 	}

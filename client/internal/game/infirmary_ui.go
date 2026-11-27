@@ -70,6 +70,8 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 		return
 	}
 
+	scrollRegion(screen, &g.ui.InfirmaryScrollY, winX, listY, winW, listH, float64(len(injuredList))*(itemH+gap))
+	currentY = listY - g.ui.InfirmaryScrollY
 	view := screen.SubImage(image.Rect(int(winX), int(listY), int(winX+winW), int(listY+listH))).(*ebiten.Image)
 	for _, cap := range injuredList {
 		if currentY+itemH < listY {
@@ -113,15 +115,7 @@ func (g *Game) UpdateInfirmaryUI() bool {
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
-	// Scroll
-	_, wy := wheelDelta()
-	if wy != 0 {
-		g.ui.InfirmaryScrollY -= wy * 30
-		if g.ui.InfirmaryScrollY < 0 {
-			g.ui.InfirmaryScrollY = 0
-		}
-		// Max scroll calc could be added if needed
-	}
+	// Le défilement est géré par ui_scroll.go.
 
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Close button (Top Right)

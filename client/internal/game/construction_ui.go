@@ -141,11 +141,15 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		}
 	}
 
+	listH := winY + winH - 16 - startY
+	scrollRegion(screen, &g.ui.ConstructionScrollY, winX, startY, winW, listH, float64(len(items))*(itemH+gap))
+	fullScreen := screen
 	for i, item := range items {
 		y := startY + float64(i)*(itemH+gap) - g.ui.ConstructionScrollY
-		if y < startY || y > winY+winH-itemH {
+		if y+itemH < startY || y > startY+listH {
 			continue
 		}
+		screen := clipTo(fullScreen, winX, startY, winW, listH)
 
 		ix := winX + 20
 		drawCard(screen, ix, y, winW-40, itemH, false)
@@ -251,24 +255,7 @@ func (g *Game) UpdateConstructionMenu() {
 		return
 	}
 
-	// Handle Mouse Wheel Scrolling
-	_, wy := wheelDelta()
-	if wy != 0 {
-		items := g.getConstructionItems()
-		itemH := 80.0
-		gap := 10.0
-		totalHeight := float64(len(items)) * (itemH + gap)
-		visibleHeight := 600.0 - 60.0 - 20.0 // winH - header - padding
-		maxScroll := math.Max(0, totalHeight-visibleHeight)
-
-		g.ui.ConstructionScrollY -= wy * 30 // Scroll speed
-		if g.ui.ConstructionScrollY < 0 {
-			g.ui.ConstructionScrollY = 0
-		}
-		if g.ui.ConstructionScrollY > maxScroll {
-			g.ui.ConstructionScrollY = maxScroll
-		}
-	}
+	// Le défilement est géré par ui_scroll.go.
 
 	// Close on Escape or Outside Click
 	if isKeyJustPressed(ebiten.KeyEscape) {
@@ -296,9 +283,13 @@ func (g *Game) UpdateConstructionMenu() {
 		itemH := 80.0
 		gap := 10.0
 
+		listH := winY + winH - 16 - startY
+		if fmy < startY || fmy > startY+listH {
+			items = nil // clic hors de la liste
+		}
 		for i, item := range items {
 			y := startY + float64(i)*(itemH+gap) - g.ui.ConstructionScrollY
-			if y < startY || y > winY+winH-itemH {
+			if y+itemH < startY || y > startY+listH {
 				continue
 			}
 

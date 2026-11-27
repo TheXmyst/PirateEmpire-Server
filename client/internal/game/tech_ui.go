@@ -61,6 +61,7 @@ type TechUI struct {
 	SelectedTab string // "economy", "naval", "combat", "logistics"
 	HoverID     string
 	SelectedID  string
+	ScrollY     float64 // défilement vertical de l'arbre (ui_scroll.go)
 
 	// UI Metrics
 	X, Y, W, H float64
@@ -101,6 +102,9 @@ func (ui *TechUI) Update(g *Game) {
 	for i, t := range techTabs {
 		tx, ty, tw, th := ui.tabRect(i)
 		if cmx >= tx && cmx < tx+tw && cmy >= ty && cmy < ty+th && isMouseJustPressed(ebiten.MouseButtonLeft) {
+			if ui.SelectedTab != t {
+				ui.ScrollY = 0
+			}
 			ui.SelectedTab = t
 		}
 	}
@@ -119,6 +123,9 @@ func (ui *TechUI) Update(g *Game) {
 		nx, ny, ok := ui.nodePos(currentList, i)
 		if !ok {
 			continue
+		}
+		if cmy < ui.treeTop() || cmy > ui.listBottom() {
+			break // pointeur hors de l'arbre (partie coupée)
 		}
 		if cmx >= nx && cmx < nx+techNodeW && cmy >= ny && cmy < ny+techNodeH {
 			ui.HoverID = tech.ID
@@ -157,8 +164,24 @@ func (ui *TechUI) nodePos(list []CTechnology, i int) (x, y float64, ok bool) {
 		}
 	}
 	x = ui.X + 20 + float64(list[i].Tier-1)*techColW
-	y = ui.Y + 66 + float64(yIdx)*techRowH
-	return x, y, y+techNodeH <= ui.listBottom()
+	y = ui.Y + 66 + float64(yIdx)*techRowH - ui.ScrollY
+	return x, y, y+techNodeH > ui.treeTop() && y < ui.listBottom()
+}
+
+// treeTop : haut de la zone de l'arbre (sous les onglets).
+func (ui *TechUI) treeTop() float64 { return ui.Y + 60 }
+
+// treeContentH : hauteur de l'arbre (la colonne la plus longue).
+func treeContentH(list []CTechnology) float64 {
+	rows := map[int]int{}
+	maxRows := 0
+	for _, t := range list {
+		rows[t.Tier]++
+		if rows[t.Tier] > maxRows {
+			maxRows = rows[t.Tier]
+		}
+	}
+	return 6 + float64(maxRows)*techRowH
 }
 
 func (ui *TechUI) GetListForTab(tab string) []CTechnology {
@@ -266,6 +289,7 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 	}
 
 	drawDimBackground(screen, 150)
+	scrollBlocker(ui.X, ui.Y, ui.W, ui.H)
 	drawThemePanel(screen, ui.X, ui.Y, ui.W, ui.H, 18)
 	drawText(screen, "Académie", titleFace(28), ui.X+22, ui.Y+12, themeGold, alignLeft)
 	for i, t := range techTabs {
@@ -284,11 +308,15 @@ func (ui *TechUI) Draw(screen *ebiten.Image, g *Game) {
 		drawText(screen, "Aucune recherche disponible pour l'instant.", bodyFace(15, true), ui.X+24, ui.Y+80, themeText, alignLeft)
 		drawText(screen, "Améliore l'Hôtel de Ville et l'Académie pour en débloquer.", bodyFace(14, false), ui.X+24, ui.Y+104, themeMuted, alignLeft)
 	}
+	treeW := ui.W - techDetailW - 40
+	scrollRegion(screen, &ui.ScrollY, ui.X+10, ui.treeTop(), treeW, ui.listBottom()-ui.treeTop(), treeContentH(list))
+	full := screen
 	for i, tech := range list {
 		nx, ny, ok := ui.nodePos(list, i)
 		if !ok {
 			continue
 		}
+		screen := clipTo(full, ui.X+10, ui.treeTop(), treeW, ui.listBottom()-ui.treeTop())
 		isUnlocked := unlockedMap[tech.ID]
 		isResearching := g.player.ResearchingTechID == tech.ID
 		drawCard(screen, nx, ny, techNodeW, techNodeH, ui.HoverID == tech.ID || ui.SelectedID == tech.ID)

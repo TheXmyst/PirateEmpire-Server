@@ -215,6 +215,7 @@ func (g *Game) DrawCrewAssignmentModal(screen *ebiten.Image) {
 
 	l := g.crewModalLayout()
 	fillRoundRect(screen, l.x, l.y, l.w, l.h, 18, color.RGBA{24, 16, 9, 255}) // fond opaque : le menu flotte ne transparaît plus
+	scrollBlocker(l.x, l.y, l.w, l.h)
 	drawThemePanel(screen, l.x, l.y, l.w, l.h, 18)
 	drawRoundButton(screen, l.closeCX, l.closeCY, l.closeR, "close", isHovered(l.closeCX-l.closeR, l.closeCY-l.closeR, 2*l.closeR, 2*l.closeR))
 

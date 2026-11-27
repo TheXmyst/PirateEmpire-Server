@@ -210,6 +210,7 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 		mx, my := cursorPosition()
 		if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 			shipyardUI.ShowAddShipModal = true
+			shipyardUI.AddShipScroll = 0
 			shipyardUI.TargetFleetIndex = selIdx
 			shipyardUI.SelectedShipID = nil
 			shipyardUI.ModalOpenDelay = 10
@@ -392,10 +393,14 @@ func (g *Game) UpdateAddShipModalShipyard() bool {
 		}
 	}
 
+	listH := modalH - 170
 	for i, s := range availableShips {
-		rowY := shipsY + float64(i)*35
+		rowY := shipsY + float64(i)*35 - shipyardUI.AddShipScroll
 		rowW, rowH := modalW-40, 30.0
 		rowX := mxStart + 20
+		if float64(my) < shipsY || float64(my) > shipsY+listH {
+			break // hors de la liste (zone coupée)
+		}
 
 		hover := float64(mx) >= rowX && float64(mx) <= rowX+rowW && float64(my) >= rowY && float64(my) <= rowY+rowH
 		if hover {
@@ -521,10 +526,18 @@ func (g *Game) DrawAddShipModalShipyard(screen *ebiten.Image) {
 	if len(availableShips) == 0 {
 		uiPrint(screen, "Aucun navire disponible.", int(mxStart)+20, int(shipsY))
 	} else {
+		listH := modalH - 170
+		scrollBlocker(mxStart, myStart, modalW, modalH)
+		scrollRegion(screen, &shipyardUI.AddShipScroll, mxStart+14, shipsY, modalW-28, listH, float64(len(availableShips))*35)
+		listView := clipTo(screen, mxStart+14, shipsY, modalW-28, listH)
 		for i, s := range availableShips {
-			rowY := shipsY + float64(i)*35
+			rowY := shipsY + float64(i)*35 - shipyardUI.AddShipScroll
 			rowW, rowH := modalW-40, 30.0
 			rowX := mxStart + 20
+			if rowY+rowH < shipsY || rowY > shipsY+listH {
+				continue
+			}
+			screen := listView
 
 			hover := float64(curMx) >= rowX && float64(curMx) <= rowX+rowW && float64(curMy) >= rowY && float64(curMy) <= rowY+rowH
 
