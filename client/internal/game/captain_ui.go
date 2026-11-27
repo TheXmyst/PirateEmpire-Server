@@ -238,13 +238,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			drawLabel(screen, rarityLabel(captain.Rarity), leftX+36, float64(nameY)+20, 12, false, rarityColor(captain.Rarity))
 
 			// Stars
-			maxStars := 3
-			switch captain.Rarity {
-			case "rare":
-				maxStars = 4
-			case "legendary":
-				maxStars = 5
-			}
+			maxStars := captainMaxStars(captain.Rarity)
 			drawStars(screen, leftX+leftW-20, float64(nameY)+12, captain.Stars, maxStars, 7, true)
 		}
 	}
@@ -269,65 +263,55 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 			detailY += lineSpacing * 3
 
 			// Stars
-			maxStars := 3
-			switch selectedCaptain.Rarity {
-			case "rare":
-				maxStars = 4
-			case "legendary":
-				maxStars = 5
-			}
+			maxStars := captainMaxStars(selectedCaptain.Rarity)
 			drawStars(screen, rightX+padding, detailY+8, selectedCaptain.Stars, maxStars, 9, false)
 			detailY += lineSpacing * 2
 
-			// Naval Bonuses (from stars)
-			if selectedCaptain.NavalHPBonusPct != 0 || selectedCaptain.NavalSpeedBonusPct != 0 ||
-				selectedCaptain.NavalDamageReductionPct != 0 || selectedCaptain.RumConsumptionReductionPct != 0 {
-				drawLabel(screen, "Bonus navals", rightX+padding, detailY, 14, true, themeGold)
-				detailY += lineSpacing
+			// Niveau et XP
+			lvlText := fmt.Sprintf("Niveau %d", selectedCaptain.Level)
+			if selectedCaptain.NextLevelXP > 0 {
+				lvlText += fmt.Sprintf("  ·  %d / %d XP", selectedCaptain.XP, selectedCaptain.NextLevelXP)
+			} else {
+				lvlText += "  ·  niveau maximum"
+			}
+			drawLabel(screen, lvlText, rightX+padding, detailY, 13, true, themeText)
+			if selectedCaptain.NextLevelXP > 0 {
+				drawProgressBar(screen, rightX+padding, detailY+22, rightW-padding*2, 7,
+					float64(selectedCaptain.XP)/float64(selectedCaptain.NextLevelXP), themeGold)
+			}
+			detailY += lineSpacing * 2
 
-				bonuses := []string{}
-				if selectedCaptain.NavalHPBonusPct != 0 {
-					bonuses = append(bonuses, fmt.Sprintf("HP: +%.1f%%", selectedCaptain.NavalHPBonusPct))
+			// Talent (texte calculé par le serveur pour le niveau actuel)
+			drawLabel(screen, "Talent", rightX+padding, detailY, 14, true, themeGold)
+			detailY += lineSpacing + 2
+			lineF := bodyFace(13, false)
+			for _, eff := range selectedCaptain.EffectLines {
+				for k, line := range wrapText(eff, lineF, rightW-padding*2-16) {
+					prefix := "• "
+					if k > 0 {
+						prefix = "  "
+					}
+					drawText(screen, prefix+line, lineF, rightX+padding+6, detailY, themeText, alignLeft)
+					detailY += 18
 				}
-				if selectedCaptain.NavalSpeedBonusPct != 0 {
-					bonuses = append(bonuses, fmt.Sprintf("Speed: +%.1f%%", selectedCaptain.NavalSpeedBonusPct))
-				}
-				if selectedCaptain.NavalDamageReductionPct != 0 {
-					bonuses = append(bonuses, fmt.Sprintf("DR: +%.1f%%", selectedCaptain.NavalDamageReductionPct))
-				}
-				if selectedCaptain.RumConsumptionReductionPct != 0 {
-					bonuses = append(bonuses, fmt.Sprintf("Rum: -%.1f%%", selectedCaptain.RumConsumptionReductionPct))
-				}
+			}
+			detailY += 8
 
-				bonusText := strings.Join(bonuses, " ")
-				uiPrint(screen, bonusText, int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing * 2
+			// Bonus des étoiles (pour toute la flotte)
+			if selectedCaptain.Stars > 0 {
+				drawLabel(screen, "Bonus des étoiles (toute la flotte)", rightX+padding, detailY, 14, true, themeGold)
+				detailY += lineSpacing + 2
+				bonus := fmt.Sprintf("PV +%.1f %%  ·  Vitesse +%.1f %%  ·  Dégâts subis −%.1f %%  ·  Rhum −%.1f %%",
+					selectedCaptain.NavalHPBonusPct*100, selectedCaptain.NavalSpeedBonusPct*100,
+					selectedCaptain.NavalDamageReductionPct*100, selectedCaptain.RumConsumptionReductionPct*100)
+				for _, line := range wrapText(bonus, lineF, rightW-padding*2-16) {
+					drawText(screen, line, lineF, rightX+padding+6, detailY, themeText, alignLeft)
+					detailY += 18
+				}
+				detailY += 8
 			}
-
-			// Skill/Effect
-			drawLabel(screen, "Compétence", rightX+padding, detailY, 14, true, themeGold)
-			detailY += lineSpacing
-			if selectedCaptain.SkillID != "" {
-				uiPrint(screen, fmt.Sprintf("  ID: %s", selectedCaptain.SkillID), int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing
-			}
-			if selectedCaptain.PassiveID != "" {
-				uiPrint(screen, fmt.Sprintf("  Passive: %s", selectedCaptain.PassiveID), int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing
-			}
-			if selectedCaptain.PassiveValue != 0 {
-				uiPrint(screen, fmt.Sprintf("  Valeur: %.2f", selectedCaptain.PassiveValue), int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing
-			}
-			if selectedCaptain.PassiveIntValue != 0 {
-				uiPrint(screen, fmt.Sprintf("  Valeur (int): %d", selectedCaptain.PassiveIntValue), int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing
-			}
-			if selectedCaptain.Threshold != 0 {
-				uiPrint(screen, fmt.Sprintf("  Seuil: %d", selectedCaptain.Threshold), int(rightX+padding+10), int(detailY))
-				detailY += lineSpacing
-			}
-			detailY += lineSpacing
+			drawLabel(screen, "Le talent agit quand le capitaine commande le navire amiral.", rightX+padding, detailY, 11.5, false, themeMuted)
+			detailY += lineSpacing + 6
 
 			// Status
 			statusText := "Statut: Disponible"
@@ -392,13 +376,7 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 		drawLabel(screen, rarityLabel(captain.Rarity), listX+86, itemY+40, 12.5, false, rarityColor(captain.Rarity))
 
 		// Stars
-		maxStars := 3
-		switch captain.Rarity {
-		case "rare":
-			maxStars = 4
-		case "legendary":
-			maxStars = 5
-		}
+		maxStars := captainMaxStars(captain.Rarity)
 		drawStars(screen, listX+230, itemY+38, captain.Stars, maxStars, 9, false)
 
 		// Progress / Cost
@@ -534,8 +512,9 @@ func (g *Game) updateCaptainUpgradeTab(x, y, w, h float64) bool {
 					// Disable button to prevent double click
 					g.ui.CaptainUIBusy = true
 					go func(id uuid.UUID) {
-						defer func() { g.ui.CaptainUIBusy = false }()
-						if err := g.api.UpgradeCaptainStars(id); err != nil {
+						err := g.api.UpgradeCaptainStars(id)
+						g.ui.CaptainUIBusy = false
+						if err != nil {
 							g.Log("Upgrade failed: %v", err)
 						} else {
 							// Reload captains to reflect change

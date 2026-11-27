@@ -562,6 +562,9 @@ type Captain struct {
 	NavalSpeedBonusPct         float64 `json:"naval_speed_bonus_pct,omitempty"`
 	NavalDamageReductionPct    float64 `json:"naval_damage_reduction_pct,omitempty"`
 	RumConsumptionReductionPct float64 `json:"rum_consumption_reduction_pct,omitempty"`
+	// Talent en français (valeurs du niveau actuel) et XP du niveau suivant
+	EffectLines []string `json:"effect_lines,omitempty"`
+	NextLevelXP int      `json:"next_level_xp"`
 	// UI Convenience fields (from server)
 	Shards       int  `json:"shards"`
 	NextStarCost int  `json:"next_star_cost"`

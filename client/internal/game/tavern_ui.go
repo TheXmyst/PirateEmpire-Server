@@ -41,7 +41,19 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	strokeRoundRect(screen, x+w-70-tw-24, y+14, tw+24, 26, 13, 1, themeGoldDim)
 	drawText(screen, tix, tf, x+w-70-tw-12, y+19, themeGold, alignLeft)
 
-	drawLabel(screen, "Recrute de nouveaux capitaines pour tes flottes.", x+24, y+64, 13, false, themeMuted)
+	drawLabel(screen, "Recrute de nouveaux capitaines pour tes flottes.", x+24, y+56, 13, false, themeMuted)
+	rx := x + 24
+	rateF := bodyFace(11.5, true)
+	for _, rr := range []struct{ r, pct string }{{"common", "62 %"}, {"rare", "28 %"}, {"legendary", "8,5 %"}, {"ultra", "1,5 %"}} {
+		label := rarityLabel(rr.r)
+		if rr.r == "ultra" {
+			label = "UL"
+		}
+		txt := label + " " + rr.pct
+		drawText(screen, txt, rateF, rx, y+74, rarityColor(rr.r), alignLeft)
+		rx += textWidth(txt, rateF) + 16
+	}
+	drawText(screen, "Garantis : rare en 10, légendaire en 50, UL en 120", bodyFace(11.5, false), x+w-24, y+74, themeMuted, alignRight)
 
 	// Zone des résultats
 	area := hudRect{x + 20, y + 92, w - 40, h - 92 - 120}
@@ -62,6 +74,35 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 		drawText(screen, "Recrutement en cours…", titleFace(24), area.x+area.w/2, area.y+area.h/2-16, themeGold, alignCenter)
 	case g.ui.TavernError != "":
 		wrap("Erreur : "+g.ui.TavernError, themeOrange)
+	case len(g.ui.TavernResults) > 0:
+		hasUL := false
+		for _, r := range g.ui.TavernResults {
+			if r.Rarity == "ultra" {
+				hasUL = true
+			}
+		}
+		var titleClr color.Color = themeGold
+		title := "Dernier recrutement"
+		if hasUL {
+			title, titleClr = "✦ ULTRA RARE ! ✦", rarityColor("ultra")
+			fillRoundRect(screen, area.x+8, ty-6, area.w-16, 36, 10, color.NRGBA{214, 120, 255, 40})
+		}
+		drawText(screen, title, titleFace(20), area.x+16, ty, titleClr, alignLeft)
+		ty += 32
+		rowF := bodyFace(13, true)
+		for _, r := range g.ui.TavernResults {
+			if ty > area.y+area.h-20 {
+				break
+			}
+			fillRoundRect(screen, area.x+18, ty+4, 8, 8, 4, rarityColor(r.Rarity))
+			drawText(screen, r.Name, rowF, area.x+34, ty, rarityColor(r.Rarity), alignLeft)
+			info := rarityLabel(r.Rarity) + " · nouveau !"
+			if r.Duplicate {
+				info = rarityLabel(r.Rarity) + fmt.Sprintf(" · doublon, +%d fragments", r.Shards)
+			}
+			drawText(screen, info, lineF, area.x+area.w-16, ty, themeMuted, alignRight)
+			ty += 20
+		}
 	case g.ui.TavernLastResult != "":
 		drawText(screen, "Dernier recrutement", titleFace(20), area.x+16, ty, themeGold, alignLeft)
 		ty += 30
@@ -191,6 +232,7 @@ func (g *Game) summonCaptains(count int) {
 	g.ui.TavernBusy = true
 	g.ui.TavernError = ""
 	g.ui.TavernLastResult = ""
+	g.ui.TavernResults = nil
 
 	go func() {
 		defer func() {
@@ -208,6 +250,16 @@ func (g *Game) summonCaptains(count int) {
 		}
 
 		// Process results
+		g.ui.TavernResults = nil
+		for _, res := range result.Results {
+			name := res.Name
+			if res.Captain != nil && res.Captain.Name != "" {
+				name = res.Captain.Name
+			}
+			g.ui.TavernResults = append(g.ui.TavernResults, TavernResultLine{
+				Name: name, Rarity: res.Rarity, Duplicate: res.IsDuplicate, Shards: res.ShardsGranted,
+			})
+		}
 		if len(result.Results) > 0 {
 			// x10 summon
 			if count == 10 {
@@ -225,13 +277,13 @@ func (g *Game) summonCaptains(count int) {
 							commonCount++
 						case "rare":
 							rareCount++
-						case "legendary":
+						case "legendary", "ultra":
 							legendaryCount++
 						}
 					}
 				}
 
-				summary := fmt.Sprintf("Commons: %d, Rares: %d, Legendary: %d", commonCount, rareCount, legendaryCount)
+				summary := fmt.Sprintf("Communs : %d, Rares : %d, Légendaires : %d", commonCount, rareCount, legendaryCount)
 				if duplicateCount > 0 {
 					summary += fmt.Sprintf(", Duplicatas: %d", duplicateCount)
 				}

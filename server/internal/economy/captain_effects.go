@@ -323,7 +323,7 @@ func CaptainEffectLines(c *domain.Captain) []string {
 	for _, k := range []string{"warrior", "archer", "gunner"} {
 		if v := e.CrewTypeDamagePct[k]; v > 0 {
 			name := map[string]string{"warrior": "Guerriers", "archer": "Archers", "gunner": "Artilleurs"}[k]
-			add(fmt.Sprintf("Dégâts des navires à %s +%s", name, pct(v)))
+			add(fmt.Sprintf("Navires de %s : dégâts +%s", name, pct(v)))
 		}
 	}
 	if e.VsNpcDamagePct > 0 {

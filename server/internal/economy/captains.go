@@ -1,7 +1,6 @@
 package economy
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
@@ -109,8 +108,7 @@ func ComputeCaptainPassive(c domain.Captain) CaptainPassiveEffect {
 		effect.IntValue = ScaleInt(level, 25, 60)
 
 	default:
-		// Unknown skill ID - return empty effect
-		fmt.Printf("[CAPTAIN] ComputeCaptainPassive: Unknown skill_id '%s' for captain %s\n", c.SkillID, c.ID)
+		// Talents récents : décrits par CaptainEffects (captain_effects.go)
 		return effect
 	}
 

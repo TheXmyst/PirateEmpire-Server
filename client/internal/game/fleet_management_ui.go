@@ -715,21 +715,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		// 3. Captain Info
 		captain := g.GetCaptainForShip(ship.ID.String())
 		if captain != nil {
-			stars := formatStars(captain.Stars, 5) // Simplified stars
-			if captain.Rarity == "common" {
-				stars = formatStars(captain.Stars, 3)
-			}
-			if captain.Rarity == "rare" {
-				stars = formatStars(captain.Stars, 4)
-			}
-
-			_ = stars
-			maxStars := 5
-			if captain.Rarity == "common" {
-				maxStars = 3
-			} else if captain.Rarity == "rare" {
-				maxStars = 4
-			}
+			maxStars := captainMaxStars(captain.Rarity)
 			drawLabel(screen, ellipsize(captain.Name, bodyFace(14, true), subCol3W-10), subCol3X, currentY+8, 14, true, rarityColor(captain.Rarity))
 			uiPrint(screen, fmt.Sprintf("Niveau %d", captain.Level), int(subCol3X), int(currentY)+30)
 			drawStars(screen, subCol3X, currentY+60, captain.Stars, maxStars, 6, false)
@@ -771,6 +757,31 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	if remainingCap < 0 {
 		remainingCap = 0
 	}
+
+	// Moral de la flotte (remonte au port, baisse en mer)
+	morale := 50
+	if fleet.MoraleCruise != nil {
+		morale = *fleet.MoraleCruise
+	}
+	uiSubtitle(screen, "Moral", int(startX)+20, int(currentY))
+	mClr := color.Color(color.RGBA{110, 200, 110, 255})
+	if morale < 40 {
+		mClr = themeOrange
+	} else if morale < 70 {
+		mClr = themeGold
+	}
+	drawProgressBar(screen, startX+150, currentY+6, 180, 9, float64(morale)/100, mClr)
+	mHint := "baisse en mer"
+	if docked {
+		mHint = "remonte au port"
+	}
+	if fleet.Cargo == nil || fleet.Cargo[domain.Rum] <= 0 {
+		if !docked {
+			mHint = "sans rhum : baisse vite, −20 au combat"
+		}
+	}
+	uiPrint(screen, fmt.Sprintf("%d / 100 · %s", morale, mHint), int(startX)+345, int(currentY))
+	currentY += 30
 
 	uiSubtitle(screen, "Cargaison", int(startX)+20, int(currentY))
 	// Summary Line
@@ -1307,13 +1318,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			uiStrokeRect(screen, float32(contentX), float32(captY), float32(modalW-40), float32(cardH), 1, color.RGBA{150, 150, 150, 255}, vecAA)
 
 			// Captain info
-			maxStars := 3
-			switch capt.Rarity {
-			case "rare":
-				maxStars = 4
-			case "legendary":
-				maxStars = 5
-			}
+			maxStars := captainMaxStars(capt.Rarity)
 			starsText := ""
 			for i := 0; i < maxStars; i++ {
 				if i < capt.Stars {
