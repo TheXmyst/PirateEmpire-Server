@@ -40,13 +40,19 @@ type SocialGuildEntry struct {
 // UIState contains all UI-related state variables for the game.
 // This includes login form state, menu visibility flags, hover states, scroll positions, etc.
 type UIState struct {
-	Username        string
-	Password        string
-	IsTypingUser    bool
-	IsTypingPass    bool
-	LoginError      string
-	CaretTimer      int
-	RememberMe      bool
+	Username     string
+	Password     string
+	IsTypingUser bool
+	IsTypingPass bool
+	LoginError   string
+	CaretTimer   int
+	RememberMe   bool
+	// SavedUser / SavedToken : session gardée par « Se souvenir de moi ». Tant
+	// que le pseudo n'a pas changé et que le mot de passe est vide, « SET SAIL »
+	// reprend cette session sans redemander le mot de passe.
+	SavedUser       string
+	SavedToken      string
+	LoginBusy       bool // une connexion est en cours (évite les doubles envois)
 	HoverButton     bool
 	IsRegisterMode  bool // Toggles between Login and Register mode
 	RegisterError   string

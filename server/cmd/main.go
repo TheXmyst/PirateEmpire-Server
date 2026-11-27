@@ -146,6 +146,8 @@ func main() {
 	})
 	game.POST("/register", api.Register, authLimiter)
 	game.POST("/login", api.Login, authLimiter)
+	// Reconnexion avec le jeton de « Se souvenir de moi ».
+	game.POST("/session/resume", api.ResumeSession, authLimiter, auth.RequireAuth)
 
 	// Protected routes (require authentication)
 	protected := game.Group("")

@@ -77,3 +77,18 @@ func TestValidateToken_ExpiredToken(t *testing.T) {
 	t.Skip("Expired token test requires time manipulation")
 }
 
+
+func TestGenerateTokenTTL_Remember(t *testing.T) {
+	id := uuid.New()
+	token, err := GenerateTokenTTL(id, "bob", false, RememberTokenTTL)
+	if err != nil {
+		t.Fatalf("GenerateTokenTTL failed: %v", err)
+	}
+	claims, err := ValidateToken(token)
+	if err != nil {
+		t.Fatalf("ValidateToken failed: %v", err)
+	}
+	if left := time.Until(claims.ExpiresAt); left < 29*24*time.Hour {
+		t.Errorf("jeton « se souvenir » trop court : %v", left)
+	}
+}

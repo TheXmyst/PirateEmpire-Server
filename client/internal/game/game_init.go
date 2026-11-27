@@ -24,10 +24,16 @@ import (
 // It is initialized in loadAssets() and can be used throughout the package.
 var loadImage func(path string) *ebiten.Image
 
-// Credentials represents saved login credentials.
+// Credentials : ce que « Se souvenir de moi » garde (credentials.json sur PC,
+// stockage du site dans le navigateur). Jamais le mot de passe : seulement un
+// jeton de connexion de 30 jours, renouvelé à chaque connexion.
 type Credentials struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Token    string `json:"token,omitempty"`
+	// Password : anciens fichiers seulement (avant le jeton). Relu pour ne pas
+	// perdre l'identifiant des joueurs qui l'avaient, puis effacé à la
+	// prochaine connexion.
+	Password string `json:"password,omitempty"`
 }
 
 // NewGame creates and initializes a new Game instance.
@@ -101,13 +107,13 @@ func (g *Game) loadCredentials() {
 	if err := json.Unmarshal(data, &creds); err == nil && creds.Username != "" {
 		g.ui.Username = creds.Username
 		g.ui.Password = creds.Password
+		g.ui.SavedUser = creds.Username
+		g.ui.SavedToken = creds.Token
 		g.ui.RememberMe = true
-		if creds.Password == "" {
-			// Version navigateur : seul le pseudo est gardé, le curseur va
-			// directement sur le mot de passe.
-			g.ui.IsTypingUser = false
-			g.ui.IsTypingPass = true
-		}
+		// Le pseudo est déjà là : le curseur va sur le mot de passe (Entrée
+		// suffit quand la session est mémorisée).
+		g.ui.IsTypingUser = false
+		g.ui.IsTypingPass = true
 	}
 }
 

@@ -79,8 +79,19 @@ type TokenClaims struct {
 // Uses HMAC-SHA256 for signing
 // Token format: base64(playerID|username|isAdmin|expiresAt|signature)
 func GenerateToken(playerID uuid.UUID, username string, isAdmin bool) (string, error) {
-	// Token expires in 24 hours
-	expiresAt := time.Now().Add(24 * time.Hour)
+	return GenerateTokenTTL(playerID, username, isAdmin, TokenTTL)
+}
+
+// TokenTTL : durée de vie d'un jeton de connexion normal.
+const TokenTTL = 24 * time.Hour
+
+// RememberTokenTTL : durée de vie du jeton quand le joueur coche « Se souvenir
+// de moi ». Il est renouvelé à chaque reprise de session (/session/resume).
+const RememberTokenTTL = 30 * 24 * time.Hour
+
+// GenerateTokenTTL crée un jeton valable pendant ttl.
+func GenerateTokenTTL(playerID uuid.UUID, username string, isAdmin bool, ttl time.Duration) (string, error) {
+	expiresAt := time.Now().Add(ttl)
 	expiresUnix := expiresAt.Unix()
 
 	// Create data payload
