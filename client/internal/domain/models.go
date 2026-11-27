@@ -76,6 +76,7 @@ type Requirement struct {
 	Message string `json:"message,omitempty"`
 	Needed  int    `json:"needed,omitempty"`
 	Current int    `json:"current,omitempty"`
+	Met     bool   `json:"met,omitempty"` // déjà rempli (affiché coché en vert)
 }
 
 // Player represents a user in the game

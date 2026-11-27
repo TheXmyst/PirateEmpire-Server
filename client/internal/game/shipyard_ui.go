@@ -139,7 +139,7 @@ func (g *Game) DrawConstructionTab(screen *ebiten.Image, x, y, w, h float64) {
 }
 
 // shipCardH : hauteur d'une carte de navire dans le chantier.
-const shipCardH = 150.0
+const shipCardH = 170.0
 
 // DrawShipList renders scrollable list of ships that can be built
 // x, y, w, h define the exact viewport boundaries (y = top, y+h = bottom)
@@ -202,12 +202,29 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		btnX := itemX + itemW - btnW - 14
 		btnY := cardTop + itemH - btnH - 14
 		kind, label := btnPrimary, "Construire"
-		if shipyardLevel < ship.ReqLevel {
-			kind, label = btnDisabled, fmt.Sprintf("Chantier niv. %d", ship.ReqLevel)
-		} else if !hasTech {
-			kind, label = btnDisabled, "Technologie requise"
+		if !canBuild {
+			// Bloqué : on dit pourquoi, et le bouton montre la liste complète.
+			kind, label = btnSecondary, "Voir les prérequis"
+			var why []string
+			if shipyardLevel < ship.ReqLevel {
+				why = append(why, fmt.Sprintf("Chantier naval niv. %d requis (tu as %d)", ship.ReqLevel, shipyardLevel))
+			}
+			if line := g.missingTechLine(ship.RequiredTech); line != "" {
+				why = append(why, line)
+			}
+			for k, line := range why {
+				drawText(view, ellipsize(line, bodyFace(13, true), btnX-textX-12), bodyFace(13, true), textX, cardTop+124+float64(k)*18, themeOrange, alignLeft)
+			}
 		}
 		drawButton(view, btnX, btnY, btnW, btnH, label, kind)
+
+		// Bouton « Voir les prérequis »
+		if !canBuild && btnY >= clipTop && btnY+btnH <= clipBottom && isMouseJustPressed(ebiten.MouseButtonLeft) {
+			mx, my := cursorPosition()
+			if float64(mx) >= btnX && float64(mx) <= btnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
+				g.openPrereqModal("Prérequis manquants", "Construire : "+ship.Name, g.shipPrerequisites(ship.ReqLevel, ship.RequiredTech))
+			}
+		}
 
 		// Handle button click
 		btnVisible := btnY >= clipTop && btnY+btnH <= clipBottom

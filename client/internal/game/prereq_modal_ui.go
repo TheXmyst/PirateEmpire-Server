@@ -11,6 +11,7 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // Fenêtre « Prérequis manquants ». Chaque prérequis est écrit en entier :
@@ -108,13 +109,28 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 			rowW -= 14
 		}
 		cy := l.listTop - g.ui.PrereqModalScroll
-		for _, lines := range l.rows {
+		met := make([]bool, len(l.rows))
+		for i := range met {
+			met[i] = i < len(g.ui.PrereqModalReqs) && g.ui.PrereqModalReqs[i].Met
+		}
+		for ri, lines := range l.rows {
 			rh := prereqRowH(len(lines))
 			if cy+rh >= l.listTop && cy <= l.listTop+l.listH {
 				drawInset(clip, x+prereqPadding, cy, rowW, rh)
-				fillRoundRect(clip, x+prereqPadding+14, cy+7+prereqLineH/2-3, 7, 7, 3.5, themeRed)
+				mcx, mcy := x+prereqPadding+17, cy+7+prereqLineH/2
+				txtClr := color.Color(themeText)
+				if met[ri] {
+					// Déjà rempli : coche verte, texte atténué
+					vector.StrokeLine(clip, float32(mcx-6), float32(mcy), float32(mcx-2), float32(mcy+4), 2.5, themeGreen, true)
+					vector.StrokeLine(clip, float32(mcx-2), float32(mcy+4), float32(mcx+6), float32(mcy-5), 2.5, themeGreen, true)
+					txtClr = themeMuted
+				} else {
+					// Manquant : croix rouge
+					vector.StrokeLine(clip, float32(mcx-5), float32(mcy-5), float32(mcx+5), float32(mcy+5), 2.5, themeRed, true)
+					vector.StrokeLine(clip, float32(mcx+5), float32(mcy-5), float32(mcx-5), float32(mcy+5), 2.5, themeRed, true)
+				}
 				for i, ln := range lines {
-					drawText(clip, ln, face, x+prereqPadding+32, cy+7+float64(i)*prereqLineH, themeText, alignLeft)
+					drawText(clip, ln, face, x+prereqPadding+36, cy+7+float64(i)*prereqLineH, txtClr, alignLeft)
 				}
 			}
 			cy += rh + prereqRowGap
@@ -128,8 +144,39 @@ func (g *Game) DrawPrereqModal(screen *ebiten.Image) {
 		}
 	}
 
-	btnW, btnH := 160.0, 44.0
-	drawButton(screen, x+w/2-btnW/2, y+h-58, btnW, btnH, "Compris", btnPrimary)
+	b := g.prereqButtons(l)
+	if b.hasGo {
+		drawButton(screen, b.goX, b.y, b.goW, b.h, b.goLabel, btnPrimary)
+		drawButton(screen, b.okX, b.y, b.okW, b.h, "Compris", btnSecondary)
+	} else {
+		drawButton(screen, b.okX, b.y, b.okW, b.h, "Compris", btnPrimary)
+	}
+}
+
+type prereqBtns struct {
+	hasGo          bool
+	goLabel        string
+	goX, goW       float64
+	okX, okW, y, h float64
+}
+
+// prereqButtons : « Compris », et « Aller à l'Académie » quand une recherche manque.
+func (g *Game) prereqButtons(l prereqLayoutT) prereqBtns {
+	b := prereqBtns{y: l.y + l.h - 58, h: 44, okW: 160}
+	if g.ui.PrereqModalTechID == "" {
+		b.okX = l.x + l.w/2 - b.okW/2
+		return b
+	}
+	b.hasGo = true
+	b.goLabel = "Aller à l'Académie"
+	if g.finishedBuildingLevel("Académie") == 0 {
+		b.goLabel = "Construire l'Académie"
+	}
+	b.goW, b.okW = 230, 140
+	total := b.goW + 14 + b.okW
+	b.goX = l.x + l.w/2 - total/2
+	b.okX = b.goX + b.goW + 14
+	return b
 }
 
 // niceTitle : un titre écrit en majuscules passe en casse normale.
@@ -189,9 +236,12 @@ func (g *Game) UpdatePrereqModal() bool {
 
 		// Croix, bouton « Compris », ou clic en dehors : on ferme.
 		onClose := fmx >= x+w-50 && fmx <= x+w-10 && fmy >= y+6 && fmy <= y+48
-		btnW, btnH := 160.0, 44.0
-		btnX, btnY := x+w/2-btnW/2, y+h-58
-		onOK := fmx >= btnX && fmx <= btnX+btnW && fmy >= btnY && fmy <= btnY+btnH
+		b := g.prereqButtons(l)
+		if b.hasGo && fmx >= b.goX && fmx <= b.goX+b.goW && fmy >= b.y && fmy <= b.y+b.h {
+			g.goToAcademy(g.ui.PrereqModalTechID)
+			return true
+		}
+		onOK := fmx >= b.okX && fmx <= b.okX+b.okW && fmy >= b.y && fmy <= b.y+b.h
 		outside := fmx < x || fmx > x+w || fmy < y || fmy > y+h
 		if onClose || onOK || outside {
 			g.closePrereqModal()
@@ -224,6 +274,7 @@ func (g *Game) closePrereqModal() {
 	g.ui.PrereqModalSubtitle = ""
 	g.ui.PrereqModalReqs = nil
 	g.ui.PrereqModalScroll = 0
+	g.ui.PrereqModalTechID = ""
 }
 
 // openPrereqModal opens the prerequisites modal with the given requirements
@@ -231,7 +282,9 @@ func (g *Game) openPrereqModal(title string, subtitle string, reqs []domain.Requ
 	g.ui.ShowPrereqModal = true
 	g.ui.PrereqModalTitle = title
 	g.ui.PrereqModalSubtitle = subtitle
+	sortPrereqs(reqs)
 	g.ui.PrereqModalReqs = reqs
 	g.ui.PrereqModalScroll = 0
+	g.ui.PrereqModalTechID = firstMissingTech(reqs)
 	fmt.Printf("[PREREQ] modal opened title=%s reqs=%d\n", title, len(reqs))
 }

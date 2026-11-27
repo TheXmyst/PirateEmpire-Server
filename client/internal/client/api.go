@@ -42,10 +42,21 @@ func serverError(resp *http.Response, body []byte) error {
 		body, _ = io.ReadAll(resp.Body)
 	}
 	var e struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
+		Error        string               `json:"error"`
+		Message      string               `json:"message"`
+		Title        string               `json:"title"`
+		Subtitle     string               `json:"subtitle"`
+		Requirements []domain.Requirement `json:"requirements"`
 	}
 	if json.Unmarshal(body, &e) == nil {
+		if len(e.Requirements) > 0 {
+			// Prérequis manquants : le serveur envoie la liste complète.
+			title := e.Title
+			if title == "" {
+				title = "Prérequis manquants"
+			}
+			return &ErrRequirementsNotMet{Title: title, Subtitle: e.Subtitle, Requirements: e.Requirements}
+		}
 		if e.Error != "" {
 			return fmt.Errorf("%s", e.Error)
 		}
@@ -362,15 +373,6 @@ func (c *APIClient) Build(buildingType string, x, y float64) error {
 		return fmt.Errorf("session expirée, veuillez vous reconnecter")
 	}
 	if resp.StatusCode != http.StatusOK {
-		// Try to parse error message from JSON response
-		body, _ := io.ReadAll(resp.Body)
-		var errorResp struct {
-			Error string `json:"error"`
-		}
-		if err := json.Unmarshal(body, &errorResp); err == nil && errorResp.Error != "" {
-			return fmt.Errorf("%s", errorResp.Error)
-		}
-		// Fallback to generic error if JSON parsing fails
 		return serverError(resp, nil)
 	}
 	return nil

@@ -198,6 +198,7 @@ type UIState struct {
 	PrereqModalSubtitle string               // Optional subtitle
 	PrereqModalReqs     []domain.Requirement // List of missing requirements
 	PrereqModalScroll   float64              // Scroll position for requirements list
+	PrereqModalTechID   string               // Techno à rechercher (bouton « Aller à l'Académie »)
 
 	// PVE UI
 	// Infirmary UI

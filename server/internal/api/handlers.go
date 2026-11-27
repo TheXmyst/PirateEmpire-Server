@@ -630,7 +630,7 @@ func Build(c echo.Context) error {
 		errorMsg := err.Error()
 		fmt.Printf("Build failed: player_id=%s, island_id=%s, building_type=%s, reason=%s\n",
 			playerID, req.IslandID, req.Type, errorMsg)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": errorMsg})
+		return prerequisitesError(c, err, "Construire : "+req.Type, economy.ListBuildingPrerequisites(&island.Player, req.Type, 1))
 	}
 
 	// Calculate Tech Bonuses
@@ -774,7 +774,7 @@ func Upgrade(c echo.Context) error {
 
 	// NEW: Check Prerequisites
 	if err := economy.CheckPrerequisites(&island.Player, building.Type, nextLevel); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return prerequisitesError(c, err, fmt.Sprintf("%s niveau %d", building.Type, nextLevel), economy.ListBuildingPrerequisites(&island.Player, building.Type, nextLevel))
 	}
 
 	stats, err := economy.GetBuildingStats(building.Type, nextLevel)
@@ -3909,4 +3909,16 @@ func GetLeaderboardGuilds(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+
+// prerequisitesError : refus « prérequis manquants » avec, en plus de la
+// phrase, la liste complète des prérequis (remplis ou non) pour que le
+// client puisse expliquer au joueur ce qui lui manque.
+func prerequisitesError(c echo.Context, err error, subtitle string, reqs []economy.ReqStatus) error {
+	return c.JSON(http.StatusBadRequest, map[string]interface{}{
+		"error":        err.Error(),
+		"title":        "Prérequis manquants",
+		"subtitle":     subtitle,
+		"requirements": reqs,
+	})
 }
