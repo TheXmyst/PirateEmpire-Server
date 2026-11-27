@@ -54,8 +54,8 @@ func shipDockedError(db *gorm.DB, ship *domain.Ship) string {
 	if err := db.First(&fleet, "id = ?", *ship.FleetID).Error; err != nil {
 		return ""
 	}
-	if fleet.State != "" && fleet.State != domain.FleetStateIdle {
-		return "Le navire doit être à quai pour changer son équipage"
+	if !fleetDocked(&fleet) {
+		return msgFleetAtSea
 	}
 	return ""
 }
