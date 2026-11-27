@@ -46,7 +46,9 @@ func (g *Game) Update() error {
 	// Un clic vu par cette mise à jour reste visible jusqu'au prochain Draw :
 	// quand le jeu affiche moins d'images qu'il ne fait de mises à jour, les
 	// boutons gérés dans Draw ne le ratent plus.
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
+	// Sauf si la fenêtre des prérequis est ouverte : elle gère ses clics
+	// elle-même, et ils ne doivent pas atteindre les boutons en dessous.
+	if isMouseJustPressed(ebiten.MouseButtonLeft) && !g.ui.ShowPrereqModal {
 		pointer.clickForDraw = true
 	}
 	syncSoftKeyboard(g)

@@ -163,7 +163,15 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		// Texte
 		textX := int(ix) + 84
 		drawText(screen, item.Name, titleFace(21), float64(textX), y+6, themeGold, alignLeft)
-		drawLabel(screen, item.Desc, float64(textX), y+32, 12.5, false, themeMuted)
+		blocked := ""
+		if !g.hasBuilding(item.Type) {
+			blocked = g.firstMissingLine(g.buildingPrerequisites(item))
+		}
+		if blocked != "" {
+			drawText(screen, ellipsize(blocked, bodyFace(13, true), (ix+winW-40-20-100)-float64(textX)-12), bodyFace(13, true), float64(textX), y+32, themeOrange, alignLeft)
+		} else {
+			drawLabel(screen, item.Desc, float64(textX), y+32, 12.5, false, themeMuted)
+		}
 
 		// Check if building exists
 		var existing *domain.Building
@@ -227,7 +235,9 @@ func (g *Game) DrawConstructionMenu(screen *ebiten.Image) {
 		if isUpgrade {
 			kind, btnText = btnSecondary, "Améliorer"
 		}
-		if isBusy {
+		if blocked != "" {
+			kind, btnText = btnSecondary, "Prérequis"
+		} else if isBusy {
 			kind, btnText = btnDisabled, "Occupé"
 		} else if !canAfford {
 			kind, btnText = btnDisabled, "Ressources"
@@ -302,6 +312,14 @@ func (g *Game) UpdateConstructionMenu() {
 				// Clicked Action
 				if g.player != nil && len(g.player.Islands) > 0 {
 					island := g.player.Islands[0]
+
+					// Nouveau bâtiment bloqué : on montre tout ce qui manque.
+					if !g.hasBuilding(item.Type) {
+						if reqs := g.buildingPrerequisites(item); hasMissing(reqs) {
+							g.openPrereqModal("Prérequis manquants", "Construire : "+buildingDisplayName(item.Name), reqs)
+							return
+						}
+					}
 
 					// Check Busy
 					for _, b := range island.Buildings {
