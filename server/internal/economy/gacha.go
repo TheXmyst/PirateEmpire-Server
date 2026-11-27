@@ -137,17 +137,18 @@ func RollCaptainRarity() domain.CaptainRarity {
 }
 
 // RollCaptainRarityWithPity : tirage avec pitié. Les compteurs sont les
-// tirages depuis la dernière rareté de ce niveau (ou mieux). Renvoie la rareté
-// et si elle a été forcée par la pitié.
+// tirages déjà faits depuis la dernière rareté de ce niveau (ou mieux) : avec
+// 119 tirages sans UL, le 120e est un UL garanti. Renvoie la rareté et si elle
+// a été forcée par la pitié.
 func RollCaptainRarityWithPity(pityUltra, pityLegendary, pityRare int) (domain.CaptainRarity, bool) {
 	if PityEnabled {
-		if pityUltra >= PityUltraThreshold {
+		if pityUltra >= PityUltraThreshold-1 {
 			return domain.RarityUltra, true
 		}
-		if pityLegendary >= PityLegendaryThreshold {
+		if pityLegendary >= PityLegendaryThreshold-1 {
 			return domain.RarityLegendary, true
 		}
-		if pityRare >= PityRareThreshold {
+		if pityRare >= PityRareThreshold-1 {
 			r := RollCaptainRarity()
 			if r == domain.RarityCommon {
 				return domain.RarityRare, true

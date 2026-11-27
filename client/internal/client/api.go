@@ -9,6 +9,7 @@ import (
 	"net/http"
 	neturl "net/url"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -604,6 +605,17 @@ func (c *APIClient) GetCaptains() ([]Captain, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&captains); err != nil {
 		return nil, fmt.Errorf("erreur parsing capitaines: %v", err)
 	}
+	// Les plus rares d'abord (UL, légendaires...), puis par niveau et par nom.
+	sort.SliceStable(captains, func(i, j int) bool {
+		ri, rj := captainRarityRank(captains[i].Rarity), captainRarityRank(captains[j].Rarity)
+		if ri != rj {
+			return ri > rj
+		}
+		if captains[i].Level != captains[j].Level {
+			return captains[i].Level > captains[j].Level
+		}
+		return captains[i].Name < captains[j].Name
+	})
 
 	return captains, nil
 }
@@ -1782,4 +1794,16 @@ func (c *APIClient) GetLeaderboardGuilds() ([]LeaderboardEntry, error) {
 	}
 
 	return result, nil
+}
+
+func captainRarityRank(r string) int {
+	switch r {
+	case "ultra":
+		return 4
+	case "legendary":
+		return 3
+	case "rare":
+		return 2
+	}
+	return 1
 }

@@ -9,14 +9,14 @@ import (
 
 // TestPityLogic verifies that the Pity system correctly guarantees rarity
 func TestPityLogic(t *testing.T) {
-	if r, forced := RollCaptainRarityWithPity(PityUltraThreshold, 0, 0); r != domain.RarityUltra || !forced {
+	if r, forced := RollCaptainRarityWithPity(PityUltraThreshold-1, 0, 0); r != domain.RarityUltra || !forced {
 		t.Errorf("Expected forced UL at UL pity, got %s forced=%v", r, forced)
 	}
-	if r, forced := RollCaptainRarityWithPity(0, PityLegendaryThreshold, 0); r != domain.RarityLegendary || !forced {
+	if r, forced := RollCaptainRarityWithPity(0, PityLegendaryThreshold-1, 0); r != domain.RarityLegendary || !forced {
 		t.Errorf("Expected forced Legendary at legendary pity, got %s forced=%v", r, forced)
 	}
 	for i := 0; i < 200; i++ {
-		if r, _ := RollCaptainRarityWithPity(0, 0, PityRareThreshold); r == domain.RarityCommon {
+		if r, _ := RollCaptainRarityWithPity(0, 0, PityRareThreshold-1); r == domain.RarityCommon {
 			t.Fatalf("Expected at least Rare at rare pity, got %s", r)
 		}
 	}

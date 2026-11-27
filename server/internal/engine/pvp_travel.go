@@ -810,7 +810,10 @@ func handleReturningFromAttack(db *gorm.DB, fleet *domain.Fleet) {
 		fleet.TargetY = nil
 		fleet.AttackLoot = nil
 		fleet.AttackLootJSON = nil
-		fleet.Cargo = nil // Clear cargo after deposit
+		// Cale vidée après le dépôt. Une map vide (et pas nil) : avec nil, le
+		// hook BeforeSave ne réécrivait pas la colonne, la cargaison restait en
+		// base et le butin était compté deux fois (île + flotte).
+		fleet.Cargo = map[domain.ResourceType]float64{}
 
 		db.Save(fleet)
 		logger.Info("[PVP_TRAVEL] Fleet reset to Idle", "fleet_id", fleet.ID)

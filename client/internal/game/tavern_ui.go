@@ -41,7 +41,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	strokeRoundRect(screen, x+w-70-tw-24, y+14, tw+24, 26, 13, 1, themeGoldDim)
 	drawText(screen, tix, tf, x+w-70-tw-12, y+19, themeGold, alignLeft)
 
-	drawLabel(screen, "Recrute de nouveaux capitaines pour tes flottes.", x+24, y+56, 13, false, themeMuted)
+	drawLabel(screen, "Recrute de nouveaux capitaines.", x+24, y+56, 13, false, themeMuted)
 	rx := x + 24
 	rateF := bodyFace(11.5, true)
 	for _, rr := range []struct{ r, pct string }{{"common", "62 %"}, {"rare", "28 %"}, {"legendary", "8,5 %"}, {"ultra", "1,5 %"}} {
@@ -53,7 +53,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 		drawText(screen, txt, rateF, rx, y+74, rarityColor(rr.r), alignLeft)
 		rx += textWidth(txt, rateF) + 16
 	}
-	drawText(screen, "Garantis : rare en 10, légendaire en 50, UL en 120", bodyFace(11.5, false), x+w-24, y+74, themeMuted, alignRight)
+	drawText(screen, "Garantis : rare en 10, légendaire en 50, UL en 120", bodyFace(11.5, false), x+w-24, y+56, themeMuted, alignRight)
 
 	// Zone des résultats
 	area := hudRect{x + 20, y + 92, w - 40, h - 92 - 120}
@@ -84,7 +84,7 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 		var titleClr color.Color = themeGold
 		title := "Dernier recrutement"
 		if hasUL {
-			title, titleClr = "✦ ULTRA RARE ! ✦", rarityColor("ultra")
+			title, titleClr = "ULTRA RARE !", rarityColor("ultra")
 			fillRoundRect(screen, area.x+8, ty-6, area.w-16, 36, 10, color.NRGBA{214, 120, 255, 40})
 		}
 		drawText(screen, title, titleFace(20), area.x+16, ty, titleClr, alignLeft)

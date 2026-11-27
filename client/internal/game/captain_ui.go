@@ -234,7 +234,7 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 
 			// Nom, rareté, étoiles
 			nameY := int(itemY + 5)
-			drawLabel(screen, captain.Name, leftX+36, float64(nameY), 14, true, themeText)
+			drawLabel(screen, ellipsize(captain.Name, bodyFace(14, true), leftW-36-112), leftX+36, float64(nameY), 14, true, themeText)
 			drawLabel(screen, rarityLabel(captain.Rarity), leftX+36, float64(nameY)+20, 12, false, rarityColor(captain.Rarity))
 
 			// Stars
