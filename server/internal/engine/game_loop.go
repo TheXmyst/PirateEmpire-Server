@@ -156,8 +156,12 @@ func tickIsland(w *World, island *domain.Island, now time.Time) {
 	SyncIslandShipCoordinates(island)
 
 	// Update Fleet Stationing Logic
+	harvestedBefore := island.Player.QuestHarvested
 	if UpdateFleetStationing(island, deltaSeconds) {
 		w.markDirty(island.ID, DirtyFleets)
+	}
+	if island.Player.QuestHarvested != harvestedBefore {
+		w.markDirty(island.ID, DirtyPlayer)
 	}
 
 	// Sync again after movement to ensure the list we might save is fresh
@@ -427,11 +431,13 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 				totalLoad += amount
 			}
 
+			harvested := amountToAdd
 			if totalLoad >= capacity {
 				// Clamp
 				diff := totalLoad - capacity
 				if diff > 0 {
 					f.Cargo[resType] -= diff
+					harvested -= diff
 				}
 
 				f.State = domain.FleetStateReturning
@@ -442,6 +448,10 @@ func UpdateFleetStationing(island *domain.Island, deltaSeconds float64) bool {
 				f.TargetX = &homeX
 				f.TargetY = &homeY
 				fmt.Printf("[STATIONING] Fleet %s full (%.0f/%.0f). Returning home.\n", f.Name, totalLoad, capacity)
+			}
+			// Quêtes : total récolté sur les spots.
+			if harvested > 0 {
+				island.Player.QuestHarvested += harvested
 			}
 		} else if f.State == domain.FleetStateReturning && f.TargetX != nil {
 			// Move Home

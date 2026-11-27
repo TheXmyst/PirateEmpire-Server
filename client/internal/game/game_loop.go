@@ -167,6 +167,8 @@ func (g *Game) updateGame() error {
 	}
 	g.UpdateConstructionMenu()
 	g.UpdateFleetUI()
+	g.updateQuests()
+	_ = g.UpdateQuestUI()
 	g.UpdateHUDInput()
 	g.UpdateSocialUI()
 
@@ -208,6 +210,7 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 
 	g.DrawDashboard(screen)
 	g.DrawHUD(screen)
+	g.drawQuestTracker(screen)
 
 	if g.ui.LocalizationMode {
 		g.DrawLocalizationOverlay(screen)
@@ -229,6 +232,7 @@ func (g *Game) drawGame(screen *ebiten.Image) {
 	g.DrawConstructionMenu(screen)
 	g.DrawFleetUI(screen)
 	g.DrawSocialUI(screen)
+	g.drawQuestUI(screen)
 
 	if g.techUI != nil {
 		g.techUI.Draw(screen, g)

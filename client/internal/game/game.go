@@ -156,6 +156,9 @@ type Game struct {
 	leaderboardBusy  bool
 	leaderboardTried time.Time
 
+	// Journal de quêtes (quest_ui.go)
+	quest questUI
+
 	// Social
 	socialStateLoaded   bool
 	socialStatePlayerID uuid.UUID

@@ -106,6 +106,15 @@ type Player struct {
 	// Reputation System
 	Reputation int `json:"reputation" gorm:"default:0"` // Player reputation points (from fleet power + wins)
 
+	// Quêtes de progression : compteurs d'événements (voir economy/quests.go).
+	// Les autres objectifs se lisent directement dans l'état du joueur.
+	QuestCaptainPulls     int     `json:"quest_captain_pulls" gorm:"default:0"`
+	QuestMilitiaRecruited int     `json:"quest_militia_recruited" gorm:"default:0"`
+	QuestFleetsSent       int     `json:"quest_fleets_sent" gorm:"default:0"`
+	QuestFleetsStationed  int     `json:"quest_fleets_stationed" gorm:"default:0"`
+	QuestChatMessages     int     `json:"quest_chat_messages" gorm:"default:0"`
+	QuestHarvested        float64 `json:"quest_harvested" gorm:"default:0"`
+
 	Islands  []Island  `json:"islands,omitempty" gorm:"foreignKey:PlayerID"`
 	Captains []Captain `json:"captains,omitempty" gorm:"foreignKey:PlayerID"`
 }
@@ -653,6 +662,18 @@ type GuildMember struct {
 
 func (GuildMember) TableName() string {
 	return "guild_members"
+}
+
+// PlayerQuestClaim : une quête dont le joueur a réclamé la récompense.
+// La clé primaire (joueur, quête) empêche de réclamer deux fois.
+type PlayerQuestClaim struct {
+	PlayerID  uuid.UUID `json:"player_id" gorm:"type:uuid;primaryKey"`
+	QuestID   string    `json:"quest_id" gorm:"primaryKey"`
+	ClaimedAt time.Time `json:"claimed_at"`
+}
+
+func (PlayerQuestClaim) TableName() string {
+	return "player_quest_claims"
 }
 
 // PvEVictory records a player's victory against a PvE target (monster/NPC)

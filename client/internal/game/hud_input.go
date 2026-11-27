@@ -33,6 +33,7 @@ func (g *Game) closeMainPanels() {
 	g.ui.ShowFleetUI = false
 	g.ui.ShowCaptainUI = false
 	g.ui.ShowSocialUI = false
+	g.quest.open = false
 }
 
 func (g *Game) onDockButton(id string) {
@@ -73,7 +74,7 @@ func (g *Game) onDockButton(id string) {
 // IsHoveringUI checks if the cursor is over any UI overlay.
 // Used to block world interactions (e.g. camera zoom) when UIs are open.
 func (g *Game) IsHoveringUI() bool {
-	return g.ui.ShowConstruction || g.ui.ShowShipyard || g.ui.ShowTechUI || g.ui.ShowFleetUI || g.ui.ShowSocialUI
+	return g.ui.ShowConstruction || g.ui.ShowShipyard || g.ui.ShowTechUI || g.ui.ShowFleetUI || g.ui.ShowSocialUI || g.quest.open
 }
 
 // IsModalOpen checks if any modal UI is currently open.
@@ -85,6 +86,7 @@ func (g *Game) IsModalOpen() bool {
 		g.ui.ShowFleetUI ||
 		g.ui.ShowTechUI ||
 		g.ui.ShowSocialUI ||
+		g.quest.open ||
 		(g.techUI != nil && g.techUI.Visible) ||
 		g.ui.ShowTavernUI ||
 		g.ui.ShowMilitiaUI ||

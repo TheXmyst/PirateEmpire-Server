@@ -156,6 +156,9 @@ func (g *Game) hudHit(x, y float64) bool {
 	if g.captainCardRect().has(x, y) {
 		return true
 	}
+	if g.questTrackerVisible() && g.questTrackerRect().has(x, y) {
+		return true
+	}
 	if _, ok := g.touchButtonAt(x, y); ok {
 		return true
 	}

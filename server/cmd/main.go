@@ -68,6 +68,10 @@ func main() {
 	if err := economy.LoadConfig("configs/buildings.json"); err != nil {
 		panic(err)
 	}
+	// Quêtes de progression (après les bâtiments : les quêtes Bâtiments en dépendent)
+	if err := economy.LoadQuestConfig("configs/quests.json"); err != nil {
+		panic(err)
+	}
 
 	// Charger le monde en mémoire (une seule grosse lecture, au démarrage).
 	world, err := engine.LoadWorld(db)
@@ -154,7 +158,7 @@ func main() {
 	protected.Use(auth.RequireAuth)
 	{
 		// Chat
-		protected.POST("/chat/send", api.SendChat)
+		protected.POST("/chat/send", api.SendChat, api.CountsForQuests(economy.QuestCounterChatMessages))
 		protected.GET("/chat/feed", api.GetChat)
 
 		protected.POST("/build", api.Build)
@@ -178,7 +182,7 @@ func main() {
 		// PVE endpoints
 		protected.GET("/pve/targets", api.GetPveTargets)
 		protected.POST("/pve/engage", api.EngagePve)     // Deprecated?
-		protected.POST("/pve/attack", api.SendPveAttack) // Phase K: PvE Chase Start
+		protected.POST("/pve/attack", api.SendPveAttack, api.CountsForQuests(economy.QuestCounterFleetsSent)) // Phase K: PvE Chase Start
 		// Ship Militia endpoints
 		protected.POST("/ship/militia/assign", api.AssignShipMilitia)
 		protected.POST("/ship/militia/unassign", api.UnassignShipMilitia)
@@ -188,13 +192,13 @@ func main() {
 		// PvP endpoints
 		protected.GET("/pvp/targets", api.GetPvpTargets)
 		protected.POST("/pvp/attack", api.AttackPvp)
-		protected.POST("/pvp/send-attack", api.SendPvpAttack) // Fix: Register travel route
+		protected.POST("/pvp/send-attack", api.SendPvpAttack, api.CountsForQuests(economy.QuestCounterFleetsSent)) // Fix: Register travel route
 		protected.POST("/pvp/intercept/start", api.StartIntercept)
 		protected.POST("/pvp/intercept/abort", api.AbortIntercept)
 		// Stationing endpoints
-		protected.POST("/fleets/station", api.StationFleet)
+		protected.POST("/fleets/station", api.StationFleet, api.CountsForQuests(economy.QuestCounterFleetsSent, economy.QuestCounterFleetsStationed))
 		protected.POST("/fleets/recall", api.RecallFleet)
-		protected.POST("/fleets/navigate", api.NavigateFleet)
+		protected.POST("/fleets/navigate", api.NavigateFleet, api.CountsForQuests(economy.QuestCounterFleetsSent))
 		protected.GET("/fleets/resource-nodes", api.GetResourceNodes)
 		// Cargo Transfer endpoints
 		protected.POST("/fleets/cargo/transfer-to-fleet", api.TransferToFleet)
@@ -210,6 +214,10 @@ func main() {
 		protected.POST("/guild/leave", api.LeaveGuild)
 		protected.GET("/leaderboard/players", api.GetLeaderboardPlayers)
 		protected.GET("/leaderboard/guilds", api.GetLeaderboardGuilds)
+
+		// Quêtes de progression
+		protected.GET("/quests", api.GetQuests)
+		protected.POST("/quests/claim", api.ClaimQuest)
 	}
 
 	// Dev Routes (require authentication + admin check is done in handlers)
