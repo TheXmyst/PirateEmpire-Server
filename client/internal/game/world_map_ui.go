@@ -744,7 +744,7 @@ func (g *Game) loadPveTargets() {
 
 		newTargets, err := g.api.GetPveTargets()
 		if err != nil {
-			g.ui.PveTargetsError = err.Error()
+			g.ui.PveTargetsError = friendlyError(err)
 			// g.Log("PVE: Failed to load targets: %v", err)
 			return
 		}
@@ -1065,7 +1065,7 @@ func (g *Game) confirmPveChase() {
 				g.ui.PveTargets = nil
 				g.loadPveTargets()
 			} else {
-				g.ui.PveEngageError = err.Error()
+				g.ui.PveEngageError = friendlyError(err)
 				g.ui.ShowPveEngageError = true
 			}
 			return
@@ -1166,7 +1166,7 @@ func (g *Game) engagePvpTarget(targetID string) {
 		// Send fleet to attack (travel system)
 		travelTime, distance, err := g.api.SendPvpAttack(fleetID.String(), targetID)
 		if err != nil {
-			g.ui.PveEngageError = err.Error()
+			g.ui.PveEngageError = friendlyError(err)
 			g.ui.ShowPveEngageError = true
 			g.Log("[PVP] engage failed err=%v", err)
 			return
@@ -1275,7 +1275,7 @@ func (g *Game) loadResourceNodes() {
 
 		nodes, err := g.api.GetResourceNodes()
 		if err != nil {
-			g.ui.ResourceNodesError = err.Error()
+			g.ui.ResourceNodesError = friendlyError(err)
 			g.Log("Failed to load resource nodes: %v", err)
 			return
 		}

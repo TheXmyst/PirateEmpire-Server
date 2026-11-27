@@ -329,7 +329,7 @@ func (g *Game) UpdateMilitiaUI() bool {
 						// Try to handle as prerequisites error
 						if !g.handleAPIError(err, "Amélioration Milice") {
 							// Not a prerequisites error - show standard error
-							g.ui.MilitiaError = err.Error()
+							g.ui.MilitiaError = friendlyError(err)
 						}
 					}
 				}(militiaBuilding.ID.String())
@@ -394,7 +394,7 @@ func (g *Game) recruitCrew() {
 			// Try to handle as prerequisites error
 			if !g.handleAPIError(err, "Recrutement Milice") {
 				// Not a prerequisites error - show standard error
-				g.ui.MilitiaError = err.Error()
+				g.ui.MilitiaError = friendlyError(err)
 			}
 			g.Log("Militia recruit error: %v", err)
 			return

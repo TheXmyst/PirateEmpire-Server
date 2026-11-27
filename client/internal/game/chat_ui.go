@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"image/color"
 	"math"
 	"strings"
@@ -148,7 +147,7 @@ func (g *Game) sendChatInput() {
 		}
 		if g.api != nil {
 			if err := g.api.SendChat(txt); err != nil {
-				g.addIncomingChat(domain.ChatMessage{ID: uuid.New(), Author: "Système", Text: fmt.Sprintf("Envoi échoué: %v", err), Timestamp: time.Now()})
+				g.addIncomingChat(domain.ChatMessage{ID: uuid.New(), Author: "Système", Text: "Envoi échoué : " + friendlyError(err), Timestamp: time.Now()})
 			} else {
 				g.addIncomingChat(domain.ChatMessage{ID: uuid.New(), Author: prefix, Text: txt, Timestamp: time.Now()})
 			}

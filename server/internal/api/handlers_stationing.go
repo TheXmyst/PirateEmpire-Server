@@ -23,24 +23,24 @@ type StationFleetRequest struct {
 func StationFleet(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non autorisé"})
 	}
 
 	var req StationFleetRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid payload"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid Fleet ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
 	db := repository.GetDB()
 	var island domain.Island
 	// Preload fleets and ships
 	if err := db.Preload("Fleets.Ships").Where("player_id = ?", player.ID).First(&island).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Validate Fleet
@@ -53,18 +53,18 @@ func StationFleet(c echo.Context) error {
 	}
 
 	if fleet == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Fleet not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
 	// Must be Idle OR Returning
 	if fleet.StationedNodeID != nil || fleet.State == domain.FleetStateStationed {
-		return c.JSON(http.StatusConflict, map[string]string{"error": "Fleet is already stationed"})
+		return c.JSON(http.StatusConflict, map[string]string{"error": "La flotte est déjà stationnée"})
 	}
 
 	// Find the node
 	node := economy.GetResourceNodeByID(player.ID, req.NodeID, island.X, island.Y)
 	if node == nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Resource Node invalid or expired"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Ce point de récolte n'existe plus"})
 	}
 
 	// Update Fleet State and Target
@@ -101,14 +101,14 @@ func StationFleet(c echo.Context) error {
 			}
 			if err := tx.Save(s).Error; err != nil {
 				tx.Rollback()
-				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to initialize ship coordinates"})
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur, réessaie"})
 			}
 		}
 	}
 
 	if err := tx.Save(fleet).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to save fleet"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Erreur du serveur pendant la sauvegarde, réessaie"})
 	}
 
 	tx.Commit()
@@ -125,7 +125,7 @@ func StationFleet(c echo.Context) error {
 func RecallFleet(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non autorisé"})
 	}
 
 	// Use Body or Query? Usually POST /recall with fleet_id in payload or URL
@@ -134,12 +134,12 @@ func RecallFleet(c echo.Context) error {
 		FleetID string `json:"fleet_id"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid payload"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	fleetID, err := uuid.Parse(req.FleetID)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid Fleet ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Flotte invalide"})
 	}
 
 	db := repository.GetDB()
@@ -147,20 +147,20 @@ func RecallFleet(c echo.Context) error {
 
 	// Load fleet and verify ownership via island join logic
 	if err := db.Preload("Ships").First(&fleet, "id = ?", fleetID).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Fleet not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
 	var island domain.Island
 	if err := db.First(&island, "id = ?", fleet.IslandID).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Island link broken"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Île introuvable"})
 	}
 	if island.PlayerID != player.ID {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Not your fleet"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Cette flotte ne t'appartient pas"})
 	}
 
 	// If already Returning or Idle, error
 	if fleet.State == domain.FleetStateReturning || fleet.State == domain.FleetStateIdle {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Fleet is not stationed or moving"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La flotte n'est ni stationnée ni en mouvement"})
 	}
 
 	// Trigger Return
@@ -183,7 +183,7 @@ func RecallFleet(c echo.Context) error {
 
 	if err := tx.Save(&fleet).Error; err != nil {
 		tx.Rollback()
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to recall fleet"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Impossible de rappeler la flotte"})
 	}
 
 	// Also ensure ship positions are saved if updated briefly
@@ -207,13 +207,13 @@ type GetResourceNodesResponse struct {
 func GetResourceNodes(c echo.Context) error {
 	player := auth.GetAuthenticatedPlayer(c)
 	if player == nil {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Non autorisé"})
 	}
 
 	db := repository.GetDB()
 	var island domain.Island
 	if err := db.Where("player_id = ?", player.ID).First(&island).Error; err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 
 	// Minimal fetch for collision (just x,y) to pass to generation

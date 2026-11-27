@@ -58,7 +58,7 @@ func (g *Game) loadPvpTargets() {
 
 		targets, err := g.api.GetPvpTargets()
 		if err != nil {
-			g.ui.PvpTargetsError = err.Error()
+			g.ui.PvpTargetsError = friendlyError(err)
 			return
 		}
 
@@ -380,7 +380,7 @@ func (g *Game) executePvpAttack() {
 		// Send fleet to attack (travel system)
 		travelTime, distance, err := g.api.SendPvpAttack(fleetID, targetID)
 		if err != nil {
-			g.ui.PvpAttackError = err.Error()
+			g.ui.PvpAttackError = friendlyError(err)
 			return
 		}
 

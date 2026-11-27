@@ -222,7 +222,7 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 						g.Log("[SHIP BUILD ERROR] Server refused: %v", err)
 						if !g.handleAPIError(err, fmt.Sprintf("Construction %s", shipName)) {
 							g.showError = true
-							g.errorMessage = fmt.Sprintf("Construction refusée : %v", err)
+							g.errorMessage = "Construction refusée : " + friendlyError(err)
 							g.errorDebounce = 30
 						}
 					} else {
@@ -400,7 +400,7 @@ func (g *Game) DrawShipyardUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 						if !g.handleAPIError(err, "Amélioration Chantier Naval") {
 							// Not a prerequisites error - show standard error
 							g.showError = true
-							g.errorMessage = err.Error()
+							g.errorMessage = friendlyError(err)
 							g.errorDebounce = 60
 						}
 					} else {

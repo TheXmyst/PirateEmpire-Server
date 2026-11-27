@@ -34,25 +34,25 @@ type CargoTransferResponse struct {
 func TransferToFleet(c echo.Context) error {
 	var req CargoTransferRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	if req.Amount <= 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Amount must be positive"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La quantité doit être positive"})
 	}
 
 	islandIDStr := c.QueryParam("island_id")
 	if islandIDStr == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing island_id query param"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île manquante"})
 	}
 	islandID, err := uuid.Parse(islandIDStr)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid island_id"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île invalide"})
 	}
 
 	db := repository.GetDB()
 	if !ownsIsland(c, db, islandID) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 	var fleet domain.Fleet
 	var island domain.Island
@@ -145,25 +145,25 @@ func TransferToFleet(c echo.Context) error {
 func TransferToIsland(c echo.Context) error {
 	var req CargoTransferRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Requête invalide"})
 	}
 
 	if req.Amount <= 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Amount must be positive"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "La quantité doit être positive"})
 	}
 
 	islandIDStr := c.QueryParam("island_id")
 	if islandIDStr == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Missing island_id query param"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île manquante"})
 	}
 	islandID, err := uuid.Parse(islandIDStr)
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid island_id"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Île invalide"})
 	}
 
 	db := repository.GetDB()
 	if !ownsIsland(c, db, islandID) {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Island not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Île introuvable"})
 	}
 	var fleet domain.Fleet
 	var island domain.Island

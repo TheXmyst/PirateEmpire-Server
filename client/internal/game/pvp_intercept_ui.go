@@ -83,7 +83,7 @@ func (g *Game) confirmIntercept() {
 
 		err := g.api.StartIntercept(g.ui.InterceptAttackerFleetID, g.ui.InterceptTargetFleetID)
 		if err != nil {
-			g.ui.InterceptError = err.Error()
+			g.ui.InterceptError = friendlyError(err)
 			return
 		}
 

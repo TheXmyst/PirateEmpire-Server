@@ -481,7 +481,7 @@ func (g *Game) StartResearch(techID string) {
 			if !g.handleAPIError(err, fmt.Sprintf("Recherche %s", techID)) {
 				// Not a prerequisites error - show standard error
 				g.showError = true
-				g.errorMessage = err.Error()
+				g.errorMessage = friendlyError(err)
 				g.errorDebounce = 60
 			}
 			return
@@ -602,7 +602,7 @@ func (g *Game) DrawAcademyUpgradeBar(screen *ebiten.Image, x, y, w float64) {
 						if !g.handleAPIError(err, "Amélioration Académie") {
 							// Not a prerequisites error - show standard error
 							g.showError = true
-							g.errorMessage = err.Error()
+							g.errorMessage = friendlyError(err)
 							g.errorDebounce = 60
 						}
 					} else {

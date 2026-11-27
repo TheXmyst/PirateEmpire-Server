@@ -358,7 +358,7 @@ func (g *Game) UpdateConstructionMenu() {
 								if !g.handleAPIError(err, fmt.Sprintf("Amélioration %s", btype)) {
 									// Not a prerequisites error - show standard error
 									g.showError = true
-									g.errorMessage = err.Error()
+									g.errorMessage = friendlyError(err)
 									g.errorDebounce = 60
 								}
 							} else {
@@ -418,7 +418,7 @@ func (g *Game) UpdateConstructionMenu() {
 								if !g.handleAPIError(err, fmt.Sprintf("Construction %s", bType)) {
 									// Not a prerequisites error - show standard error
 									g.showError = true
-									g.errorMessage = err.Error()
+									g.errorMessage = friendlyError(err)
 									g.errorDebounce = 60
 								}
 							} else {

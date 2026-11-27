@@ -171,6 +171,7 @@ type Game struct {
 	showError     bool
 	errorMessage  string
 	errorDebounce int
+	errorToastFor string // message dont la durée d'affichage a déjà été réglée
 
 	// Tech UI
 	techUI *TechUI

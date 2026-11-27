@@ -199,7 +199,7 @@ func (g *Game) summonCaptains(count int) {
 
 		result, err := g.api.SummonCaptain(count)
 		if err != nil {
-			g.ui.TavernError = err.Error()
+			g.ui.TavernError = friendlyError(err)
 			if strings.Contains(err.Error(), "session expirée") {
 				g.ui.TavernError = "Session expirée, veuillez vous reconnecter"
 			}
