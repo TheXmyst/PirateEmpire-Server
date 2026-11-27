@@ -167,14 +167,14 @@
             "cost_growth": 1.39,
             "base_build_time": 3,
             "time_growth": 1.12,
-            "base_production": 20,
+            "base_production": 150,
             "production_growth": 1.27,
             "base_storage": {},
             "storage_growth": {},
             "prerequisites": [
                 {
                     "level": 1,
-                    "req_townhall": 3
+                    "req_townhall": 1
                 },
                 {
                     "level": 4,

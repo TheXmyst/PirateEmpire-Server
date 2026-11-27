@@ -47,7 +47,7 @@ func (g *Game) getConstructionItems() []ConstructionItem {
 			Type: "Mine d'Or", Name: "Mine d'Or", Desc: "Produit de l'or.",
 			Cost:       map[domain.ResourceType]float64{domain.Wood: 100, domain.Stone: 100},
 			Icon:       g.iconGoldMine,
-			ReqThLevel: 3,
+			ReqThLevel: 1,
 		},
 		{
 			Type: "Distillerie", Name: "Distillerie", Desc: "Produit du rhum.",
