@@ -1,11 +1,13 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/logger"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/google/uuid"
@@ -71,7 +73,7 @@ func TransferToFleet(c echo.Context) error {
 		// Check Island Balance
 		available := island.Resources[req.Resource]
 		if available < req.Amount {
-			return fmt.Errorf("insufficient island resources: have %.0f, need %.0f", available, req.Amount)
+			return fmt.Errorf("Pas assez de %s sur l'île : tu as %.0f, il en faut %.0f", economy.ResourceNameFR(req.Resource), available, req.Amount)
 		}
 
 		// Lock fleet
@@ -80,8 +82,8 @@ func TransferToFleet(c echo.Context) error {
 		}
 
 		// Verify Fleet State
-		if fleet.State != "Idle" && fleet.State != "Stationed" {
-			return fmt.Errorf("fleet must be Idle or Stationed to transfer cargo (current: %s)", fleet.State)
+		if !fleetDocked(&fleet) {
+			return errors.New(msgFleetAtSea)
 		}
 
 		// SSOT: Compute Capacity immediately
@@ -98,7 +100,7 @@ func TransferToFleet(c echo.Context) error {
 				"free", fleet.CargoCapacity-fleet.CargoLoaded(),
 				"need", req.Amount,
 				"cargo", fleet.Cargo)
-			return fmt.Errorf("insufficient fleet capacity: available %.0f, need %.0f", fleet.CargoCapacity-fleet.CargoLoaded(), req.Amount)
+			return fmt.Errorf("Pas assez de place dans la cale : %.0f de libre, il en faut %.0f", fleet.CargoCapacity-fleet.CargoLoaded(), req.Amount)
 		}
 
 		// EXECUTE TRANSFER
@@ -174,6 +176,10 @@ func TransferToIsland(c echo.Context) error {
 			return err
 		}
 
+		if !fleetDocked(&fleet) {
+			return errors.New(msgFleetAtSea)
+		}
+
 		if fleet.Cargo == nil {
 			fleet.Cargo = make(map[domain.ResourceType]float64)
 		}
@@ -181,7 +187,7 @@ func TransferToIsland(c echo.Context) error {
 		// Check Fleet Cargo Balance
 		available := fleet.Cargo[req.Resource]
 		if available < req.Amount {
-			return fmt.Errorf("insufficient fleet cargo: have %.0f, need %.0f", available, req.Amount)
+			return fmt.Errorf("Pas assez de %s dans la cale : tu as %.0f, il en faut %.0f", economy.ResourceNameFR(req.Resource), available, req.Amount)
 		}
 
 		// Lock Island
@@ -195,7 +201,7 @@ func TransferToIsland(c echo.Context) error {
 		// EXECUTE TRANSFER (Respect Limits)
 		deposited := island.Deposit(req.Resource, req.Amount)
 		if deposited <= 0 {
-			return fmt.Errorf("island storage full for %s", req.Resource)
+			return fmt.Errorf("Entrepôt plein pour : %s", economy.ResourceNameFR(req.Resource))
 		}
 
 		fleet.Cargo[req.Resource] -= deposited

@@ -1581,6 +1581,10 @@ func AddShipToFleet(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Flotte introuvable"})
 	}
 
+	if !fleetDocked(&fleet) {
+		return c.JSON(http.StatusConflict, map[string]string{"error": msgFleetAtSea})
+	}
+
 	// 2. Use authenticated player for Techs (already loaded from context)
 	player := authenticatedPlayer
 
@@ -2315,6 +2319,12 @@ func AssignCaptain(c echo.Context) error {
 		}
 	}
 
+	// 2.6. Navire d'arrivée et navire de départ du capitaine : au port seulement.
+	if shipFleetAtSea(tx, ship.ID) || (captain.AssignedShipID != nil && *captain.AssignedShipID != ship.ID && shipFleetAtSea(tx, *captain.AssignedShipID)) {
+		tx.Rollback()
+		return c.JSON(http.StatusConflict, map[string]string{"error": msgFleetAtSea})
+	}
+
 	// 3. If captain is already assigned to another ship, unassign from that ship
 	if captain.AssignedShipID != nil && *captain.AssignedShipID != req.ShipID {
 		var oldShip domain.Ship
@@ -2438,6 +2448,10 @@ func UnassignCaptain(c echo.Context) error {
 						return c.JSON(http.StatusConflict, map[string]string{"error": "Flotte verrouillée (engagement en cours)."})
 					}
 				}
+			}
+			if shipFleetAtSea(tx, ship.ID) {
+				tx.Rollback()
+				return c.JSON(http.StatusConflict, map[string]string{"error": msgFleetAtSea})
 			}
 			// Only clear if the ship's captain matches
 			if ship.CaptainID != nil && *ship.CaptainID == captain.ID {

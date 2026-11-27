@@ -198,6 +198,11 @@ func (g *Game) DrawFleetDetails(screen *ebiten.Image, x, y, w, h float64) {
 	if disabled {
 		kind, btnText = btnDisabled, "Flotte complète"
 	}
+	if currentFleet != nil && !shipDocked(currentFleet) {
+		disabled = true
+		kind, btnText = btnDisabled, "Flotte en mer"
+		drawText(screen, "Ramène-la au port pour la modifier", bodyFace(13, true), btnX+btnW+14, btnY+12, themeOrange, alignLeft)
+	}
 	drawButton(screen, btnX, btnY, btnW, btnH, btnText, kind)
 
 	// Handle click (shielded by modal)

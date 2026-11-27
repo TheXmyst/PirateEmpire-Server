@@ -343,6 +343,7 @@ func (g *Game) UpdateFleetUI() {
 				subCol2X := col1X + (colW * 0.25) + colGap
 				subCol4X := (subCol2X + subCol2W + colGap) + subCol3W + colGap
 
+				fleetDocked := shipDocked(selectedFleet)
 				for _, ship := range activeShips {
 					// Check vertical bounds of this row
 					if fmy >= currentY && fmy <= currentY+lineH {
@@ -353,6 +354,10 @@ func (g *Game) UpdateFleetUI() {
 						btnCrewH := 34.0
 
 						if fmx >= subCol2X && fmx <= subCol2X+btnCrewW && fmy >= btnCrewY && fmy <= btnCrewY+btnCrewH {
+							if !fleetDocked {
+								g.fleetAtSeaMessage()
+								return
+							}
 							g.ui.SelectedShipForCrew = ship.ID.String()
 							g.ui.CrewModalWarriors = ship.MilitiaWarriors
 							g.ui.CrewModalArchers = ship.MilitiaArchers
@@ -378,6 +383,10 @@ func (g *Game) UpdateFleetUI() {
 
 							// RETIRER
 							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY+36 && fmy <= btnCaptY+36+btnCaptH {
+								if !fleetDocked {
+									g.fleetAtSeaMessage()
+									return
+								}
 								cid := captain.ID.String()
 								g.fleetAction("Capitaine retiré", func() error { return g.api.UnassignCaptain(cid) })
 								return
@@ -385,6 +394,10 @@ func (g *Game) UpdateFleetUI() {
 						} else {
 							// ASSIGNER
 							if fmx >= subCol4X && fmx <= subCol4X+btnCaptW && fmy >= btnCaptY && fmy <= btnCaptY+btnCaptH {
+								if !fleetDocked {
+									g.fleetAtSeaMessage()
+									return
+								}
 								g.ui.SelectedShipForCaptain = ship.ID.String()
 								g.ui.ShowCaptainModal = true
 								return
@@ -508,6 +521,8 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	uiFillRect(screen, float32(startX), float32(startY), float32(w), float32(headerH), color.RGBA{30, 40, 50, 255}, vecAA)
 	uiSubtitle(screen, fleet.Name, int(startX)+20, int(startY)+20)
 
+	docked := shipDocked(&fleet)
+
 	// Status / Activate button area
 	// FIND CORRECT ISLAND for this fleet
 	var island *domain.Island
@@ -567,6 +582,9 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 	if isActive {
 		statusText := "✅ FLOTTE ACTIVE (PvE)"
+		if !docked {
+			statusText = "EN MER"
+		}
 		if fleet.State == domain.FleetStateChasingPvP {
 			statusText = "🏹 EN POURSUITE (PvP)"
 		}
@@ -592,6 +610,11 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 		// Note: Logic is usually in Update, but handling simple clicks here for UI context is common in immediate mode GUIs
 		// though strict separation would put it in UpdateFleetUI.
 		// For this refactor, we just render here. Click logic in UpdateFleetUI is safer to avoid multiple triggers.
+	}
+
+	// Flotte partie : on le dit, et les boutons qui la modifient sont grisés.
+	if !docked {
+		drawText(screen, "Ramène-la au port pour la modifier", bodyFace(14, true), startX+w-16, startY+22, themeOrange, alignRight)
 	}
 
 	// List of ships : cette partie défile sous l'en-tête (molette ou doigt)
@@ -687,7 +710,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 
 		// Crew Button placeholder (Visual only, inputs handled in Update)
 		btnCrewY := currentY + 50
-		drawButton(screen, subCol2X, btnCrewY, subCol2W-10, 34, "Gérer l'équipage", btnSecondary)
+		drawButton(screen, subCol2X, btnCrewY, subCol2W-10, 34, "Gérer l'équipage", dockedKind(docked, btnSecondary))
 
 		// 3. Captain Info
 		captain := g.GetCaptainForShip(ship.ID.String())
@@ -721,10 +744,10 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 30, "Améliorer", btnPrimary)
 
 			// Unassign
-			drawButton(screen, subCol4X, btnCaptY+36, subCol4W-5, 30, "Retirer", btnDanger)
+			drawButton(screen, subCol4X, btnCaptY+36, subCol4W-5, 30, "Retirer", dockedKind(docked, btnDanger))
 		} else {
 			// Assign
-			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 30, "Assigner", btnPrimary)
+			drawButton(screen, subCol4X, btnCaptY, subCol4W-5, 30, "Assigner", dockedKind(docked, btnPrimary))
 		}
 
 		currentY += lineH + 10
@@ -810,9 +833,9 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	currentY += 20
 
 	// Check eligibility
-	canTransfer := fleet.State == domain.FleetStateIdle || fleet.State == domain.FleetStateStationed
+	canTransfer := shipDocked(&fleet)
 	if !canTransfer {
-		uiPrint(screen, "Transfert possible uniquement à quai (Idle/Stationné)", int(startX)+20, int(currentY))
+		drawText(screen, "Transfert possible uniquement au port de ton île", bodyFace(14, true), startX+20, currentY, themeOrange, alignLeft)
 		currentY += 20
 	} else {
 		// Layout Constants
@@ -1400,4 +1423,18 @@ func shipTypeLabel(t string) string {
 		return "Vaisseau de guerre"
 	}
 	return t
+}
+
+// dockedKind : bouton normal au port, grisé quand la flotte est en mer.
+func dockedKind(docked bool, kind buttonKind) buttonKind {
+	if !docked {
+		return btnDisabled
+	}
+	return kind
+}
+
+// fleetAtSeaMessage : clic sur une action bloquée parce que la flotte est partie.
+func (g *Game) fleetAtSeaMessage() {
+	g.ui.FleetMessage = "Ta flotte est en mer : ramène-la au port pour la modifier"
+	g.ui.FleetMessageErr = true
 }
