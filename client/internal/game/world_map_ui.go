@@ -9,7 +9,6 @@ import (
 	"github.com/TheXmyst/Sea-Dogs/client/internal/domain"
 	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -83,6 +82,9 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 	// Îles, flottes (les tiennes, PvE, PvP), sillages, nuages et étiquettes.
 	g.drawSeaScene(screen, isModalOpen)
 
+	// Repère du déplacement libre (bouton « Naviguer ici »).
+	g.drawSeaNavMarker(screen)
+
 	// Draw Wind Indicator
 	g.DrawWindIndicator(screen)
 
@@ -101,11 +103,6 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 
 	if g.ui.ShowPveConfirmModal {
 		g.DrawPveConfirmModal(screen)
-	}
-
-	// Draw Free Navigation Confirmation
-	if g.ui.ShowNavFreeConfirm {
-		g.DrawNavFreeConfirmModal(screen)
 	}
 
 	// Draw PvP Result (reuse PvE result UI)
@@ -135,68 +132,6 @@ func (g *Game) DrawWorldMap(screen *ebiten.Image) {
 
 	// Draw Pursuit Warning Banner
 	g.DrawPursuitBanner(screen)
-}
-
-// DrawStationMenu renders the fleet selection modal for stationing
-func (g *Game) DrawStationMenu(screen *ebiten.Image) {
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	overlayColor := color.RGBA{0, 0, 0, 200}
-	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
-
-	panelW, panelH := 400.0, 500.0
-	panelX, panelY := (w-panelW)/2, (h-panelH)/2
-
-	// Panel Background
-	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
-
-	uiTitle(screen, "Stationner la flotte", int(panelX)+20, int(panelY)+20)
-
-	// Close Button
-	closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
-	drawCloseButton(screen, float64(closeBtnX)+float64(30)/2, float64(closeBtnY)+float64(30)/2, 15)
-
-	// List Idle Fleets
-	yOffset := panelY + 60
-	if g.player != nil && len(g.player.Islands) > 0 {
-		fleets := g.player.Islands[0].Fleets
-		available := false
-		for _, f := range fleets {
-			// Fleet List Item
-			itemColor := color.RGBA{60, 60, 60, 255}
-
-			uiFillRect(screen, float32(panelX+20), float32(yOffset), float32(panelW-40), 40, itemColor, vecAA)
-
-			state := f.State
-			if state == "" {
-				state = domain.FleetStateIdle
-			} // Default
-			if f.StationedNodeID != nil {
-				state = domain.FleetStateStationed
-			}
-
-			label := fmt.Sprintf("%s (%d ships) [%s]", f.Name, len(f.Ships), state)
-			uiPrint(screen, label, int(panelX)+30, int(yOffset)+12)
-
-			// Send Button (Only if Idle)
-			if state == domain.FleetStateIdle && len(f.Ships) > 0 {
-				btnX := panelX + panelW - 100
-				btnY := yOffset + 5
-				drawButton(screen, float64(btnX), float64(btnY), 70, 30, "Send", kindFromColor(color.RGBA{0, 150, 0, 255}))
-			} else if state == domain.FleetStateStationed {
-				// RECALL Button
-				btnX := panelX + panelW - 100
-				btnY := yOffset + 5
-				uiFillRect(screen, float32(btnX), float32(btnY), 70, 30, color.RGBA{200, 100, 0, 255}, vecAA) // Orange
-				uiPrint(screen, "RECALL", int(btnX)+10, int(btnY)+8)
-			}
-
-			yOffset += 50
-			available = true
-		}
-		if !available {
-			uiPrint(screen, "No fleets created", int(panelX)+30, int(yOffset))
-		}
-	}
 }
 
 // UpdateWorldMapLogic handles logic/simulation for the World Map screen (Always runs).
@@ -436,63 +371,52 @@ func (g *Game) UpdateWorldMapInteraction() {
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
+	// Un appui compte pour la carte seulement s'il commence sur l'eau, pas
+	// sur un bouton, une fenêtre ou le chat.
+	if isPointerJustDown() {
+		g.ui.SeaPressOnMap = !isModalOpen && !g.ui.ShowPveEngageError && !g.IsHoveringAnyButton()
+	}
+	if isModalOpen {
+		g.ui.SeaPressOnMap = false
+		g.clearSeaNavMarker()
+	}
+
 	if g.ui.ShowStationMenu {
-		// Log input consumption if clicking
-		if isMouseJustPressed(ebiten.MouseButtonLeft) {
-			// g.Log("[UI_INPUT] StationMenu consuming input")
+		if consumeEscape() {
+			g.ui.ShowStationMenu = false
+			return
 		}
-
-		// Handle Station Menu Logic
-		panelW, panelH := 400.0, 500.0
-		panelX, panelY := (w-panelW)/2, (h-panelH)/2
-		closeBtnX, closeBtnY := panelX+panelW-40, panelY+10
-
 		if isMouseJustPressed(ebiten.MouseButtonLeft) {
-			if fmx >= closeBtnX && fmx <= closeBtnX+30 && fmy >= closeBtnY && fmy <= closeBtnY+30 {
+			ccx, ccy, cr := g.stationCloseButton()
+			if math.Hypot(fmx-ccx, fmy-ccy) <= cr+4 {
 				g.ui.ShowStationMenu = false
 				return
 			}
-			// Handle Fleet Selection
-			yOffset := panelY + 60
 			if g.player != nil && len(g.player.Islands) > 0 {
-				for _, f := range g.player.Islands[0].Fleets {
-					// ... (Keep existing logic simplified/copied)
-					state := f.State
-					if state == "" {
-						state = domain.FleetStateIdle
+				for i, f := range g.player.Islands[0].Fleets {
+					bx, by, bw, bh := g.stationRowButton(i)
+					if fmx < bx || fmx > bx+bw || fmy < by || fmy > by+bh {
+						continue
 					}
-					if f.StationedNodeID != nil {
-						state = domain.FleetStateStationed
+					switch stationFleetAction(f) {
+					case "send":
+						go func(fleetID, nodeID string) {
+							if err := g.api.StationFleet(fleetID, nodeID); err != nil {
+								g.Log("Failed to station: %v", err)
+							}
+							g.loadPlayerData()
+						}(f.ID.String(), g.ui.StationMenuNodeID)
+						g.ui.ShowStationMenu = false
+					case "recall":
+						go func(fleetID string) {
+							if err := g.api.RecallFleet(fleetID); err != nil {
+								g.Log("Failed to recall: %v", err)
+							}
+							g.loadPlayerData()
+						}(f.ID.String())
+						g.ui.ShowStationMenu = false
 					}
-
-					if state == domain.FleetStateIdle && len(f.Ships) > 0 {
-						btnX := panelX + panelW - 100
-						btnY := yOffset + 5
-						if fmx >= btnX && fmx <= btnX+70 && fmy >= btnY && fmy <= btnY+30 {
-							go func(fleetID, nodeID string) {
-								err := g.api.StationFleet(fleetID, nodeID)
-								if err != nil {
-									g.Log("Failed to station: %v", err)
-								}
-							}(f.ID.String(), g.ui.StationMenuNodeID)
-							g.ui.ShowStationMenu = false
-							return
-						}
-					} else if state == domain.FleetStateStationed {
-						btnX := panelX + panelW - 100
-						btnY := yOffset + 5
-						if fmx >= btnX && fmx <= btnX+70 && fmy >= btnY && fmy <= btnY+30 {
-							go func(fleetID string) {
-								err := g.api.RecallFleet(fleetID)
-								if err != nil {
-									g.Log("Failed to recall: %v", err)
-								}
-							}(f.ID.String())
-							g.ui.ShowStationMenu = false
-							return
-						}
-					}
-					yOffset += 50
+					return
 				}
 			}
 		}
@@ -579,12 +503,12 @@ func (g *Game) UpdateWorldMapInteraction() {
 		}
 	}
 
-	// Clicks
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		// 1. Check Return Button Click FIRST (before blocking on UI hover)
-		w := float64(g.screenWidth)
-		btnW, btnH := 100.0, 30.0
-		btnX, btnY := w-110, 200.0
+	// Glisser la carte (clic gauche sur PC, doigt sur téléphone).
+	g.updateSeaMapDrag()
+
+	// Bouton « Retour île » : réagit dès l'appui, comme les autres boutons.
+	if isMouseJustPressed(ebiten.MouseButtonLeft) && g.recallButtonVisible() {
+		btnX, btnY, btnW, btnH := g.recallButtonRect()
 		if g.isMovingToReturn(btnX, btnY, btnW, btnH) {
 			activeFleetID := g.player.Islands[0].ActiveFleetID
 			if activeFleetID != nil {
@@ -601,11 +525,20 @@ func (g *Game) UpdateWorldMapInteraction() {
 				return
 			}
 		}
+	}
 
-		// 2. Block map clicks if hovering ANY UI button (HUD, PvP button, or Return button itself)
+	// Bouton « Naviguer ici » du repère : réagit comme un bouton.
+	if isMouseJustPressed(ebiten.MouseButtonLeft) && g.seaNavButtonHit(fmx, fmy) {
+		g.confirmNavFree()
+		return
+	}
+
+	// Clics sur la carte : au relâchement, et seulement si on n'a pas glissé.
+	if g.seaMapTap() {
 		if g.ui.ShowPveEngageError || g.IsHoveringAnyButton() {
 			return
 		}
+		g.clearSeaNavMarker()
 
 		if g.ui.HoverResourceNode != "" {
 			g.ui.ShowStationMenu = true
@@ -688,8 +621,9 @@ func (g *Game) handleNavFreeClick(fmx, fmy float64) {
 	// Determine Transition Type
 	confirmType := "retarget"
 	switch activeFleet.State {
-	case domain.FleetStateIdle:
-		confirmType = "docked"
+	case domain.FleetStateIdle, "":
+		// Flotte au port : on ne propose rien (elle sort depuis le menu Flotte).
+		return
 	case domain.FleetStateChasingPvE:
 		confirmType = "stop_chasing"
 	case domain.FleetStateTravelingToAttack, domain.FleetStateReturningFromAttack:
@@ -697,7 +631,7 @@ func (g *Game) handleNavFreeClick(fmx, fmy float64) {
 		return
 	}
 
-	g.ui.ShowNavFreeConfirm = true
+	g.ui.ShowSeaNavMarker = true
 	g.ui.NavFreeConfirmTargetX = worldX
 	g.ui.NavFreeConfirmTargetY = worldY
 	g.ui.NavFreeConfirmType = confirmType
@@ -716,7 +650,7 @@ func (g *Game) confirmNavFree() {
 	fid := activeFleetID.String()
 	tx, ty := g.ui.NavFreeConfirmTargetX, g.ui.NavFreeConfirmTargetY
 
-	g.ui.ShowNavFreeConfirm = false
+	g.clearSeaNavMarker()
 
 	go func() {
 		err := g.api.NavigateFleet(fid, tx, ty)
@@ -927,127 +861,35 @@ func (g *Game) engagePveTarget(targetID string) {
 
 // DrawPveConfirmModal renders the PvE chase confirmation dialog
 func (g *Game) DrawPveConfirmModal(screen *ebiten.Image) {
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	overlayColor := color.RGBA{0, 0, 0, 200}
-	uiFillRect(screen, 0, 0, float32(w), float32(h), overlayColor, false)
+	panelW, panelH := 460.0, 270.0
+	panelX, panelY := g.seaWindow(screen, panelW, panelH, "Confirmer l'attaque")
 
-	panelW, panelH := 450.0, 250.0
-	panelX, panelY := (w-panelW)/2, (h-panelH)/2
+	drawLabel(screen, g.ui.PveConfirmTargetName, panelX+24, panelY+66, 17, true, themeText)
+	drawLabel(screen, fmt.Sprintf("Niveau %d", g.ui.PveConfirmTier), panelX+24, panelY+92, 13, false, themeMuted)
+	seaWrap(screen, fmt.Sprintf("Ta flotte « %s » va prendre la cible en chasse et l'attaquer dès qu'elle l'aura rattrapée.", g.ui.PveConfirmFleetName), panelX+24, panelY+122, panelW-48, 14, themeText)
 
-	// Draw Panel
-	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
+	btnW, btnH := 140.0, 42.0
+	cancelX, cancelY := panelX+40, panelY+panelH-62
+	confirmX, confirmY := panelX+panelW-40-btnW, cancelY
+	drawButton(screen, cancelX, cancelY, btnW, btnH, "Annuler", btnSecondary)
+	drawButton(screen, confirmX, confirmY, btnW, btnH, "Attaquer", btnDanger)
 
-	// Title
-	uiTitle(screen, "Confirmer l'attaque", int(panelX)+20, int(panelY)+20)
-
-	// Content
-	msg1 := fmt.Sprintf("Lancer l'attaque contre %s (Niveau %d)", g.ui.PveConfirmTargetName, g.ui.PveConfirmTier)
-	msg2 := fmt.Sprintf("avec la flotte %s ?", g.ui.PveConfirmFleetName)
-
-	uiPrint(screen, msg1, int(panelX)+30, int(panelY)+70)
-	uiPrint(screen, msg2, int(panelX)+30, int(panelY)+90)
-
-	// Infos
-	uiPrint(screen, "La flotte poursuivra sa cible jusqu'à l'engagement.", int(panelX)+30, int(panelY)+120)
-
-	// Inputs
-	mx, my := cursorPosition()
-	fmx, fmy := float64(mx), float64(my)
-
-	// Buttons
-	btnW, btnH := 120.0, 40.0
-
-	// Cancel (Red)
-	cancelX, cancelY := panelX+50, panelY+panelH-60
-	cancelCol := color.RGBA{180, 50, 50, 255}
-	if fmx >= cancelX && fmx <= cancelX+btnW && fmy >= cancelY && fmy <= cancelY+btnH {
-		cancelCol = color.RGBA{220, 70, 70, 255}
-		if isMouseJustPressed(ebiten.MouseButtonLeft) {
-			g.ui.ShowPveConfirmModal = false
-			if g.seaDMS != nil {
-				g.seaDMS.SetMode(DMSCalm, "pve_cancel")
-			}
-			return
-		}
+	if !isMouseJustPressed(ebiten.MouseButtonLeft) {
+		return
 	}
-	drawButton(screen, float64(cancelX), float64(cancelY), float64(btnW), float64(btnH), "Annuler", kindFromColor(cancelCol))
-
-	// Confirm (Green)
-	confirmX, confirmY := panelX+panelW-50-btnW, panelY+panelH-60
-	confirmCol := color.RGBA{50, 150, 50, 255}
-	if fmx >= confirmX && fmx <= confirmX+btnW && fmy >= confirmY && fmy <= confirmY+btnH {
-		confirmCol = color.RGBA{70, 200, 70, 255}
-		if isMouseJustPressed(ebiten.MouseButtonLeft) {
-			// Execute Chase
-			g.confirmPveChase()
-			g.ui.ShowPveConfirmModal = false
-			return
+	if isHovered(cancelX, cancelY, btnW, btnH) {
+		g.ui.ShowPveConfirmModal = false
+		if g.seaDMS != nil {
+			g.seaDMS.SetMode(DMSCalm, "pve_cancel")
 		}
+		return
 	}
-	drawButton(screen, float64(confirmX), float64(confirmY), float64(btnW), float64(btnH), "Confirmer", kindFromColor(confirmCol))
+	if isHovered(confirmX, confirmY, btnW, btnH) {
+		g.confirmPveChase()
+		g.ui.ShowPveConfirmModal = false
+	}
 }
 
-// DrawNavFreeConfirmModal renders the Free Navigation confirmation dialog
-func (g *Game) DrawNavFreeConfirmModal(screen *ebiten.Image) {
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
-	panelW, panelH := 450.0, 200.0
-	px, py := (w-panelW)/2, (h-panelH)/2
-
-	// Semi-transparent overlay
-	overlay := ebiten.NewImage(int(w), int(h))
-	overlay.Fill(color.RGBA{0, 0, 0, 180})
-	screen.DrawImage(overlay, nil)
-
-	// Panel Background
-	ebitenutil.DrawRect(screen, px, py, panelW, panelH, color.RGBA{20, 30, 45, 255})
-	ebitenutil.DrawRect(screen, px+2, py+2, panelW-4, panelH-4, color.RGBA{40, 50, 70, 255})
-
-	// Title based on type
-	title := "Navigation Libre"
-	msg := "Voulez-vous mettre le cap ?"
-	switch g.ui.NavFreeConfirmType {
-	case "docked":
-		title = "Départ en Mer"
-		msg = "Souhaitez-vous passer en navigation libre ?"
-	case "retarget":
-		title = "Changement de Cap"
-		msg = "Souhaitez-vous changer de destination ?"
-	case "stop_chasing":
-		title = "Abandon de Poursuite"
-		msg = "Souhaitez-vous abandonner la cible pour ce nouveau cap ?"
-	}
-
-	uiPrint(screen, title, int(px+20), int(py+20))
-	uiPrint(screen, msg, int(px+20), int(py+60))
-	uiPrint(screen, fmt.Sprintf("Coordonnées : (%d, %d)", g.ui.NavFreeConfirmTargetX, g.ui.NavFreeConfirmTargetY), int(px+20), int(py+90))
-
-	// Buttons
-	btnW, btnH := 120.0, 40.0
-
-	// CONFIRM
-	confX, confY := px+panelW/2-btnW-20, py+panelH-60
-	confColor := color.RGBA{50, 150, 50, 255}
-	ebitenutil.DrawRect(screen, confX, confY, btnW, btnH, confColor)
-	uiPrint(screen, "CONFIRMER", int(confX+25), int(confY+12))
-
-	// CANCEL
-	canX, canY := px+panelW/2+20, py+panelH-60
-	canColor := color.RGBA{150, 50, 50, 255}
-	ebitenutil.DrawRect(screen, canX, canY, btnW, btnH, canColor)
-	uiPrint(screen, "ANNULER", int(canX+35), int(canY+12))
-
-	// Click Handling
-	if isMouseJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := cursorPosition()
-		fmx, fmy := float64(mx), float64(my)
-
-		if fmx >= confX && fmx <= confX+btnW && fmy >= confY && fmy <= confY+btnH {
-			g.confirmNavFree()
-		} else if fmx >= canX && fmx <= canX+btnW && fmy >= canY && fmy <= canY+btnH {
-			g.ui.ShowNavFreeConfirm = false
-		}
-	}
-}
 func (g *Game) confirmPveChase() {
 	g.Log("[UI_PVE] send /pve/attack target_id=%s fleet_id=%s", g.ui.PveConfirmTargetID, g.ui.PveConfirmFleetID)
 
@@ -1187,70 +1029,6 @@ func (g *Game) loadWeather() {
 			g.ui.WindNextChange = next
 		}
 	}()
-}
-
-// DrawWindIndicator draws the compass arrow
-func (g *Game) DrawWindIndicator(screen *ebiten.Image) {
-	centerX := float64(g.screenWidth) - 60
-	centerY := 120.0
-	radius := 40.0
-
-	// Draw Circle Background
-	vector.DrawFilledCircle(screen, float32(centerX), float32(centerY), float32(radius), color.RGBA{0, 0, 0, 150}, vecAA)
-	vector.StrokeCircle(screen, float32(centerX), float32(centerY), float32(radius), 2, color.White, vecAA)
-
-	// Calculate Arrow Tip
-	// Wind Direction 0 = East? North?
-	// Usually 0=North, 90=East.
-	// Math: Cos=X, Sin=Y logic uses 0=East (Right), 90=South (Down) in screen coords?
-	// Let's assume standard Math: 0=Right, 90=Down (screen Y+).
-	// If server generates 0-360 random:
-	rad := g.ui.WindDirection * (math.Pi / 180.0)
-
-	tipX := centerX + math.Cos(rad)*radius*0.8
-	tipY := centerY + math.Sin(rad)*radius*0.8
-
-	// Draw Line
-	vector.StrokeLine(screen, float32(centerX), float32(centerY), float32(tipX), float32(tipY), 3, color.RGBA{100, 200, 255, 255}, vecAA)
-
-	// Label
-	uiPrint(screen, fmt.Sprintf("WIND %.0f", g.ui.WindDirection), int(centerX)-20, int(centerY)+45)
-}
-
-// DrawRecallButton draws a "Retour à l'île" button below the wind indicator
-func (g *Game) DrawRecallButton(screen *ebiten.Image) {
-	if g.player == nil || len(g.player.Islands) == 0 {
-		return
-	}
-	activeFleetID := g.player.Islands[0].ActiveFleetID
-	if activeFleetID == nil {
-		return
-	}
-
-	// Find active fleet to check if it's already home/idle
-	var activeFleet *domain.Fleet
-	for i := range g.player.Islands[0].Fleets {
-		if g.player.Islands[0].Fleets[i].ID == *activeFleetID {
-			activeFleet = &g.player.Islands[0].Fleets[i]
-			break
-		}
-	}
-
-	if activeFleet == nil || activeFleet.State == domain.FleetStateIdle || activeFleet.State == domain.FleetStateReturning || activeFleet.State == domain.FleetStateReturningFromAttack {
-		return
-	}
-
-	w := float64(g.screenWidth)
-	btnW, btnH := 100.0, 30.0
-	btnX, btnY := w-110, 200.0 // Below Wind Indicator (centerY=120 + radius=40 + margin)
-
-	// Draw Button
-	col := color.RGBA{40, 60, 90, 200}
-	if g.isMovingToReturn(btnX, btnY, btnW, btnH) {
-		col = color.RGBA{60, 90, 130, 255}
-	}
-	ebitenutil.DrawRect(screen, btnX, btnY, btnW, btnH, col)
-	uiPrint(screen, "RETOUR ILE", int(btnX+15), int(btnY+8))
 }
 
 func (g *Game) isMovingToReturn(x, y, w, h float64) bool {

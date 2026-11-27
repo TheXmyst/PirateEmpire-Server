@@ -5,7 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // DrawPveResultUI draws the PVE combat result UI
@@ -16,8 +15,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 
 	sw, sh := float64(g.screenWidth), float64(g.screenHeight)
 
-	// Draw dark overlay
-	uiFillRect(screen, 0, 0, float32(sw), float32(sh), color.RGBA{0, 0, 0, 153}, false)
+	drawDimBackground(screen, 170)
 
 	// Window dimensions
 	cx, cy := sw/2, sh/2
@@ -25,22 +23,15 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	x, y := cx-w/2, cy-h/2
 	padding := 20.0
 
-	// Draw Window Background
-	uiFillRect(screen, float32(x), float32(y), float32(w), float32(h), color.RGBA{10, 15, 25, 240}, vecAA)
-	uiStrokeRect(screen, float32(x), float32(y), float32(w), float32(h), 2, color.RGBA{218, 165, 32, 255}, vecAA)
-
-	// Header
+	// Fenêtre bois et or (titre + filet doré à y+50)
 	headerH := 50.0
-	uiTitle(screen, "Résultat du combat", int(x+padding), int(y+padding+10))
+	drawWindowFrame(screen, x, y, w, h, "Résultat du combat")
 
 	// Close button (X)
 	closeBtnSize := 30.0
 	closeX := x + w - closeBtnSize - padding
 	closeY := y + padding
 	drawCloseButton(screen, float64(closeX)+float64(closeBtnSize)/2, float64(closeY)+float64(closeBtnSize)/2, 15)
-
-	// Separator
-	vector.StrokeLine(screen, float32(x+padding), float32(y+headerH), float32(x+w-padding), float32(y+headerH), 1, color.Gray{100}, vecAA)
 
 	// Content area
 	contentY := y + headerH + padding
@@ -56,32 +47,25 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 		currentY += lineSpacing * 2
 		// Footer
 		footerY := y + h - 35
-		uiPrint(screen, "ESC ou X pour fermer", int(x+padding), int(footerY))
+		drawLabel(screen, "Échap ou X pour fermer", x+padding, footerY, 12, false, themeMuted)
 		return
 	}
 
 	result := g.ui.PveCombatResult
 
 	// Winner - Big colored title
-	winnerText := "ÉGALITÉ"
-	var winnerColor color.RGBA = color.RGBA{150, 150, 150, 255}
+	winnerText := "Égalité"
+	var winnerColor color.Color = themeMuted
 	switch result.Winner {
 	case "fleet_a":
-		winnerText = "VICTOIRE"
-		winnerColor = color.RGBA{0, 255, 0, 255}
+		winnerText = "Victoire !"
+		winnerColor = themeGreen
 	case "fleet_b":
-		winnerText = "DÉFAITE"
-		winnerColor = color.RGBA{255, 0, 0, 255}
+		winnerText = "Défaite"
+		winnerColor = color.RGBA{232, 96, 80, 255}
 	}
-
-	// Draw colored background for winner text
-	textW := float64(len(winnerText) * 8) // Approximate width
-	textH := 30.0
-	textX := x + padding
-	textY := currentY
-	uiFillRect(screen, float32(textX-5), float32(textY-5), float32(textW+10), float32(textH), color.RGBA{winnerColor.R / 4, winnerColor.G / 4, winnerColor.B / 4, 200}, vecAA)
-	uiPrint(screen, winnerText, int(textX), int(textY+5))
-	currentY += lineSpacing * 2
+	drawText(screen, winnerText, titleFace(30), x+padding, currentY-6, winnerColor, alignLeft)
+	currentY += lineSpacing * 2.4
 
 	// Reason message (if present) - displayed below winner
 	if result.ReasonMessage != "" {
@@ -91,11 +75,11 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 	currentY += lineSpacing
 
 	// Summary section
-	uiPrint(screen, "--- RÉSUMÉ ---", int(x+padding), int(currentY))
+	drawLabel(screen, "Résumé", x+padding, currentY-2, 15, true, themeGold)
 	currentY += lineSpacing
 
 	// Rounds played
-	uiPrint(screen, fmt.Sprintf("Rounds joués: %d", len(result.Rounds)), int(x+padding+10), int(currentY))
+	uiPrint(screen, fmt.Sprintf("Manches jouées : %d", len(result.Rounds)), int(x+padding+10), int(currentY))
 	currentY += lineSpacing
 
 	// Flagship info (if available from rounds)
@@ -104,15 +88,15 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 		// Try to find flagship info from first attack or round
 		if len(firstRound.Attacks) > 0 {
 			// Show first attacker as flagship (simplified)
-			uiPrint(screen, fmt.Sprintf("Flagship joueur: %s", firstRound.Attacks[0].AttackerType), int(x+padding+10), int(currentY))
+			uiPrint(screen, fmt.Sprintf("Navire amiral : %s", firstRound.Attacks[0].AttackerType), int(x+padding+10), int(currentY))
 			currentY += lineSpacing
 		}
 	}
 
 	// Ships destroyed
-	uiPrint(screen, fmt.Sprintf("Navires détruits (vous): %d", len(result.ShipsDestroyedA)), int(x+padding+10), int(currentY))
+	uiPrint(screen, fmt.Sprintf("Navires perdus : %d", len(result.ShipsDestroyedA)), int(x+padding+10), int(currentY))
 	currentY += lineSpacing
-	uiPrint(screen, fmt.Sprintf("Navires détruits (ennemi): %d", len(result.ShipsDestroyedB)), int(x+padding+10), int(currentY))
+	uiPrint(screen, fmt.Sprintf("Navires ennemis coulés : %d", len(result.ShipsDestroyedB)), int(x+padding+10), int(currentY))
 	currentY += lineSpacing
 
 	// Captain injured
@@ -125,23 +109,23 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 				break
 			}
 		}
-		uiPrint(screen, fmt.Sprintf("Capitaine blessé: %s", captainName), int(x+padding+10), int(currentY))
+		uiPrint(screen, fmt.Sprintf("Capitaine blessé : %s", captainName), int(x+padding+10), int(currentY))
 		currentY += lineSpacing
 	}
 	currentY += lineSpacing
 
 	// Rounds details section
 	if len(result.Rounds) == 0 {
-		uiPrint(screen, "--- AUCUN ROUND JOUÉ ---", int(x+padding), int(currentY))
+		drawLabel(screen, "Aucune manche jouée", x+padding, currentY-2, 15, true, themeGold)
 		currentY += lineSpacing
 		if result.ReasonMessage != "" {
-			uiPrint(screen, fmt.Sprintf("Raison: %s", result.ReasonMessage), int(x+padding+10), int(currentY))
+			uiPrint(screen, fmt.Sprintf("Raison : %s", result.ReasonMessage), int(x+padding+10), int(currentY))
 		} else if result.ReasonCode != "" {
 			uiPrint(screen, fmt.Sprintf("Code: %s", result.ReasonCode), int(x+padding+10), int(currentY))
 		}
 		currentY += lineSpacing * 2
 	} else {
-		uiPrint(screen, "--- DÉTAILS DES ROUNDS ---", int(x+padding), int(currentY))
+		drawLabel(screen, "Déroulé du combat", x+padding, currentY-2, 15, true, themeGold)
 		currentY += lineSpacing * 2
 	}
 
@@ -170,7 +154,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 		}
 
 		// Round header
-		uiPrint(screen, fmt.Sprintf("Round %d - Navires: Vous %d / Ennemi %d", round.RoundNumber, round.ShipsAliveA, round.ShipsAliveB), int(x+padding), int(roundY))
+		uiPrint(screen, fmt.Sprintf("Manche %d · navires restants : toi %d, ennemi %d", round.RoundNumber, round.ShipsAliveA, round.ShipsAliveB), int(x+padding), int(roundY))
 
 		// Attacks (truncated if too many)
 		maxAttacks := 3
@@ -185,9 +169,9 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 			}
 			destroyed := ""
 			if attack.TargetDestroyed {
-				destroyed = " [DÉTRUIT]"
+				destroyed = " (coulé)"
 			}
-			attackText := fmt.Sprintf("  %s → %s: %.0f dmg%s", attack.AttackerType, attack.TargetType, attack.DamageDealt, destroyed)
+			attackText := fmt.Sprintf("  %s → %s : %.0f dégâts%s", attack.AttackerType, attack.TargetType, attack.DamageDealt, destroyed)
 			if len(attackText) > 60 {
 				attackText = attackText[:60] + "..."
 			}
@@ -200,7 +184,7 @@ func (g *Game) DrawPveResultUI(screen *ebiten.Image) {
 
 	// Footer
 	footerY := y + h - 35
-	uiPrint(screen, "ESC ou X pour fermer | Molette pour scroller", int(x+padding), int(footerY))
+	drawLabel(screen, "Échap ou X pour fermer · molette pour faire défiler", x+padding, footerY, 12, false, themeMuted)
 }
 
 // UpdatePveResultUI handles input for the PVE result UI
