@@ -16,6 +16,7 @@ type PlayerDTO struct {
 	ResearchFinishTime           time.Time `json:"research_finish_time"`
 	CurrentResearchTotalDuration float64   `json:"current_research_total_duration_seconds"`
 	PityLegendaryCount           int       `json:"pity_legendary_count"`
+	PityUltraCount               int       `json:"pity_ultra_count"`
 	PityRareCount                int       `json:"pity_rare_count"`
 	LastResetAt                  *time.Time `json:"last_reset_at,omitempty"`
 	DailyShardExchangeCount      int       `json:"daily_shard_exchange_count"`

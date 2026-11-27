@@ -21,8 +21,8 @@ type ShipCombatStats struct {
 	Applied                  []string `json:"applied,omitempty"` // Human-readable debug notes
 }
 
-// ComputeShipCombatStatsWithCaptain computes the effective combat stats for a ship with captain star bonuses
-// If captain is nil or has 0 stars, effective stats equal base stats
+// ComputeShipCombatStatsWithCaptain computes the effective combat stats for a ship with its fleet captain's effects
+// (talent + stars). If captain is nil, effective stats equal base stats
 // This function is called at engagement time only, not persisted to DB
 func ComputeShipCombatStatsWithCaptain(ship *domain.Ship, captain *domain.Captain) (ShipCombatStats, error) {
 	// Get base stats from ship type
@@ -43,60 +43,29 @@ func ComputeShipCombatStatsWithCaptain(ship *domain.Ship, captain *domain.Captai
 		Applied:               make([]string, 0),
 	}
 
-	// If no captain or captain has 0 stars, return base stats
-	if captain == nil || captain.Stars == 0 {
-		result.Applied = append(result.Applied, "no captain stars bonus")
+	if captain == nil {
+		result.Applied = append(result.Applied, "no captain")
 		return result, nil
 	}
 
-	// Compute naval bonuses from captain stars (reuse existing function)
-	navalBonuses := ComputeNavalBonuses(*captain)
-
-	// Apply HP bonus (multiplicative: EffectiveHP = BaseHP * (1 + hpBonus))
-	if navalBonuses.NavalHPBonusPct > 0 {
-		before := result.EffectiveHP
-		result.EffectiveHP = baseStats.HP * (1.0 + navalBonuses.NavalHPBonusPct)
-		result.Applied = append(result.Applied, fmt.Sprintf("HP: %.1f -> %.1f (+%.1f%%)", before, result.EffectiveHP, navalBonuses.NavalHPBonusPct*100))
+	// Effets du capitaine de la flotte (talent + étoiles), pour chaque navire.
+	e := ComputeCaptainEffects(captain)
+	if e.HPPct > 0 {
+		result.EffectiveHP = baseStats.HP * (1.0 + e.HPPct)
+		result.Applied = append(result.Applied, fmt.Sprintf("HP +%.1f%%", e.HPPct*100))
 	}
-
-	// Apply Speed bonus (multiplicative: EffectiveSpeed = BaseSpeed * (1 + speedBonus))
-	if navalBonuses.NavalSpeedBonusPct > 0 {
-		before := result.EffectiveSpeed
-		result.EffectiveSpeed = baseStats.Speed * (1.0 + navalBonuses.NavalSpeedBonusPct)
-		result.Applied = append(result.Applied, fmt.Sprintf("Speed: %.2f -> %.2f (+%.1f%%)", before, result.EffectiveSpeed, navalBonuses.NavalSpeedBonusPct*100))
+	if e.SpeedPct > 0 {
+		result.EffectiveSpeed = baseStats.Speed * (1.0 + e.SpeedPct)
+		result.Applied = append(result.Applied, fmt.Sprintf("Speed +%.1f%%", e.SpeedPct*100))
 	}
-
-	// Apply Damage Reduction bonus (additive but clamped to 0.90 max)
-	if navalBonuses.NavalDamageReductionPct > 0 {
-		before := result.EffectiveDamageReduction
-		result.EffectiveDamageReduction = baseStats.DamageReduction + navalBonuses.NavalDamageReductionPct
-		// Clamp to 90% max
-		if result.EffectiveDamageReduction > 0.90 {
-			result.EffectiveDamageReduction = 0.90
-		}
-		// Clamp to 0 min
-		if result.EffectiveDamageReduction < 0.0 {
-			result.EffectiveDamageReduction = 0.0
-		}
-		result.Applied = append(result.Applied, fmt.Sprintf("DamageReduction: %.2f%% -> %.2f%% (+%.1f%%)", before*100, result.EffectiveDamageReduction*100, navalBonuses.NavalDamageReductionPct*100))
+	if e.DamageTakenReduction > 0 {
+		result.EffectiveDamageReduction = math.Min(0.90, math.Max(0, baseStats.DamageReduction+e.DamageTakenReduction))
+		result.Applied = append(result.Applied, fmt.Sprintf("DamageReduction +%.1f%%", e.DamageTakenReduction*100))
 	}
-
-	// Apply Rum Consumption reduction (multiplicative: EffectiveRum = BaseRum * (1 - rumReduction))
-	if navalBonuses.RumConsumptionReductionPct > 0 {
-		before := result.EffectiveRumConsumption
-		result.EffectiveRumConsumption = baseStats.RumConsumption * (1.0 - navalBonuses.RumConsumptionReductionPct)
-		// Clamp to minimum 0.1 (10% of base) to avoid zero consumption
-		if result.EffectiveRumConsumption < 0.1 {
-			result.EffectiveRumConsumption = math.Max(0.1, baseStats.RumConsumption*0.1)
-		}
-		result.Applied = append(result.Applied, fmt.Sprintf("RumConsumption: %.1f -> %.1f (-%.1f%%)", before, result.EffectiveRumConsumption, navalBonuses.RumConsumptionReductionPct*100))
+	if e.RumReductionPct > 0 {
+		result.EffectiveRumConsumption = math.Max(baseStats.RumConsumption*0.1, baseStats.RumConsumption*(1.0-e.RumReductionPct))
 	}
-
-	// Add summary note
-	if len(result.Applied) > 0 {
-		result.Applied = append([]string{fmt.Sprintf("Captain: %s (Rarity: %s, Stars: %d)", captain.Name, captain.Rarity, captain.Stars)}, result.Applied...)
-	}
-
+	result.Applied = append([]string{fmt.Sprintf("Captain: %s (Rarity: %s, Lvl: %d, Stars: %d)", captain.Name, captain.Rarity, captain.Level, captain.Stars)}, result.Applied...)
 	return result, nil
 }
 

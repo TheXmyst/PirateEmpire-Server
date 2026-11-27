@@ -9,31 +9,68 @@ import (
 
 // TestPityLogic verifies that the Pity system correctly guarantees rarity
 func TestPityLogic(t *testing.T) {
-	// 1. Guaranteed Legendary at 80 pity
-	rarity, forced := RollCaptainRarityWithPity(80, 0)
-	if rarity != domain.RarityLegendary {
-		t.Errorf("Expected Legendary at pity 80, got %s", rarity)
+	if r, forced := RollCaptainRarityWithPity(PityUltraThreshold-1, 0, 0); r != domain.RarityUltra || !forced {
+		t.Errorf("Expected forced UL at UL pity, got %s forced=%v", r, forced)
 	}
-	if !forced {
-		t.Errorf("Expected forced Legendary at pity 80, got natural")
+	if r, forced := RollCaptainRarityWithPity(0, PityLegendaryThreshold-1, 0); r != domain.RarityLegendary || !forced {
+		t.Errorf("Expected forced Legendary at legendary pity, got %s forced=%v", r, forced)
 	}
-
-	// 2. Guaranteed Rare at 10 pity
-	// Note: Legendary check comes first in the function, so if (0, 10) -> Rare
-	rarity, forced = RollCaptainRarityWithPity(0, 10)
-	if rarity != domain.RarityRare && rarity != domain.RarityLegendary {
-		// It could be Legendary naturally (low chance), but definitely at least Rare
-		t.Errorf("Expected minimal Rare at pity 10, got %s", rarity)
+	for i := 0; i < 200; i++ {
+		if r, _ := RollCaptainRarityWithPity(0, 0, PityRareThreshold-1); r == domain.RarityCommon {
+			t.Fatalf("Expected at least Rare at rare pity, got %s", r)
+		}
 	}
-	if !forced && rarity == domain.RarityRare {
-		t.Errorf("Expected forced Rare at pity 10, got natural")
-	}
-
-	// 3. Normal roll (0 pity) should be random (mostly Common)
-	// We can't deterministic test random, but we verify it doesn't panic
-	rarity, _ = RollCaptainRarityWithPity(0, 0)
-	if rarity == "" {
+	if r, _ := RollCaptainRarityWithPity(0, 0, 0); r == "" {
 		t.Errorf("Rolled empty rarity")
+	}
+}
+
+func TestPityCountersReset(t *testing.T) {
+	u, l, r := 5, 5, 5
+	UpdatePityCounters(domain.RarityRare, &u, &l, &r)
+	if u != 6 || l != 6 || r != 0 {
+		t.Errorf("after rare: %d %d %d", u, l, r)
+	}
+	UpdatePityCounters(domain.RarityLegendary, &u, &l, &r)
+	if u != 7 || l != 0 || r != 0 {
+		t.Errorf("after legendary: %d %d %d", u, l, r)
+	}
+	UpdatePityCounters(domain.RarityUltra, &u, &l, &r)
+	if u != 0 || l != 0 || r != 0 {
+		t.Errorf("after UL: %d %d %d", u, l, r)
+	}
+}
+
+func TestGachaRatesAndPool(t *testing.T) {
+	sum := GachaRateCommon + GachaRateRare + GachaRateLegendary + GachaRateUltra
+	if math.Abs(sum-1) > 1e-9 {
+		t.Fatalf("rates sum to %f", sum)
+	}
+	want := map[domain.CaptainRarity]int{domain.RarityCommon: 16, domain.RarityRare: 12, domain.RarityLegendary: 8, domain.RarityUltra: 4}
+	seen := map[string]bool{}
+	total := 0
+	for r, n := range want {
+		ts := GetTemplatesByRarity(r)
+		if len(ts) != n {
+			t.Errorf("%s: %d templates, want %d", r, len(ts), n)
+		}
+		for _, tpl := range ts {
+			if seen[tpl.TemplateID] {
+				t.Errorf("duplicate template %s", tpl.TemplateID)
+			}
+			seen[tpl.TemplateID] = true
+			total++
+			c := domain.Captain{Level: 1, SkillID: tpl.SkillID, Rarity: tpl.Rarity}
+			if lines := CaptainEffectLines(&c); len(lines) == 0 || lines[0] == "Aucun effet" {
+				t.Errorf("template %s (%s) has no effect", tpl.TemplateID, tpl.SkillID)
+			}
+		}
+	}
+	if total < 40 {
+		t.Errorf("only %d captains", total)
+	}
+	if rarityFromRoll(0.0) != domain.RarityCommon || rarityFromRoll(0.99) != domain.RarityUltra || rarityFromRoll(0.90) != domain.RarityLegendary {
+		t.Errorf("rarityFromRoll boundaries wrong")
 	}
 }
 

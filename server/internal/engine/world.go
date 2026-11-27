@@ -66,6 +66,7 @@ const (
 	DirtyFleets                          // flottes + leurs navires + navires hors flotte
 	DirtyBuildings                       // bâtiments
 	DirtyPlayer                          // ligne "players" (recherche terminée...)
+	DirtyCaptains                        // capitaines du joueur (XP gagnée en mer)
 )
 
 // DefaultSaveInterval : fréquence de la sauvegarde périodique.
@@ -89,6 +90,12 @@ type World struct {
 
 	dirty map[uuid.UUID]dirtyFlag // îles modifiées depuis la dernière sauvegarde
 
+	// Moral et XP en mer : petites quantités par tick, accumulées ici jusqu'à
+	// faire un point entier (le moral est un entier en base). Clé = id de flotte.
+	moraleFrac map[uuid.UUID]float64
+	seaSeconds map[uuid.UUID]float64
+	prevState  map[uuid.UUID]domain.FleetState
+
 	// writes compte les écritures SQL (via des callbacks GORM). Ça permet de
 	// savoir si un handler a écrit en base, et donc s'il faut recharger.
 	writes atomic.Int64
@@ -97,7 +104,10 @@ type World struct {
 // LoadWorld charge l'état complet du jeu en mémoire. On ne l'appelle qu'une
 // fois au démarrage : c'est LA lecture massive, et elle n'arrive plus 10x/s.
 func LoadWorld(db *gorm.DB) (*World, error) {
-	w := &World{db: db, dirty: make(map[uuid.UUID]dirtyFlag)}
+	w := &World{db: db, dirty: make(map[uuid.UUID]dirtyFlag),
+		moraleFrac: make(map[uuid.UUID]float64),
+		seaSeconds: make(map[uuid.UUID]float64),
+		prevState:  make(map[uuid.UUID]domain.FleetState)}
 	w.registerWriteCounter()
 
 	w.mu.Lock()
@@ -271,6 +281,15 @@ func persistIsland(tx *gorm.DB, island *domain.Island, flags dirtyFlag) error {
 		for i := range island.Buildings {
 			if err := updateRow(tx, &island.Buildings[i]); err != nil {
 				return fmt.Errorf("save building %s: %w", island.Buildings[i].ID, err)
+			}
+		}
+	}
+
+	if flags&DirtyCaptains != 0 {
+		for i := range island.Player.Captains {
+			c := &island.Player.Captains[i]
+			if err := tx.Model(&domain.Captain{}).Where("id = ?", c.ID).Updates(map[string]interface{}{"level": c.Level, "xp": c.XP}).Error; err != nil {
+				return fmt.Errorf("save captain %s: %w", c.ID, err)
 			}
 		}
 	}

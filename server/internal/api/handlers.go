@@ -1016,6 +1016,7 @@ func ResetProgress(c echo.Context) error {
 	// Reset pity counters
 	playerToReset.PityLegendaryCount = 0
 	playerToReset.PityRareCount = 0
+	playerToReset.PityUltraCount = 0
 	// Set LastResetAt to now (cooldown tracking)
 	now := time.Now()
 	playerToReset.LastResetAt = &now
@@ -2069,8 +2070,12 @@ func DevGrantCaptain(c echo.Context) error {
 
 	// Validate rarity
 	rarity := domain.CaptainRarity(req.Rarity)
-	if rarity != domain.RarityCommon && rarity != domain.RarityRare && rarity != domain.RarityLegendary {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Rareté invalide (common, rare, legendary)"})
+	// Un modèle connu impose son nom, sa rareté et son talent.
+	if t, ok := economy.GetCaptainTemplateByID(req.TemplateID); ok {
+		rarity, req.Name, req.SkillID = t.Rarity, t.Name, t.SkillID
+	}
+	if !economy.IsValidRarity(rarity) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Rareté invalide (common, rare, legendary, ultra)"})
 	}
 
 	db := repository.GetDB()
@@ -2180,6 +2185,9 @@ func GetCaptains(c echo.Context) error {
 		NavalSpeedBonusPct         float64         `json:"naval_speed_bonus_pct,omitempty"`
 		NavalDamageReductionPct    float64         `json:"naval_damage_reduction_pct,omitempty"`
 		RumConsumptionReductionPct float64         `json:"rum_consumption_reduction_pct,omitempty"`
+		// Talent en français (valeurs du niveau actuel) et progression
+		EffectLines []string `json:"effect_lines,omitempty"`
+		NextLevelXP int      `json:"next_level_xp"`
 		// New fields for UI Upgrade Tab
 		Shards       int  `json:"shards"`
 		NextStarCost int  `json:"next_star_cost"`
@@ -2235,6 +2243,8 @@ func GetCaptains(c echo.Context) error {
 			NavalSpeedBonusPct:         navalBonus.NavalSpeedBonusPct,
 			NavalDamageReductionPct:    navalBonus.NavalDamageReductionPct,
 			RumConsumptionReductionPct: navalBonus.RumConsumptionReductionPct,
+			EffectLines:                economy.CaptainEffectLines(&captain),
+			NextLevelXP:                economy.XPToNextLevel(captain.Level),
 			Shards:                     shards,
 			NextStarCost:               cost,
 			CanUpgrade:                 canUpgrade,
@@ -2577,8 +2587,8 @@ func SummonCaptain(c echo.Context) error {
 	// Perform summons
 	for i := 0; i < req.Count; i++ {
 		// Roll rarity with pity
-		rarity, forced := economy.RollCaptainRarityWithPity(playerWithPity.PityLegendaryCount, playerWithPity.PityRareCount)
-		if forced && rarity == domain.RarityLegendary {
+		rarity, forced := economy.RollCaptainRarityWithPity(playerWithPity.PityUltraCount, playerWithPity.PityLegendaryCount, playerWithPity.PityRareCount)
+		if forced && (rarity == domain.RarityLegendary || rarity == domain.RarityUltra) {
 			legendaryForced = true
 		}
 
@@ -2605,14 +2615,7 @@ func SummonCaptain(c echo.Context) error {
 		if isDuplicate {
 			// Grant shards instead of refunding tickets
 			duplicateCount++
-			switch rarity {
-			case domain.RarityCommon:
-				shardsGranted = economy.ShardsPerCommonDup
-			case domain.RarityRare:
-				shardsGranted = economy.ShardsPerRareDup
-			case domain.RarityLegendary:
-				shardsGranted = economy.ShardsPerLegendaryDup
-			}
+			shardsGranted = economy.ShardsPerDuplicate(rarity)
 
 			// Get or create shard wallet
 			var wallet domain.CaptainShardWallet
@@ -2669,14 +2672,7 @@ func SummonCaptain(c echo.Context) error {
 		}
 
 		// Update pity counters
-		playerWithPity.PityLegendaryCount++
-		playerWithPity.PityRareCount++
-		if rarity == domain.RarityLegendary {
-			playerWithPity.PityLegendaryCount = 0
-		}
-		if rarity == domain.RarityRare || rarity == domain.RarityLegendary {
-			playerWithPity.PityRareCount = 0
-		}
+		economy.UpdatePityCounters(rarity, &playerWithPity.PityUltraCount, &playerWithPity.PityLegendaryCount, &playerWithPity.PityRareCount)
 
 		// Convert captain to DTO if not nil (i.e., not a duplicate)
 		var captainDTO *dto.CaptainDTO
@@ -2877,8 +2873,8 @@ func ExchangeShards(c echo.Context) error {
 	case "rare":
 		rarity = domain.RarityRare
 		shardsPerTicket = ShardsPerTicketRare
-	case "legendary":
-		// Legendary exchange is NOT allowed (anti-exploit measure)
+	case "legendary", "ultra":
+		// Legendary/UL exchange is NOT allowed (anti-exploit measure)
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "Les fragments légendaires ne peuvent pas être échangés contre des tickets."})
 	default:
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Rareté invalide (common/rare uniquement)"})

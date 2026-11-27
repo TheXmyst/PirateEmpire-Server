@@ -48,13 +48,7 @@ func (g *Game) DrawInfirmaryUI(screen *ebiten.Image) {
 			// InjuredUntil is already a *time.Time
 			injuredTime := *cap.InjuredUntil
 			if injuredTime.After(now) {
-				maxStars := 1 // Common
-				switch cap.Rarity {
-				case "rare":
-					maxStars = 3
-				case "legendary":
-					maxStars = 5
-				}
+				maxStars := captainMaxStars(cap.Rarity)
 
 				injuredList = append(injuredList, InjuredCap{
 					Name:      cap.Name,

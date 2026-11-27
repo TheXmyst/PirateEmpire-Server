@@ -204,6 +204,8 @@ func rarityColor(r string) color.Color {
 		return color.RGBA{90, 170, 240, 255}
 	case "legendary":
 		return color.RGBA{240, 190, 60, 255}
+	case "ultra":
+		return color.RGBA{214, 120, 255, 255}
 	case "epic":
 		return color.RGBA{190, 120, 230, 255}
 	}
@@ -216,6 +218,8 @@ func rarityLabel(r string) string {
 		return "Rare"
 	case "legendary":
 		return "Légendaire"
+	case "ultra":
+		return "UL · Ultra rare"
 	case "epic":
 		return "Épique"
 	case "common", "":
@@ -451,3 +455,7 @@ func drawInputField(screen *ebiten.Image, x, y, w, h float64, value, placeholder
 		vector.StrokeLine(screen, float32(cx), float32(ty+1), float32(cx), float32(ty+17), 1.5, themeGold, false)
 	}
 }
+
+// captainMaxStars : nombre d'étoiles maximum d'un capitaine (5 pour toutes les
+// raretés, comme sur le serveur).
+func captainMaxStars(rarity string) int { return 5 }

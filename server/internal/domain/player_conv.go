@@ -37,6 +37,7 @@ func (p *Player) ToDTO() *dto.PlayerDTO {
 		ResearchFinishTime:           p.ResearchFinishTime,
 		CurrentResearchTotalDuration: p.ResearchTotalDurationSeconds,
 		PityLegendaryCount:           p.PityLegendaryCount,
+		PityUltraCount:               p.PityUltraCount,
 		PityRareCount:                p.PityRareCount,
 		LastResetAt:                  p.LastResetAt,
 		DailyShardExchangeCount:      p.DailyShardExchangeCount,

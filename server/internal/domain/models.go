@@ -86,6 +86,7 @@ type Player struct {
 	// Gacha Pity System
 	PityLegendaryCount int `json:"pity_legendary_count" gorm:"default:0"` // Pulls since last legendary
 	PityRareCount      int `json:"pity_rare_count" gorm:"default:0"`      // Pulls since last rare (optional)
+	PityUltraCount     int `json:"pity_ultra_count" gorm:"default:0"`     // Pulls since last UL
 
 	// Reset cooldown (anti-farm protection)
 	LastResetAt *time.Time `json:"last_reset_at,omitempty" gorm:"column:last_reset_at"` // Nullable, tracks last reset time
@@ -536,6 +537,7 @@ const (
 	RarityCommon    CaptainRarity = "common"
 	RarityRare      CaptainRarity = "rare"
 	RarityLegendary CaptainRarity = "legendary"
+	RarityUltra     CaptainRarity = "ultra" // UL : ultra rare
 )
 
 // Captain represents a ship captain owned by a player
@@ -544,7 +546,7 @@ type Captain struct {
 	PlayerID       uuid.UUID     `json:"player_id" gorm:"type:uuid;index"`
 	TemplateID     string        `json:"template_id"` // e.g. "black_gale", "red_isabella"
 	Name           string        `json:"name"`
-	Rarity         CaptainRarity `json:"rarity"` // common, rare, legendary
+	Rarity         CaptainRarity `json:"rarity"` // common, rare, legendary, ultra
 	Level          int           `json:"level" gorm:"default:1"`
 	XP             int           `json:"xp" gorm:"default:0"`
 	Stars          int           `json:"stars" gorm:"default:0"`                              // 0-based, max depends on rarity

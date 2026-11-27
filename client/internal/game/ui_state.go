@@ -129,10 +129,11 @@ type UIState struct {
 	UpdateInProgress bool
 
 	// Tavern UI
-	ShowTavernUI     bool   // Show dedicated Tavern/Gacha modal
-	TavernLastResult string // Last summon result message
-	TavernBusy       bool   // Busy state while calling API
-	TavernError      string // Error message from server
+	ShowTavernUI     bool               // Show dedicated Tavern/Gacha modal
+	TavernLastResult string             // Last summon result message
+	TavernResults    []TavernResultLine // Résultats détaillés du dernier recrutement
+	TavernBusy       bool               // Busy state while calling API
+	TavernError      string             // Error message from server
 
 	// Militia UI
 	ShowMilitiaUI   bool   // Show dedicated Militia recruitment modal
@@ -285,4 +286,12 @@ type UIState struct {
 	// Thread Safety
 	PlayerMutex    sync.RWMutex
 	PlayerDataBusy bool
+}
+
+// TavernResultLine : un capitaine obtenu à la Taverne.
+type TavernResultLine struct {
+	Name      string
+	Rarity    string
+	Duplicate bool
+	Shards    int
 }

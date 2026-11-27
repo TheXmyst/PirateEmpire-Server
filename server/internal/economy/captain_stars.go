@@ -11,14 +11,15 @@ const (
 	MaxStarsCommon    = 5
 	MaxStarsRare      = 5
 	MaxStarsLegendary = 5
+	MaxStarsUltra     = 5
 )
 
-// Hard cap for naval bonuses (safety limit)
+// Hard cap for naval bonuses (safety limit) : 5 étoiles UL = 12,5 % de PV
 const (
-	MaxNavalHPBonusPct              = 0.10 // 10%
-	MaxNavalSpeedBonusPct           = 0.10 // 10%
-	MaxNavalDamageReductionPct       = 0.10 // 10%
-	MaxRumConsumptionReductionPct   = 0.10 // 10%
+	MaxNavalHPBonusPct            = 0.125
+	MaxNavalSpeedBonusPct         = 0.0625
+	MaxNavalDamageReductionPct    = 0.0625
+	MaxRumConsumptionReductionPct = 0.0625
 )
 
 // GetMaxStars returns the maximum stars for a given rarity
@@ -30,6 +31,8 @@ func GetMaxStars(rarity domain.CaptainRarity) int {
 		return MaxStarsRare
 	case domain.RarityLegendary:
 		return MaxStarsLegendary
+	case domain.RarityUltra:
+		return MaxStarsUltra
 	default:
 		return 0
 	}
@@ -58,6 +61,8 @@ func GetStarUpgradeCost(rarity domain.CaptainRarity, currentStars int) (int, err
 		base = 20
 	case domain.RarityLegendary:
 		base = 40
+	case domain.RarityUltra:
+		base = 60
 	default:
 		return 0, fmt.Errorf("unknown rarity: %s", rarity)
 	}
@@ -109,6 +114,12 @@ func ComputeNavalBonuses(captain domain.Captain) NavalBonusDTO {
 		bonus.NavalSpeedBonusPct = float64(stars) * 0.01        // 1.0% per star
 		bonus.NavalDamageReductionPct = float64(stars) * 0.01   // 1.0% per star
 		bonus.RumConsumptionReductionPct = float64(stars) * 0.01 // 1.0% per star (reduction)
+	case domain.RarityUltra:
+		// UL : +2,5 % PV, +1,25 % vitesse, réduction de dégâts et rhum par étoile
+		bonus.NavalHPBonusPct = float64(stars) * 0.025
+		bonus.NavalSpeedBonusPct = float64(stars) * 0.0125
+		bonus.NavalDamageReductionPct = float64(stars) * 0.0125
+		bonus.RumConsumptionReductionPct = float64(stars) * 0.0125
 	default:
 		// Unknown rarity: no bonuses
 		return NavalBonusDTO{}
