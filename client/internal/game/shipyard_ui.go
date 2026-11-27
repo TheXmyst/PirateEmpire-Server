@@ -16,6 +16,8 @@ import (
 type ShipyardUI struct {
 	CurrentTab         int // 0 = Construction, 1 = Flottes
 	ConstructionScroll float64
+	PortScroll         float64 // liste « Navires au port »
+	AddShipScroll      float64 // fenêtre « Ajouter un navire »
 
 	// Fleet management (reused from fleet_ui.go)
 	SelectedFleetIndex                  int
@@ -251,33 +253,8 @@ func (g *Game) DrawShipList(screen *ebiten.Image, x, y, w, h float64) {
 		}
 	}
 
-	// Handle mouse wheel scrolling
-	// Constrain scroll to prevent items from escaping the viewport
-	_, wy := wheelDelta()
-	if wy != 0 {
-		totalH := float64(len(ships)) * (itemH + gap)
-
-		// Calculate scroll bounds to keep all items within viewport
-		// When scroll = 0: first item is at y+10
-		// When scroll increases: items move up (startY decreases)
-		//
-		// Maximum scroll: when the last item's bottom aligns with clipBottom
-		// Last item bottom = startY + totalH = (y+10 - scroll) + totalH
-		// We want: (y+10 - maxScroll) + totalH <= clipBottom
-		// So: maxScroll >= y + 10 + totalH - clipBottom
-		maxScroll := y + 10 + totalH - clipBottom
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
-
-		shipyardUI.ConstructionScroll -= wy * 30
-		if shipyardUI.ConstructionScroll < 0 {
-			shipyardUI.ConstructionScroll = 0
-		}
-		if shipyardUI.ConstructionScroll > maxScroll {
-			shipyardUI.ConstructionScroll = maxScroll
-		}
-	}
+	// Défilement (molette ou doigt) : ui_scroll.go
+	scrollRegion(screen, &shipyardUI.ConstructionScroll, x, y, w, h, float64(len(ships))*(itemH+gap)+10)
 }
 
 // DrawAvailableShips shows ships already built or under construction
@@ -289,7 +266,17 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 		return
 	}
 	listY := y + 50
+	listH := y + h - 8 - listY
 	island := g.player.Islands[0]
+
+	count := 0
+	for _, ship := range island.Ships {
+		if ship.State != "Destroyed" && ship.FleetID == nil {
+			count++
+		}
+	}
+	scrollRegion(screen, &shipyardUI.PortScroll, x, listY, w, listH, float64(count)*72)
+	view := clipTo(screen, x, listY, w, listH)
 
 	idx := 0
 	for _, ship := range island.Ships {
@@ -297,19 +284,19 @@ func (g *Game) DrawAvailableShips(screen *ebiten.Image, x, y, w, h float64) {
 		if ship.State == "Destroyed" || ship.FleetID != nil {
 			continue
 		}
-		itemY := listY + float64(idx)*72
-		if itemY > y+h-72 {
-			break
+		itemY := listY + float64(idx)*72 - shipyardUI.PortScroll
+		idx++
+		if itemY+72 < listY || itemY > listY+listH {
+			continue
 		}
 		itemX, itemW, itemH := x+12, w-24, 62.0
-		drawCard(screen, itemX, itemY, itemW, itemH, false)
-		drawText(screen, ship.Name, titleFace(20), itemX+14, itemY+6, themeGold, alignLeft)
+		drawCard(view, itemX, itemY, itemW, itemH, false)
+		drawText(view, ship.Name, titleFace(20), itemX+14, itemY+6, themeGold, alignLeft)
 		status, clr := "Prêt à prendre la mer", color.Color(themeGreen)
 		if ship.State == "UnderConstruction" {
 			status, clr = "En construction…", themeOrange
 		}
-		drawText(screen, shipTypeLabel(ship.Type)+" · "+status, bodyFace(13, false), itemX+14, itemY+36, clr, alignLeft)
-		idx++
+		drawText(view, shipTypeLabel(ship.Type)+" · "+status, bodyFace(13, false), itemX+14, itemY+36, clr, alignLeft)
 	}
 	if idx == 0 {
 		drawText(screen, "Aucun navire au port. Construis-en un à gauche !", bodyFace(14, false), x+16, listY, themeMuted, alignLeft)

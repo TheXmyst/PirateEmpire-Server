@@ -42,6 +42,8 @@ func drawDimBackground(screen *ebiten.Image, alpha uint8) {
 
 // drawWindowFrame : panneau de fenêtre avec son titre et un filet doré.
 func drawWindowFrame(screen *ebiten.Image, x, y, w, h float64, title string) {
+	// Une fenêtre arrête le défilement des listes dessinées en dessous.
+	scrollBlocker(x, y, w, h)
 	drawThemePanel(screen, x, y, w, h, 18)
 	if title != "" {
 		drawText(screen, title, titleFace(28), x+22, y+12, themeGold, alignLeft)

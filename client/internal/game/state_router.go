@@ -165,6 +165,12 @@ func (g *Game) updateByState() error {
 			g.ui.ShowTechUI = g.techUI.Visible
 		}
 
+		// Échap ferme la fenêtre Capitaines (sinon elle n'écoute que les clics)
+		if g.ui.ShowCaptainUI && isKeyJustPressed(ebiten.KeyEscape) {
+			g.UpdateCaptainUI()
+			return nil
+		}
+
 		// Check if UI overlays consume the click first
 		if isMouseJustPressed(ebiten.MouseButtonLeft) {
 			// Update UI overlays that can consume clicks

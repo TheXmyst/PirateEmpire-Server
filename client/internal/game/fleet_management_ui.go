@@ -185,15 +185,7 @@ func (g *Game) UpdateFleetUI() {
 	// Modals handle their own input in Draw calls (Immediate Mode style in this codebase)
 	// We just return to prevent clicking through to the main UI
 	if g.ui.ShowCaptainModal {
-		// Handle scrolling for captain modal here as it uses wheelDelta() which is an implicit event
-		_, dy := wheelDelta()
-		if dy != 0 {
-			g.ui.CaptainModalScroll -= dy * 20.0
-			if g.ui.CaptainModalScroll < 0 {
-				g.ui.CaptainModalScroll = 0
-			}
-			// Max scroll clamping happens in Draw
-		}
+		// Le défilement est géré par ui_scroll.go.
 		return
 	}
 
@@ -205,7 +197,6 @@ func (g *Game) UpdateFleetUI() {
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 	clicked := isMouseJustPressed(ebiten.MouseButtonLeft)
-	_, dy := wheelDelta()
 
 	// Fermer : grosse croix, bouton « Fermer » en bas, ou clic en dehors.
 	if clicked {
@@ -220,14 +211,6 @@ func (g *Game) UpdateFleetUI() {
 
 	// 1. FLEET LIST INTERACTION (Left Column)
 	if fmx >= contentX && fmx <= contentX+listW && fmy >= contentY && fmy <= contentY+contentH {
-		// Scroll
-		if dy != 0 {
-			g.ui.FleetListScroll -= dy * 20.0
-			if g.ui.FleetListScroll < 0 {
-				g.ui.FleetListScroll = 0
-			}
-			// Max scroll clamping happens in Draw
-		}
 
 		// Selection
 		if clicked {
@@ -259,13 +242,6 @@ func (g *Game) UpdateFleetUI() {
 	// 2. DETAILS INTERACTION (Right Column)
 	if fmx >= detailsX && fmx <= detailsX+detailsW && fmy >= contentY && fmy <= contentY+contentH {
 		// Défilement de la liste des navires + cargaison (la fiche peut être plus haute que la fenêtre)
-		if dy != 0 {
-			g.ui.FleetDetailsScroll -= dy * 30.0
-			if g.ui.FleetDetailsScroll < 0 {
-				g.ui.FleetDetailsScroll = 0
-			}
-			// Max scroll clamping happens in Draw
-		}
 		if clicked {
 			// Find Selected Fleet
 			var selectedFleet *domain.Fleet
@@ -624,6 +600,7 @@ func (g *Game) DrawManagementFleetDetails(screen *ebiten.Image, startX, startY, 
 	if g.ui.FleetDetailsScroll > maxScroll {
 		g.ui.FleetDetailsScroll = maxScroll
 	}
+	scrollRegion(screen, &g.ui.FleetDetailsScroll, startX, bodyTop, w, visibleH, g.ui.FleetDetailsContentH)
 	scroll := g.ui.FleetDetailsScroll
 	screen = screen.SubImage(image.Rect(int(startX), int(bodyTop), int(startX+w), int(startY+h))).(*ebiten.Image)
 	if _, py := cursorPosition(); float64(py) < bodyTop || float64(py) > startY+h {
@@ -1174,6 +1151,7 @@ func (g *Game) DrawManagementFleetList(screen *ebiten.Image, startX, startY, w, 
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
+	scrollRegion(screen, &g.ui.FleetListScroll, startX, startY, w, h, listContentHeight)
 	// Clamp scroll
 	if g.ui.FleetListScroll > maxScroll {
 		g.ui.FleetListScroll = maxScroll
@@ -1245,6 +1223,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 	cx, cy := w/2, h/2
 	modalW, modalH := 500.0, 400.0
 	modalX, modalY := cx-modalW/2, cy-modalH/2
+	scrollBlocker(modalX, modalY, modalW, modalH)
 
 	// Overlay
 	uiFillRect(screen, 0, 0, float32(w), float32(h), color.RGBA{0, 0, 0, 200}, vecAA)
@@ -1302,8 +1281,16 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			endIdx = len(availableCaptains)
 		}
 
+		scrollRegion(screen, &g.ui.CaptainModalScroll, contentX-10, listStartY, modalW-20, listHeight, totalHeight)
+		listView := clipTo(screen, contentX-10, listStartY, modalW-20, listHeight)
+		clickInList := func() bool {
+			_, py := cursorPosition()
+			return float64(py) >= listStartY && float64(py) <= listEndY
+		}
+
 		// Draw visible captains
 		for i := startIdx; i < endIdx; i++ {
+			screen := listView
 			capt := availableCaptains[i]
 			captY := listStartY + float64(i)*totalItemHeight - g.ui.CaptainModalScroll
 
@@ -1346,7 +1333,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 				drawButton(screen, float64(upgradeBtnX), float64(btnY), float64(btnW), float64(btnH), "Upgrade ★", kindFromColor(upgradeBtnCol))
 
 				// Handle upgrade click
-				if isMouseJustPressed(ebiten.MouseButtonLeft) {
+				if isMouseJustPressed(ebiten.MouseButtonLeft) && clickInList() {
 					mx, my := cursorPosition()
 					if float64(mx) >= upgradeBtnX && float64(mx) <= upgradeBtnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 						go func() {
@@ -1373,7 +1360,7 @@ func (g *Game) DrawCaptainSelectionModal(screen *ebiten.Image) {
 			drawButton(screen, float64(selectBtnX), float64(btnY), float64(btnW), float64(btnH), "Select", kindFromColor(btnCol))
 
 			// Handle select click
-			if isMouseJustPressed(ebiten.MouseButtonLeft) {
+			if isMouseJustPressed(ebiten.MouseButtonLeft) && clickInList() {
 				mx, my := cursorPosition()
 				if float64(mx) >= selectBtnX && float64(mx) <= selectBtnX+btnW && float64(my) >= btnY && float64(my) <= btnY+btnH {
 					go func(captID, shipID string) {

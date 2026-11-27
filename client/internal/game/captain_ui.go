@@ -27,6 +27,7 @@ func (g *Game) DrawCaptainUI(screen *ebiten.Image) {
 	w, h := 900.0, 600.0
 	x, y := cx-w/2, cy-h/2
 
+	scrollBlocker(x, y, w, h)
 	drawThemePanel(screen, x, y, w, h, 18)
 
 	// Closing button (X)
@@ -126,12 +127,14 @@ func (g *Game) UpdateCaptainUI() bool {
 		// Tab List Click
 		if fmx >= x+padding && fmx <= x+padding+tabW && fmy >= tabY && fmy <= tabY+tabH {
 			g.ui.CaptainUITab = "list"
+			g.ui.CaptainUIScroll = 0
 			return true // Consume click
 		}
 
 		// Tab Upgrade Click
 		if fmx >= x+padding+tabW+10 && fmx <= x+padding+tabW+10+tabW && fmy >= tabY && fmy <= tabY+tabH {
 			g.ui.CaptainUITab = "upgrade"
+			g.ui.CaptainUIScroll = 0
 			return true // Consume click
 		}
 	}
@@ -204,28 +207,19 @@ func (g *Game) drawCaptainListContent(screen *ebiten.Image, x, y, w, h float64) 
 		uiPrint(screen, "Aucun capitaine", int(leftX+padding), int(y+padding))
 	} else {
 		lineHeight := 50.0
-		visibleLines := int(leftH / lineHeight)
-		startIndex := int(g.ui.CaptainUIScroll / lineHeight)
-		if startIndex < 0 {
-			startIndex = 0
-		}
-		if startIndex > len(g.captains) {
-			startIndex = len(g.captains)
-		}
+		scrollRegion(screen, &g.ui.CaptainUIScroll, leftX, y, leftW, leftH, float64(len(g.captains))*lineHeight+padding*2)
+		screen := clipTo(screen, leftX, y+2, leftW, leftH-4)
 
 		currentY := y + padding
-		for i := startIndex; i < len(g.captains) && i < startIndex+visibleLines+1; i++ {
-			if i < 0 || i >= len(g.captains) {
-				continue
-			}
+		for i := 0; i < len(g.captains); i++ {
 			captain := g.captains[i]
 
 			// Highlight selected captain
 			isSelected := g.ui.CaptainUISelectedID != nil && captain.ID == *g.ui.CaptainUISelectedID
-			itemY := currentY - g.ui.CaptainUIScroll + float64(i-startIndex)*lineHeight
+			itemY := currentY - g.ui.CaptainUIScroll + float64(i)*lineHeight
 
-			if itemY < y || itemY+lineHeight > y+leftH {
-				continue // Skip if outside visible area
+			if itemY+lineHeight < y || itemY > y+leftH {
+				continue // hors de la zone visible
 			}
 
 			// Background for selected item
@@ -344,22 +338,16 @@ func (g *Game) drawCaptainUpgradeContent(screen *ebiten.Image, x, y, w, h float6
 	}
 
 	lineHeight := 80.0
-	visibleLines := int(listH / lineHeight)
-	startIndex := int(g.ui.CaptainUIScroll / lineHeight)
-	if startIndex < 0 {
-		startIndex = 0
-	}
+	scrollRegion(screen, &g.ui.CaptainUIScroll, listX, y, listW, listH, float64(len(g.captains))*lineHeight+padding*2)
+	screen = clipTo(screen, listX, y+2, listW, listH-4)
 
 	currentY := y + padding
 
-	for i := startIndex; i < len(g.captains) && i < startIndex+visibleLines+1; i++ {
-		if i < 0 || i >= len(g.captains) {
-			continue
-		}
+	for i := 0; i < len(g.captains); i++ {
 		captain := g.captains[i]
 
-		itemY := currentY - g.ui.CaptainUIScroll + float64(i-startIndex)*lineHeight
-		if itemY < y || itemY+lineHeight > y+listH {
+		itemY := currentY - g.ui.CaptainUIScroll + float64(i)*lineHeight
+		if itemY+lineHeight < y || itemY > y+listH {
 			continue
 		}
 
@@ -417,26 +405,7 @@ func (g *Game) updateCaptainListTab(x, y, w, h float64) bool {
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
-	// Scroll Logic
-	if fmx >= leftX && fmx <= leftX+leftW && fmy >= y && fmy <= y+h {
-		_, dy := wheelDelta()
-		if dy != 0 {
-			g.ui.CaptainUIScroll -= dy * 20.0
-			if g.ui.CaptainUIScroll < 0 {
-				g.ui.CaptainUIScroll = 0
-			}
-			// Max scroll calculation
-			lineHeight := 50.0
-			maxScroll := float64(len(g.captains))*lineHeight - h + padding*2
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
-			if g.ui.CaptainUIScroll > maxScroll {
-				g.ui.CaptainUIScroll = maxScroll
-			}
-			return true
-		}
-	}
+	// Le défilement est géré par ui_scroll.go.
 
 	// Click Logic
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
@@ -466,37 +435,20 @@ func (g *Game) updateCaptainUpgradeTab(x, y, w, h float64) bool {
 	mx, my := cursorPosition()
 	fmx, fmy := float64(mx), float64(my)
 
-	// Scroll
-	if fmx >= listX && fmx <= listX+listW && fmy >= y && fmy <= y+h {
-		_, dy := wheelDelta()
-		if dy != 0 {
-			g.ui.CaptainUIScroll -= dy * 20.0
-			if g.ui.CaptainUIScroll < 0 {
-				g.ui.CaptainUIScroll = 0
-			}
-			// Max scroll
-			lineHeight := 80.0
-			maxScroll := float64(len(g.captains))*lineHeight - h + padding*2
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
-			if g.ui.CaptainUIScroll > maxScroll {
-				g.ui.CaptainUIScroll = maxScroll
-			}
-			return true
-		}
+	// Le défilement est géré par ui_scroll.go.
+	if fmy < y || fmy > y+h {
+		return false
 	}
 
 	if isMouseJustPressed(ebiten.MouseButtonLeft) {
 		// Upgrade Button Clicks
 		lineHeight := 80.0
-		startIndex := int(g.ui.CaptainUIScroll / lineHeight)
 		currentY := y + padding
 
-		for i := startIndex; i < len(g.captains); i++ {
+		for i := 0; i < len(g.captains); i++ {
 			captain := g.captains[i]
-			itemY := currentY - g.ui.CaptainUIScroll + float64(i-startIndex)*lineHeight
-			if itemY < y || itemY+lineHeight > y+h {
+			itemY := currentY - g.ui.CaptainUIScroll + float64(i)*lineHeight
+			if itemY+lineHeight < y || itemY > y+h {
 				continue
 			}
 

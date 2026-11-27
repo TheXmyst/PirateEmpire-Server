@@ -53,6 +53,7 @@ type pointerState struct {
 	escFrame uint64 // frame où Échap a déjà été « pris » par une fenêtre
 
 	wheelY   float64 // crans de molette générés cette frame
+	scrollDY float64 // glisser du doigt (pixels) qui fait défiler, cette frame
 	wheelAcc float64
 
 	panDX, panDY float64 // déplacement de caméra demandé (pixels écran)
@@ -105,6 +106,7 @@ func (g *Game) updatePointer() {
 	p.justPressed = false
 	p.justDown = false
 	p.wheelY = 0
+	p.scrollDY = 0
 	p.panDX, p.panDY = 0, 0
 	p.zoomFactor = 1
 
@@ -244,6 +246,7 @@ func (g *Game) updatePointer() {
 		} else if !p.multi && p.moved {
 			dx, dy := float64(x-p.lastX), float64(y-p.lastY)
 			if p.dragScrolls {
+				p.scrollDY = dy
 				// Doigt qui monte = contenu qui monte = molette vers le bas.
 				p.wheelAcc += dy
 				for p.wheelAcc >= touchWheelStep {
@@ -335,6 +338,9 @@ func consumeEscape() bool {
 
 // wheelDelta remplace ebiten.Wheel : la molette, ou le glisser du doigt.
 func wheelDelta() (float64, float64) {
+	if scrollConsumed {
+		return 0, 0 // déjà utilisé par une liste (ui_scroll.go)
+	}
 	x, y := ebiten.Wheel()
 	return x, y + pointer.wheelY
 }

@@ -137,9 +137,10 @@ func (g *Game) UpdateSocialUI() bool {
 			rowY := searchY + 50
 			rowW := panelW - 40
 			rowH := 30.0
+			ay, ah := socialSearchArea(panelY)
 			for i, entry := range g.ui.SocialSearchResult {
-				y := rowY + float64(i)*(rowH+6)
-				if pointInRect(cx, cy, rowX, y, rowW, rowH) {
+				y := rowY + float64(i)*(rowH+6) - socialScroll.search
+				if cy >= ay && cy <= ay+ah && pointInRect(cx, cy, rowX, y, rowW, rowH) {
 					g.addFriend(entry)
 					break
 				}
@@ -148,11 +149,12 @@ func (g *Game) UpdateSocialUI() bool {
 			// Friend list remove buttons
 			friendListX := rowX
 			friendListY := rowY + 170
-			entryW := rowW - 90.0
+			entryW := rowW - 100.0
+			fy, fh := socialFriendsArea(panelY)
 			for i, friend := range g.ui.SocialFriends {
-				y := friendListY + float64(i)*(rowH+4)
+				y := friendListY + float64(i)*(rowH+4) - socialScroll.friends
 				removeX := friendListX + entryW + 4
-				if pointInRect(cx, cy, removeX, y, 80, rowH) {
+				if cy >= fy && cy <= fy+fh && pointInRect(cx, cy, removeX, y, 80, rowH) {
 					g.removeFriend(friend.ID)
 					break
 				}
@@ -333,6 +335,7 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 	uiFillRect(screen, 0, 0, float32(w), float32(h), alpha(10, 10, 20, 180), vecAA)
 
 	// Panel
+	scrollBlocker(panelX, panelY, panelW, panelH)
 	draw9Slice(screen, g, panelX, panelY, panelW, panelH, 16)
 
 	// Header and tabs
@@ -355,6 +358,17 @@ func (g *Game) DrawSocialUI(screen *ebiten.Image) {
 	default:
 		g.drawFriendsTab(screen, panelX, panelY, panelW)
 	}
+}
+
+// Défilement des listes de la fenêtre Social (ui_scroll.go).
+var socialScroll struct{ search, friends, guild, board float64 }
+
+const socialPanelH = 520.0
+
+// socialSearchArea / socialFriendsArea : zones des listes de l'onglet Amis.
+func socialSearchArea(panelY float64) (y, h float64) { return panelY + 120, 132 }
+func socialFriendsArea(panelY float64) (y, h float64) {
+	return panelY + 290, panelY + socialPanelH - 14 - (panelY + 290)
 }
 
 func (g *Game) drawSocialTab(screen *ebiten.Image, x, y, w, h float64, label string, active bool) {
@@ -389,11 +403,19 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 	if len(g.ui.SocialSearchResult) > 0 {
 		drawText(screen, "Clique sur un joueur pour l'ajouter en ami", bodyFace(12, true), rowX, rowY-20, themeMuted, alignLeft)
 	}
-	for i, entry := range g.ui.SocialSearchResult {
-		y := rowY + float64(i)*(rowH+6)
-		line := fmt.Sprintf("%s  ·  Réputation %d  ·  Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
-		drawCard(screen, rowX, y, rowW, rowH, false)
-		drawLabel(screen, line, rowX+10, y+8, 13, false, themeText)
+	{
+		ay, ah := socialSearchArea(panelY)
+		scrollRegion(screen, &socialScroll.search, rowX, ay, rowW, ah, float64(len(g.ui.SocialSearchResult))*(rowH+6))
+		view := clipTo(screen, rowX, ay, rowW, ah)
+		for i, entry := range g.ui.SocialSearchResult {
+			y := rowY + float64(i)*(rowH+6) - socialScroll.search
+			if y+rowH < ay || y > ay+ah {
+				continue
+			}
+			line := fmt.Sprintf("%s  ·  Réputation %d  ·  Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
+			drawCard(view, rowX, y, rowW-12, rowH, false)
+			drawLabel(view, line, rowX+10, y+8, 13, false, themeText)
+		}
 	}
 
 	// Friend list
@@ -404,9 +426,16 @@ func (g *Game) drawFriendsTab(screen *ebiten.Image, panelX, panelY, panelW float
 		drawText(screen, "Pas encore d'amis. Cherche un pseudo ci-dessus !", bodyFace(14, false), listX, listY+4, themeMuted, alignLeft)
 		return
 	}
+	fy, fh := socialFriendsArea(panelY)
+	scrollRegion(screen, &socialScroll.friends, listX, fy, rowW, fh, float64(len(g.ui.SocialFriends))*(rowH+4))
+	full := screen
 	for i, entry := range g.ui.SocialFriends {
-		y := listY + float64(i)*(rowH+4)
-		entryW := rowW - 90.0
+		y := listY + float64(i)*(rowH+4) - socialScroll.friends
+		if y+rowH < fy || y > fy+fh {
+			continue
+		}
+		screen := clipTo(full, listX, fy, rowW, fh)
+		entryW := rowW - 100.0
 		line := fmt.Sprintf("%s  ·  Réputation %d  ·  Guilde %s", entry.Name, entry.Reputation, entry.GuildName)
 		drawCard(screen, listX, y, entryW, rowH, false)
 		drawLabel(screen, line, listX+10, y+8, 13, false, themeText)
@@ -461,8 +490,16 @@ func (g *Game) drawGuildTab(screen *ebiten.Image, panelX, panelY, panelW float64
 	uiSubtitle(screen, "Membres", int(panelX)+20, int(listY)-22)
 	rowH := 28.0
 	rowW := panelW - 40
+	listH := panelY + socialPanelH - 14 - listY
+	scrollRegion(screen, &socialScroll.guild, panelX+20, listY, rowW, listH, float64(len(g.ui.SocialGuildMembers))*(rowH+4))
+	full := screen
+	rowW -= 12
 	for i, m := range g.ui.SocialGuildMembers {
-		y := listY + float64(i)*(rowH+4)
+		y := listY + float64(i)*(rowH+4) - socialScroll.guild
+		if y+rowH < listY || y > listY+listH {
+			continue
+		}
+		screen := clipTo(full, panelX+20, listY, rowW+12, listH)
 		drawCard(screen, panelX+20, y, rowW, rowH, false)
 		drawText(screen, m.Name, bodyFace(14, true), panelX+32, y+5, themeText, alignLeft)
 		drawText(screen, fmt.Sprintf("Réputation %d", m.Reputation), bodyFace(13, false), panelX+20+rowW-12, y+6, themeMuted, alignRight)
@@ -478,6 +515,16 @@ func (g *Game) drawLeaderboardTab(screen *ebiten.Image, panelX, panelY, panelW f
 	listY := subTabY + 50
 	rowH := 30.0
 	rowW := panelW - 40
+	listH := panelY + socialPanelH - 14 - listY
+	n := len(g.ui.SocialLeaderboardPlayers)
+	if g.ui.SocialLeaderboardTab == "guilds" {
+		n = len(g.ui.SocialLeaderboardGuilds)
+	}
+	scrollRegion(screen, &socialScroll.board, panelX+20, listY, rowW, listH, float64(n)*(rowH+4))
+	full := screen
+	screen = clipTo(full, panelX+20, listY, rowW, listH)
+	listY -= socialScroll.board
+	rowW -= 12
 
 	switch g.ui.SocialLeaderboardTab {
 	case "guilds":

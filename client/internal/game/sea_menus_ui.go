@@ -254,11 +254,19 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 	}
 
 	rowH, gap := 70.0, 10.0
+	listY, listH := my+66, mh-56-66
+	scrollRegion(screen, &pvpTargetScroll, mx+14, listY, mw-28, listH, float64(len(g.ui.PvpTargets))*(rowH+gap)+4)
+	full := screen
+	_, pyc := cursorPosition()
+	if float64(pyc) < listY || float64(pyc) > listY+listH {
+		click = false // clic hors de la liste (partie coupée)
+	}
 	for i, t := range g.ui.PvpTargets {
-		ry := my + 70 + float64(i)*(rowH+gap)
-		if ry+rowH > my+mh-56 {
-			break
+		ry := my + 70 + float64(i)*(rowH+gap) - pvpTargetScroll
+		if ry+rowH < listY || ry > listY+listH {
+			continue
 		}
+		screen := clipTo(full, mx+14, listY, mw-28, listH)
 		drawCard(screen, mx+22, ry, mw-44, rowH, false)
 		drawLabel(screen, t.Name, mx+38, ry+14, 16, true, themeText)
 		drawLabel(screen, fmt.Sprintf("Niveau %d", t.Tier), mx+38, ry+40, 13, false, themeMuted)
@@ -274,6 +282,9 @@ func (g *Game) DrawPvpTargetList(screen *ebiten.Image) {
 }
 
 // ---------- Choix de la flotte pour le PvP ----------
+
+// pvpTargetScroll : défilement de la liste des cibles PvP (ui_scroll.go).
+var pvpTargetScroll float64
 
 func (g *Game) DrawPvpFleetSelection(screen *ebiten.Image) {
 	if !g.ui.ShowPvpFleetSelect || g.ui.PvpSelectedTarget == nil || g.ui.ShowPvpConfirm {
