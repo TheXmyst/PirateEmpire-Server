@@ -2688,6 +2688,7 @@ func SummonCaptain(c echo.Context) error {
 			IsDuplicate:   isDuplicate,
 			ShardsGranted: shardsGranted,
 			Captain:       captainDTO,
+			EffectLines:   economy.CaptainEffectLines(&domain.Captain{Level: 1, SkillID: template.SkillID, Rarity: rarity}),
 		})
 	}
 

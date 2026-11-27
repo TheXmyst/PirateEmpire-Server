@@ -131,12 +131,18 @@ func (g *Game) DrawTavernUI(screen *ebiten.Image) {
 	drawButton(screen, btnStartX+btnW+btnSpacing, btnY, btnW, btnH, "Recruter x10", k10)
 	drawLabel(screen, "1 ticket", btnStartX+btnW/2-22, btnY+btnH+8, 12, false, themeMuted)
 	drawLabel(screen, "10 tickets", btnStartX+btnW+btnSpacing+btnW/2-28, btnY+btnH+8, 12, false, themeMuted)
+
+	// Animation de révélation par-dessus la taverne
+	g.drawGachaReveal(screen)
 }
 
 // UpdateTavernUI handles input for the Tavern UI
 func (g *Game) UpdateTavernUI() bool {
 	if !g.ui.ShowTavernUI {
 		return false
+	}
+	if g.updateGachaReveal() {
+		return true
 	}
 
 	cx, cy := float64(g.screenWidth)/2, float64(g.screenHeight)/2
@@ -251,6 +257,7 @@ func (g *Game) summonCaptains(count int) {
 
 		// Process results
 		g.ui.TavernResults = nil
+		cards := make([]gachaCard, 0, len(result.Results))
 		for _, res := range result.Results {
 			name := res.Name
 			if res.Captain != nil && res.Captain.Name != "" {
@@ -259,6 +266,12 @@ func (g *Game) summonCaptains(count int) {
 			g.ui.TavernResults = append(g.ui.TavernResults, TavernResultLine{
 				Name: name, Rarity: res.Rarity, Duplicate: res.IsDuplicate, Shards: res.ShardsGranted,
 			})
+			cards = append(cards, gachaCard{
+				Name: name, Rarity: res.Rarity, Duplicate: res.IsDuplicate, Shards: res.ShardsGranted, Effects: res.EffectLines,
+			})
+		}
+		if len(cards) > 0 {
+			g.ui.TavernReveal = newGachaReveal(cards)
 		}
 		if len(result.Results) > 0 {
 			// x10 summon

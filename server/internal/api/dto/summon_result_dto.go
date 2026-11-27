@@ -8,4 +8,5 @@ type SummonResultDTO struct {
 	IsDuplicate   bool        `json:"is_duplicate"`
 	ShardsGranted int         `json:"shards_granted,omitempty"`
 	Captain       *CaptainDTO `json:"captain,omitempty"` // nil if duplicate
+	EffectLines   []string    `json:"effect_lines,omitempty"` // talent au niveau 1, pour l'animation
 }

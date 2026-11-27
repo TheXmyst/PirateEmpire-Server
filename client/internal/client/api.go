@@ -851,6 +851,7 @@ type SummonResult struct {
 	IsDuplicate   bool            `json:"is_duplicate"`
 	ShardsGranted int             `json:"shards_granted,omitempty"`
 	Captain       *domain.Captain `json:"captain,omitempty"`
+	EffectLines   []string        `json:"effect_lines,omitempty"`
 }
 
 // SummonCaptainResponse represents the response from summon endpoint (supports x1 and x10)

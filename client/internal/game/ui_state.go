@@ -132,6 +132,7 @@ type UIState struct {
 	ShowTavernUI     bool               // Show dedicated Tavern/Gacha modal
 	TavernLastResult string             // Last summon result message
 	TavernResults    []TavernResultLine // Résultats détaillés du dernier recrutement
+	TavernReveal     *gachaReveal       // Animation de révélation en cours (nil = aucune)
 	TavernBusy       bool               // Busy state while calling API
 	TavernError      string             // Error message from server
 
