@@ -2710,6 +2710,7 @@ func SummonCaptain(c echo.Context) error {
 	}
 
 	tx.Commit()
+	BumpQuestCounter(db, playerID, economy.QuestCounterCaptainPulls, float64(req.Count))
 
 	ticketsAfter := int(island.Resources[domain.CaptainTicket])
 	pityLAfter := playerWithPity.PityLegendaryCount

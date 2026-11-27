@@ -29,7 +29,7 @@ func InitDB() {
 	log.Printf("Database initialized at: %s (WAL mode)", absPath)
 
 	// Migrate the schema
-	err = DB.AutoMigrate(&domain.Player{}, &domain.Sea{}, &domain.Island{}, &domain.Building{}, &domain.Ship{}, &domain.Fleet{}, &domain.Captain{}, &domain.CaptainShardWallet{}, &domain.PvPInterceptCooldown{}, &domain.ChatMessage{}, &domain.Friend{}, &domain.Guild{}, &domain.GuildMember{}, &domain.PvEVictory{}, &domain.PvPVictory{})
+	err = DB.AutoMigrate(&domain.Player{}, &domain.Sea{}, &domain.Island{}, &domain.Building{}, &domain.Ship{}, &domain.Fleet{}, &domain.Captain{}, &domain.CaptainShardWallet{}, &domain.PvPInterceptCooldown{}, &domain.ChatMessage{}, &domain.Friend{}, &domain.Guild{}, &domain.GuildMember{}, &domain.PvEVictory{}, &domain.PvPVictory{}, &domain.PlayerQuestClaim{})
 	if err != nil {
 		log.Fatal("failed to migrate database schema")
 	}

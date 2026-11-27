@@ -1,0 +1,199 @@
+{
+  "_comment": "Quêtes de progression. Les quêtes « Bâtiments » sont générées automatiquement (une par niveau de chaque bâtiment) : leur récompense = un pourcentage du coût du niveau (building_quests). Les quêtes Histoire et Défis sont listées ci-dessous. Types d'objectifs : voir server/internal/economy/quests.go.",
+  "building_quests": {
+    "max_level": 8,
+    "early_max_level": 5,
+    "townhall_early_max_level": 6,
+    "early_refund": 0.50,
+    "late_refund": 0.06,
+    "order": ["Hôtel de Ville", "Scierie", "Mine d'Or", "Entrepôt", "Carrière", "Distillerie", "Académie", "Tavern", "Chantier Naval", "Milice", "Infirmary", "La Chambre des Plans"]
+  },
+  "quests": [
+    {
+      "id": "story_first_building", "family": "story", "phase": 1,
+      "title": "Poser la première pierre",
+      "description": "Ouvre le menu Construire et bâtis ton premier bâtiment, par exemple la Scierie.",
+      "tutorial": "Chaque bâtiment se construit avec du bois, de la pierre et parfois de l'or. Les bâtiments de production (Scierie, Carrière, Mine d'Or, Distillerie) remplissent tes réserves toutes seules, même quand tu n'es pas connecté. Les quêtes « Bâtiments » te remboursent une partie de chaque construction : pense à réclamer tes récompenses !",
+      "objective": {"type": "buildings_built", "count": 1},
+      "reward": {"wood": 300, "stone": 300, "gold": 300}
+    },
+    {
+      "id": "story_first_research", "family": "story", "phase": 1,
+      "title": "Le goût du savoir",
+      "description": "Construis l'Académie (Hôtel de Ville niveau 3) et termine une première recherche.",
+      "objective": {"type": "tech_count", "count": 1},
+      "reward": {"wood": 300, "gold": 800}
+    },
+    {
+      "id": "story_gacha", "family": "story", "phase": 1,
+      "title": "Recruter un capitaine",
+      "description": "Construis la Taverne et fais un tirage de capitaine avec un ticket.",
+      "tutorial": "À la Taverne, un ticket te donne un capitaine au hasard : 70 % commun, 25 % rare, 5 % légendaire. Un rare est garanti au bout de 10 tirages sans rare, et un légendaire au bout de 80. Si tu tires un capitaine que tu as déjà, il se transforme en fragments qui lui font gagner des étoiles. Tu gagnes des tickets à l'inscription, chaque jour en te connectant, à chaque niveau d'Hôtel de Ville, parfois en battant des PNJ, et avec certaines quêtes.",
+      "objective": {"type": "counter", "counter": "captain_pulls", "count": 1},
+      "reward": {"gold": 800, "tickets": 1}
+    },
+    {
+      "id": "story_sloop", "family": "story", "phase": 1,
+      "title": "Ton premier navire",
+      "description": "Recherche « Voiles légères », construis le Chantier Naval puis un Sloop.",
+      "tutorial": "Le Chantier Naval construit tes navires. Le Sloop est petit et rapide : parfait pour débuter, récolter sur les spots et affronter les PNJ les plus faibles. Tes navires sont rangés dans tes flottes (menu Flotte).",
+      "objective": {"type": "ships_owned", "count": 1},
+      "reward": {"wood": 2500, "gold": 800}
+    },
+    {
+      "id": "story_militia", "family": "story", "phase": 1,
+      "title": "Un équipage à bord",
+      "description": "Construis la Milice et recrute 20 matelots.",
+      "tutorial": "Les matelots se recrutent à la Milice : guerriers (10 or, 2 rhum), archers (12 or, 2 rhum) et canonniers (15 or, 3 rhum). Ils forment un triangle : le guerrier bat le canonnier, le canonnier bat l'archer et l'archer bat le guerrier. Le type le plus nombreux sur un navire donne +15 % de dégâts contre le type qu'il bat, et -15 % contre celui qui le bat. Après un combat, l'Infirmerie soigne les blessés.",
+      "objective": {"type": "counter", "counter": "militia_recruited", "count": 20},
+      "reward": {"gold": 300, "rum": 100}
+    },
+    {
+      "id": "story_crew_ship", "family": "story", "phase": 1,
+      "title": "Paré à appareiller",
+      "description": "Dans le menu Flotte, mets un capitaine et des matelots sur un de tes navires.",
+      "tutorial": "Un navire sans capitaine ni équipage ne vaut pas grand-chose au combat. Ouvre le menu Flotte, choisis un navire, assigne-lui un capitaine puis place des matelots dans sa cale. Le capitaine apporte un bonus, les matelots se battent.",
+      "objective": {"type": "ship_crewed", "count": 1},
+      "reward": {"gold": 800, "tickets": 1}
+    },
+    {
+      "id": "story_set_sail", "family": "story", "phase": 1,
+      "title": "Larguez les amarres",
+      "description": "Passe en vue Mer et envoie une flotte quelque part.",
+      "tutorial": "En mer, chaque navire consomme du rhum : garde toujours un peu de réserve. Une flotte peut se déplacer, récolter sur un spot de ressources ou attaquer une cible.",
+      "objective": {"type": "counter", "counter": "fleets_sent", "count": 1},
+      "reward": {"wood": 500, "stone": 300, "gold": 500, "rum": 200}
+    },
+    {
+      "id": "story_pve_t1", "family": "story", "phase": 1,
+      "title": "Premier sang",
+      "description": "En mer, attaque une cible PvE de tier 1 et remporte le combat.",
+      "objective": {"type": "pve_wins", "tier": 1, "count": 1},
+      "reward": {"wood": 1500, "stone": 800, "gold": 2000, "rum": 300, "tickets": 1}
+    },
+    {
+      "id": "story_station", "family": "story", "phase": 1,
+      "title": "Les richesses de la mer",
+      "description": "Envoie une flotte récolter sur un spot de ressources.",
+      "tutorial": "Une flotte stationnée sur un spot remplit sa cale petit à petit, de plus en plus vite avec le temps. Quand la cale est pleine, elle rentre au port toute seule. Le bonus de chaque spot est affiché quand tu le survoles.",
+      "objective": {"type": "counter", "counter": "fleets_stationed", "count": 1},
+      "reward": {"wood": 1000, "stone": 500, "gold": 500}
+    },
+    {
+      "id": "story_production_5", "family": "story", "phase": 1,
+      "title": "Une île qui tourne",
+      "description": "Monte la Scierie, la Carrière, la Mine d'Or et la Distillerie au niveau 5.",
+      "objective": {"type": "buildings_level", "buildings": ["Scierie", "Carrière", "Mine d'Or", "Distillerie"], "level": 5},
+      "reward": {"wood": 1500, "stone": 1000, "gold": 2000, "rum": 200}
+    },
+    {
+      "id": "story_all_5", "family": "story", "phase": 1,
+      "title": "Bâtisseur",
+      "description": "Monte tous tes bâtiments au niveau 5 (l'Hôtel de Ville niveau 6 est nécessaire).",
+      "objective": {"type": "buildings_level", "buildings": ["all"], "level": 5},
+      "reward": {"wood": 2500, "stone": 1000, "gold": 4000, "tickets": 2}
+    },
+    {
+      "id": "story_brigantine", "family": "story", "phase": 2,
+      "title": "Un navire plus solide",
+      "description": "Recherche « Voiles latines », monte le Chantier Naval au niveau 5 et construis un Brigantin.",
+      "objective": {"type": "ships_owned", "ship_type": "brigantine", "count": 1},
+      "reward": {"wood": 1600, "gold": 800}
+    },
+    {
+      "id": "story_pve_10", "family": "story", "phase": 2,
+      "title": "Terreur des mers",
+      "description": "Remporte 10 combats PvE.",
+      "objective": {"type": "pve_wins", "count": 10},
+      "reward": {"wood": 1200, "stone": 800, "gold": 1600, "tickets": 1}
+    },
+    {
+      "id": "story_production_7", "family": "story", "phase": 2,
+      "title": "Industrie florissante",
+      "description": "Monte la Scierie, la Carrière, la Mine d'Or et la Distillerie au niveau 7.",
+      "objective": {"type": "buildings_level", "buildings": ["Scierie", "Carrière", "Mine d'Or", "Distillerie"], "level": 7},
+      "reward": {"wood": 800, "stone": 800, "gold": 800}
+    },
+    {
+      "id": "story_all_8", "family": "story", "phase": 2,
+      "title": "Seigneur de l'archipel",
+      "description": "Monte tous tes bâtiments au niveau 8.",
+      "objective": {"type": "buildings_level", "buildings": ["all"], "level": 8},
+      "reward": {"wood": 1600, "stone": 800, "gold": 2400, "tickets": 2}
+    },
+
+    {"id": "ch_tech_3", "family": "challenge", "phase": 1, "min_townhall": 3,
+      "title": "Érudit", "description": "Termine 3 recherches.",
+      "objective": {"type": "tech_count", "count": 3}, "reward": {"wood": 300, "gold": 800}},
+    {"id": "ch_tech_6", "family": "challenge", "phase": 1, "after": "ch_tech_3",
+      "title": "Grand érudit", "description": "Termine 6 recherches.",
+      "objective": {"type": "tech_count", "count": 6}, "reward": {"wood": 500, "gold": 1200}},
+    {"id": "ch_tech_cranes", "family": "challenge", "phase": 1, "min_townhall": 5,
+      "title": "Des grues pour bâtir haut", "description": "Recherche « Grues » : elle est nécessaire pour l'Hôtel de Ville niveau 6.",
+      "objective": {"type": "tech", "tech": "log_build_1"}, "reward": {"wood": 300, "gold": 800}},
+    {"id": "ch_pulls_5", "family": "challenge", "phase": 1, "after": "story_gacha",
+      "title": "Habitué de la Taverne", "description": "Fais 5 tirages de capitaine.",
+      "objective": {"type": "counter", "counter": "captain_pulls", "count": 5}, "reward": {"gold": 1000}},
+    {"id": "ch_captain_rare", "family": "challenge", "phase": 1, "after": "story_gacha",
+      "title": "Un capitaine hors pair", "description": "Obtiens un capitaine rare ou légendaire.",
+      "objective": {"type": "captain_rarity", "rarity": "rare", "count": 1}, "reward": {"gold": 1000, "tickets": 1}},
+    {"id": "ch_captains_3", "family": "challenge", "phase": 1, "after": "story_gacha",
+      "title": "État-major", "description": "Possède 3 capitaines différents.",
+      "objective": {"type": "captains_owned", "count": 3}, "reward": {"wood": 500, "gold": 1000}},
+    {"id": "ch_ships_2", "family": "challenge", "phase": 1, "after": "story_sloop",
+      "title": "Petite escadre", "description": "Possède 2 navires.",
+      "objective": {"type": "ships_owned", "count": 2}, "reward": {"wood": 1500, "gold": 800}},
+    {"id": "ch_militia_50", "family": "challenge", "phase": 1, "after": "story_militia",
+      "title": "Recruteur", "description": "Recrute 50 matelots au total.",
+      "objective": {"type": "counter", "counter": "militia_recruited", "count": 50}, "reward": {"gold": 500, "rum": 150}},
+    {"id": "ch_militia_types", "family": "challenge", "phase": 1, "after": "story_militia",
+      "title": "Équipage complet", "description": "Aie au moins un guerrier, un archer et un canonnier (en réserve ou à bord).",
+      "objective": {"type": "militia_all_types"}, "reward": {"gold": 500, "rum": 100}},
+    {"id": "ch_fleets_sent_5", "family": "challenge", "phase": 1, "after": "story_set_sail",
+      "title": "Loup de mer", "description": "Envoie 5 fois une flotte en mer.",
+      "objective": {"type": "counter", "counter": "fleets_sent", "count": 5}, "reward": {"stone": 500, "gold": 500}},
+    {"id": "ch_pve_t1_3", "family": "challenge", "phase": 1, "after": "story_pve_t1",
+      "title": "Chasseur de pirates", "description": "Remporte 3 combats contre des cibles PvE de tier 1.",
+      "objective": {"type": "pve_wins", "tier": 1, "count": 3}, "reward": {"wood": 1000, "stone": 1000, "gold": 1500, "tickets": 1}},
+    {"id": "ch_pve_t1_5", "family": "challenge", "phase": 1, "after": "ch_pve_t1_3",
+      "title": "Fléau des pirates", "description": "Remporte 5 combats contre des cibles PvE de tier 1.",
+      "objective": {"type": "pve_wins", "tier": 1, "count": 5}, "reward": {"wood": 1000, "stone": 1000, "gold": 1500}},
+    {"id": "ch_harvest_2000", "family": "challenge", "phase": 1, "after": "story_station",
+      "title": "Récolteur", "description": "Récolte 2 000 ressources sur les spots.",
+      "objective": {"type": "counter", "counter": "harvested", "count": 2000}, "reward": {"wood": 800, "stone": 800, "gold": 800}},
+    {"id": "ch_chat", "family": "challenge", "phase": 1,
+      "title": "Bonjour l'équipage !", "description": "Écris un message dans le chat.",
+      "objective": {"type": "counter", "counter": "chat_messages", "count": 1}, "reward": {"wood": 200, "stone": 200, "gold": 200}},
+
+    {"id": "ch_tech_10", "family": "challenge", "phase": 2, "after": "ch_tech_6", "min_townhall": 5,
+      "title": "Savant", "description": "Termine 10 recherches.",
+      "objective": {"type": "tech_count", "count": 10}, "reward": {"wood": 400, "gold": 800}},
+    {"id": "ch_tech_lateen", "family": "challenge", "phase": 2, "min_townhall": 5,
+      "title": "Voiles latines", "description": "Recherche « Voiles latines » pour pouvoir construire des Brigantins.",
+      "objective": {"type": "tech", "tech": "tech_naval_2"}, "reward": {"wood": 300, "gold": 600}},
+    {"id": "ch_pulls_15", "family": "challenge", "phase": 2, "after": "ch_pulls_5", "min_townhall": 6,
+      "title": "Pilier de la Taverne", "description": "Fais 15 tirages de capitaine.",
+      "objective": {"type": "counter", "counter": "captain_pulls", "count": 15}, "reward": {"gold": 600}},
+    {"id": "ch_captain_star", "family": "challenge", "phase": 2, "after": "ch_captains_3", "min_townhall": 6,
+      "title": "Étoile montante", "description": "Fais gagner une étoile à un capitaine (avec ses fragments).",
+      "objective": {"type": "captain_stars", "count": 1}, "reward": {"wood": 400, "gold": 800}},
+    {"id": "ch_fleet_3", "family": "challenge", "phase": 2, "after": "ch_ships_2", "min_townhall": 6,
+      "title": "Armada", "description": "Aie une flotte de 3 navires.",
+      "objective": {"type": "fleet_size", "count": 3}, "reward": {"wood": 800, "stone": 400, "gold": 800}},
+    {"id": "ch_militia_200", "family": "challenge", "phase": 2, "after": "ch_militia_50", "min_townhall": 6,
+      "title": "Recruteur infatigable", "description": "Recrute 200 matelots au total.",
+      "objective": {"type": "counter", "counter": "militia_recruited", "count": 200}, "reward": {"gold": 400, "rum": 200}},
+    {"id": "ch_pve_t2", "family": "challenge", "phase": 2, "after": "ch_pve_t1_5", "min_townhall": 6,
+      "title": "Gros gibier", "description": "Remporte un combat contre une cible PvE de tier 2.",
+      "objective": {"type": "pve_wins", "tier": 2, "count": 1}, "reward": {"wood": 800, "stone": 600, "gold": 1200, "tickets": 1}},
+    {"id": "ch_pve_25", "family": "challenge", "phase": 2, "after": "story_pve_10",
+      "title": "Légende des mers", "description": "Remporte 25 combats PvE.",
+      "objective": {"type": "pve_wins", "count": 25}, "reward": {"wood": 800, "stone": 600, "gold": 1200, "tickets": 1}},
+    {"id": "ch_harvest_10000", "family": "challenge", "phase": 2, "after": "ch_harvest_2000", "min_townhall": 6,
+      "title": "Grand récolteur", "description": "Récolte 10 000 ressources sur les spots.",
+      "objective": {"type": "counter", "counter": "harvested", "count": 10000}, "reward": {"wood": 600, "stone": 600, "gold": 600}},
+    {"id": "ch_guild", "family": "challenge", "phase": 2, "min_townhall": 4,
+      "title": "Frères de la côte", "description": "Rejoins ou crée une guilde (menu Social).",
+      "objective": {"type": "guild"}, "reward": {"wood": 300, "stone": 300, "gold": 300, "tickets": 1}}
+  ]
+}

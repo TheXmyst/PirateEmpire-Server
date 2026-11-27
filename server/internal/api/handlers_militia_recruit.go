@@ -7,6 +7,7 @@ import (
 
 	"github.com/TheXmyst/Sea-Dogs/server/internal/auth"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/domain"
+	"github.com/TheXmyst/Sea-Dogs/server/internal/economy"
 	"github.com/TheXmyst/Sea-Dogs/server/internal/repository"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -117,6 +118,7 @@ func RecruitMilitia(c echo.Context) error {
 	}
 
 	fmt.Printf("[MILITIA_RECRUIT] player=%s island=%s qty=%d duration=%.1fs -> started\n", player.ID, island.ID, totalUnits, durationSeconds)
+	BumpQuestCounter(db, player.ID, economy.QuestCounterMilitiaRecruited, float64(totalUnits))
 
 	return c.JSON(http.StatusOK, RecruitMilitiaResponse{
 		IslandID:     island.ID.String(),
