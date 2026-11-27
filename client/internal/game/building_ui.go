@@ -11,46 +11,66 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Helper to get cost based on type and level
-func (g *Game) getBuildingCost(bType string, level int) map[domain.ResourceType]float64 {
-	// Base Costs and Growth Factors
+// getBuildingCost renvoie le coût pour passer un bâtiment du niveau
+// currentLevel au niveau currentLevel+1 (currentLevel = 0 : construction).
+// On prend en priorité les coûts envoyés par le serveur (ceux qui sont
+// vraiment débités) ; le calcul local n'est qu'un secours pour un vieux serveur.
+func (g *Game) getBuildingCost(bType string, currentLevel int) map[domain.ResourceType]float64 {
+	if g.player != nil && len(g.player.Islands) > 0 {
+		island := &g.player.Islands[0]
+		if currentLevel == 0 {
+			if c, ok := island.BuildCosts[bType]; ok {
+				return c
+			}
+		} else {
+			for _, b := range island.Buildings {
+				if b.Type == bType && b.Level == currentLevel && len(b.NextLevelCost) > 0 {
+					return b.NextLevelCost
+				}
+			}
+		}
+	}
+	return localBuildingCost(bType, currentLevel+1)
+}
+
+// localBuildingCost : même formule que le serveur (configs/buildings.json),
+// coût = base x croissance^(niveau-1). Secours uniquement.
+func localBuildingCost(bType string, level int) map[domain.ResourceType]float64 {
 	growth := 1.39
-	baseCost := map[domain.ResourceType]float64{domain.Wood: 100, domain.Gold: 100}
+	baseCost := map[domain.ResourceType]float64{domain.Wood: 100, domain.Stone: 100}
 
 	switch bType {
 	case "Hôtel de Ville":
-		growth = 1.41
+		growth = 1.33
 		baseCost = map[domain.ResourceType]float64{domain.Wood: 200, domain.Stone: 200, domain.Gold: 700}
-	case "Scierie":
-		growth = 1.39
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 100, domain.Gold: 50} // Fixed base from json
-	case "Carrière":
-		growth = 1.39
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 150, domain.Gold: 100}
-	case "Mine d'Or":
-		growth = 1.39
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 100, domain.Stone: 100}
-	case "Distillerie":
-		growth = 1.39
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 300, domain.Stone: 100, domain.Gold: 200}
-	case "Entrepôt":
+	case "Scierie", "Carrière", "Mine d'Or", "Distillerie":
+		// base par défaut : 100 bois, 100 pierre, croissance 1,39
+	case "Entrepôt", "Chantier Naval":
 		growth = 1.40
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 150, domain.Stone: 150, domain.Gold: 400} // Fixed base
+		baseCost = map[domain.ResourceType]float64{domain.Wood: 150, domain.Stone: 150, domain.Gold: 400}
 	case "Académie":
 		growth = 1.40
 		baseCost = map[domain.ResourceType]float64{domain.Wood: 150, domain.Stone: 200, domain.Gold: 500}
-	case "Chantier Naval":
+	case "Milice":
 		growth = 1.40
-		baseCost = map[domain.ResourceType]float64{domain.Wood: 150, domain.Stone: 150, domain.Gold: 400}
+		baseCost = map[domain.ResourceType]float64{domain.Wood: 500, domain.Stone: 200, domain.Gold: 500, domain.Rum: 100}
+	case "Tavern":
+		growth = 1.40
+		baseCost = map[domain.ResourceType]float64{domain.Wood: 300, domain.Stone: 200, domain.Gold: 500}
+	case "Infirmary":
+		growth = 1.40
+		baseCost = map[domain.ResourceType]float64{domain.Wood: 300, domain.Stone: 300, domain.Gold: 300}
 	}
 
-	scale := math.Pow(growth, float64(level))
+	if level < 1 {
+		level = 1
+	}
+	scale := math.Pow(growth, float64(level-1))
 
 	finalCost := make(map[domain.ResourceType]float64)
 	for r, val := range baseCost {
-		finalCost[r] = val * scale
+		finalCost[r] = math.Round(val * scale)
 	}
-
 	return finalCost
 }
 
@@ -89,7 +109,7 @@ func (g *Game) DrawBuildingModal(screen *ebiten.Image) {
 	if g.player != nil && len(g.player.Islands) > 0 {
 		have = g.player.Islands[0].Resources
 	}
-	drawCost(screen, g.getBuildingCost(sb.Type, sb.Level+1), have, x+36, y+192)
+	drawCost(screen, g.getBuildingCost(sb.Type, sb.Level), have, x+36, y+192)
 
 	// Bouton Améliorer
 	btnW, btnH := 200.0, 50.0
