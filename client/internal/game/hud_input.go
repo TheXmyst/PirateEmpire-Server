@@ -1,6 +1,8 @@
 package game
 
 import (
+	"math"
+
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
@@ -62,12 +64,36 @@ func (g *Game) onDockButton(id string) {
 		}
 	case "sea":
 		if g.state == StateWorldMap {
-			g.state = StatePlaying
+			g.enterIslandView()
 		} else {
-			g.state = StateWorldMap
+			g.enterSeaView()
 		}
 		g.closeMainPanels()
 	}
+}
+
+// L'île et la mer partagent la même caméra (camX, camY, camZoom) : chaque
+// changement de vue la remet à sa place, sinon on retrouverait la position et
+// le zoom de l'autre vue.
+
+// enterSeaView passe en mer, la caméra centrée sur l'île du joueur.
+func (g *Game) enterSeaView() {
+	g.state = StateWorldMap
+	g.camZoom = 1
+	g.camX, g.camY = 0, 0
+	if g.player != nil && len(g.player.Islands) > 0 {
+		g.camX = float64(g.player.Islands[0].X)
+		g.camY = float64(g.player.Islands[0].Y)
+	}
+	g.clearSeaNavMarker()
+}
+
+// enterIslandView revient sur l'île avec le zoom et la position de départ.
+func (g *Game) enterIslandView() {
+	g.state = StatePlaying
+	g.camZoom = 1
+	g.camX, g.camY = 0, 0
+	g.clearSeaNavMarker()
 }
 
 // IsHoveringUI checks if the cursor is over any UI overlay.
@@ -100,7 +126,7 @@ func (g *Game) IsModalOpen() bool {
 		g.ui.ShowPvpResultUI ||
 		g.ui.ShowPrereqModal || // Added Prereq Modal
 		g.ui.ShowPveEngageError || // Added Error Modal
-		g.ui.ShowNavFreeConfirm || // Free Navigation Modal
+		g.ui.ShowPveConfirmModal ||
 		g.ui.LocalizationMode ||
 		g.showDevMenu ||
 		g.selectedBuilding != nil ||
@@ -109,7 +135,6 @@ func (g *Game) IsModalOpen() bool {
 
 // IsHoveringAnyButton checks if the cursor is over any HUD or map button.
 func (g *Game) IsHoveringAnyButton() bool {
-	w, h := float64(g.screenWidth), float64(g.screenHeight)
 	mx, my := cursorPosition()
 	cmx, cmy := float64(mx), float64(my)
 
@@ -119,14 +144,21 @@ func (g *Game) IsHoveringAnyButton() bool {
 
 	if g.state == StateWorldMap {
 		// Bouton PvP
-		pvpBtnX := w - 220
-		pvpBtnY := h - 200
-		if cmx >= pvpBtnX && cmx <= pvpBtnX+200 && cmy >= pvpBtnY && cmy <= pvpBtnY+50 {
+		if x, y, bw, bh := g.pvpButtonRect(); cmx >= x && cmx <= x+bw && cmy >= y && cmy <= y+bh {
 			return true
 		}
-		// Bouton de retour à l'île (sous la boussole)
-		retBtnX := w - 110
-		if cmx >= retBtnX && cmx <= retBtnX+100 && cmy >= 200 && cmy <= 230 {
+		// Bouton « Retour au port » (sous la boussole)
+		if g.recallButtonVisible() {
+			if x, y, bw, bh := g.recallButtonRect(); cmx >= x && cmx <= x+bw && cmy >= y && cmy <= y+bh {
+				return true
+			}
+		}
+		// Boussole du vent
+		if cx, cy, r := g.windRect(); math.Hypot(cmx-cx, cmy-cy) <= r {
+			return true
+		}
+		// Bouton « Naviguer ici »
+		if g.seaNavButtonHit(cmx, cmy) {
 			return true
 		}
 	}
@@ -200,8 +232,8 @@ func (g *Game) GetActiveModalName() string {
 	if g.ui.ShowPveEngageError {
 		return "PveError"
 	}
-	if g.ui.ShowNavFreeConfirm {
-		return "NavFreeConfirm"
+	if g.ui.ShowPveConfirmModal {
+		return "PveConfirm"
 	}
 	if g.ui.LocalizationMode {
 		return "Localization"

@@ -262,11 +262,12 @@ type UIState struct {
 	PveConfirmFleetID    string // Fleet to use
 	PveConfirmFleetName  string // Name of fleet
 
-	// Navigation Confirm Modals
-	ShowNavFreeConfirm    bool
+	// Déplacement libre : repère posé sur l'eau + bouton « Naviguer ici »
+	ShowSeaNavMarker      bool
 	NavFreeConfirmTargetX int
 	NavFreeConfirmTargetY int
-	NavFreeConfirmType    string // "docked", "retarget", "stop_chasing"
+	NavFreeConfirmType    string // "retarget", "stop_chasing"
+	SeaPressOnMap         bool   // le dernier appui a commencé sur la carte (pas sur un bouton)
 
 	// Resource Stationing UI
 	ResourceNodesMutex sync.RWMutex

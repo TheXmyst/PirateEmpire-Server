@@ -24,6 +24,8 @@ import (
 const (
 	// Distance (en pixels du jeu) au-delà de laquelle un tap devient un glisser.
 	touchDragThreshold = 18.0
+	// Pareil pour la souris (plus précise qu'un doigt).
+	mouseDragThreshold = 6.0
 	// Distance de glisser qui vaut un cran de molette.
 	touchWheelStep = 32.0
 )
@@ -62,7 +64,17 @@ type pointerState struct {
 
 	lastMouseX, lastMouseY int
 	mouseConsumed          bool // clic souris pris par un bouton rond
-	clickForDraw           bool // clic pas encore vu par un Draw
+
+	// Bouton gauche de la souris : appui, glisser et « vrai clic » (relâché
+	// sans avoir bougé). Sert à faire glisser la carte de la mer au clic
+	// gauche sans déclencher un ordre au premier appui.
+	mouseDown        bool
+	mouseDownX       int
+	mouseDownY       int
+	mouseDragged     bool
+	mouseTap         bool    // relâché cette frame sans avoir glissé
+	mouseDX, mouseDY float64 // déplacement de la souris cette frame (bouton enfoncé)
+	clickForDraw     bool    // clic pas encore vu par un Draw
 
 	// Tap trop rapide pour être vu par le jeu (doigt posé et levé entre deux
 	// frames) : le navigateur nous le signale ici (voir softkeyboard_js.go).
@@ -101,6 +113,21 @@ func (g *Game) updatePointer() {
 	ids := touchIDsBuf
 
 	mx, my := ebiten.CursorPosition()
+	p.mouseTap = false
+	p.mouseDX, p.mouseDY = 0, 0
+	if len(ids) == 0 && p.mouseDown {
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			if math.Hypot(float64(mx-p.mouseDownX), float64(my-p.mouseDownY)) > mouseDragThreshold {
+				p.mouseDragged = true
+			}
+			if p.mouseDragged {
+				p.mouseDX, p.mouseDY = float64(mx-p.lastMouseX), float64(my-p.lastMouseY)
+			}
+		} else {
+			p.mouseDown = false
+			p.mouseTap = !p.mouseDragged
+		}
+	}
 	if len(ids) == 0 && (mx != p.lastMouseX || my != p.lastMouseY ||
 		ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) ||
 		ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)) {
@@ -115,6 +142,9 @@ func (g *Game) updatePointer() {
 			p.mouseConsumed = true
 		} else {
 			p.justDown = true
+			p.mouseDown = true
+			p.mouseDownX, p.mouseDownY = mx, my
+			p.mouseDragged = false
 		}
 	}
 
